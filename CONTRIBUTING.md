@@ -25,7 +25,7 @@ mypy                             # strict type check (config in pyproject.toml)
 python -m build --wheel          # build wheel into dist/ (needs network to fetch setuptools)
 ```
 
-Quick manual check of the CLI:
+Quick manual check of the CLI (prefix with `PYTHONPATH=src` if the package is not installed):
 
 ```bash
 python -m csv_quality_report examples/sample.csv
@@ -36,8 +36,10 @@ Local secrets scan (tracked files and git history; exit code 1 / no output means
 
 ```bash
 git grep -EIn "(AKIA[0-9A-Z]{16}|ghp_[A-Za-z0-9]{36}|-----BEGIN [A-Z ]*PRIVATE KEY-----|(api[_-]?key|secret|token|passw(or)?d)[\"' ]*[:=])"
-git log -p --all | grep -EIn "(AKIA[0-9A-Z]{16}|ghp_[A-Za-z0-9]{36}|-----BEGIN [A-Z ]*PRIVATE KEY-----|(api[_-]?key|secret|token|passw(or)?d)[\"' ]*[:=])"
+git log -p --all -- . ':(exclude)HANDOFF.md' | grep -EIn "(AKIA[0-9A-Z]{16}|ghp_[A-Za-z0-9]{36}|-----BEGIN [A-Z ]*PRIVATE KEY-----|(api[_-]?key|secret|token|passw(or)?d)[\"' ]*[:=])"
 ```
+
+The history scan excludes `HANDOFF.md` because an early, stale revision of it (commit `c960391`, committed by accident) quoted the scan pattern's own trigger text; that match was inspected and is not a secret.
 
 This is a simple pattern check, not a substitute for a dedicated scanner.
 
