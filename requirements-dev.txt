@@ -1,1 +1,5 @@
-pytest==8.3.4
+# Direct dev dependencies, pinned. Runtime has no dependencies.
+pytest==9.1.1
+ruff==0.16.10
+mypy==2.4.0
+build==1.6.1
