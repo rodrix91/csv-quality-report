@@ -214,4 +214,4 @@ See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License
 
-License: pending owner decision. See [LICENSE-PROPOSAL.md](LICENSE-PROPOSAL.md). Until a license is chosen, no license is granted.
+MIT. See [LICENSE](LICENSE). Copyright (c) 2026 Rodrigo Pantoja Navajas.

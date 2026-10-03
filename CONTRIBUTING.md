@@ -22,8 +22,10 @@ python -m pytest                 # tests
 ruff check .                     # lint
 ruff format --check .            # formatting (run `ruff format .` to fix)
 mypy                             # strict type check (config in pyproject.toml)
-python -m build --wheel          # build wheel into dist/ (needs network to fetch setuptools)
+python -m build                  # build sdist + wheel into dist/ (needs network to fetch setuptools)
 ```
+
+**Always build from a clean clone** (`git clone <repo> /tmp/build-check && cd /tmp/build-check`), not from a working directory that has stray files: the sdist and wheel are assembled from whatever is on disk, and files that are ignored by git (old `build/`, `dist/`, `*.egg-info`, local notes) can leak into or distort the artifacts.
 
 Quick manual check of the CLI (prefix with `PYTHONPATH=src` if the package is not installed):
 
@@ -54,4 +56,4 @@ This is a simple pattern check, not a substitute for a dedicated scanner.
 
 ## License
 
-License: pending owner decision (see `LICENSE-PROPOSAL.md`).
+By contributing you agree that your contribution is licensed under the MIT License (see `LICENSE`).
