@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=68"]
+requires = ["setuptools==84.0.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -8,6 +8,8 @@ version = "0.1.0"
 description = "Quick data-quality report for a CSV file (standard library only)."
 readme = "README.md"
 requires-python = ">=3.11"
+# No license chosen yet (see LICENSE-PROPOSAL.md): do not ship it as a license file.
+license-files = []
 dependencies = []
 authors = [{ name = "rodrix91" }]
 
