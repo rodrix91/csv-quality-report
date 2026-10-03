@@ -30,11 +30,14 @@ python -m csv_quality_report examples/sample.csv
 python -m csv_quality_report examples/tiny.csv --format json
 ```
 
-Local secrets scan (tracked files; no output and exit code 1 from `grep` means no matches):
+Local secrets scan (tracked files and git history; exit code 1 / no output means no matches):
 
 ```bash
-git ls-files -z | xargs -0 grep -EIn "(AKIA[0-9A-Z]{16}|ghp_[A-Za-z0-9]{36}|-----BEGIN [A-Z ]*PRIVATE KEY-----|(api[_-]?key|secret|token|passw(or)?d)[\"' ]*[:=])"
+git grep -EIn "(AKIA[0-9A-Z]{16}|ghp_[A-Za-z0-9]{36}|-----BEGIN [A-Z ]*PRIVATE KEY-----|(api[_-]?key|secret|token|passw(or)?d)[\"' ]*[:=])"
+git log -p --all | grep -EIn "(AKIA[0-9A-Z]{16}|ghp_[A-Za-z0-9]{36}|-----BEGIN [A-Z ]*PRIVATE KEY-----|(api[_-]?key|secret|token|passw(or)?d)[\"' ]*[:=])"
 ```
+
+This is a simple pattern check, not a substitute for a dedicated scanner.
 
 ## Guidelines
 
