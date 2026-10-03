@@ -1,8 +1,8 @@
 # HANDOFF: csv-quality-report
 
-- Repository: /workspace/showcase/csv-quality-report (local only; no remote, nothing pushed, nothing created on GitHub)
+- Repository: /workspace/showcase/csv-quality-report. Published by GitAura (not by this agent) at https://github.com/rodrix91/csv-quality-report: public, default branch `main`, license detected by GitHub as MIT. At the time of the last check the remote `main` was `314fafce15aba859e75d8efb940b075fea4a6b5c`. The commits after it in this file's history exist only locally on `work/milestone-1` and have NOT been pushed; this agent never pushes. The local `main` branch is still the first scaffolding commit and is unrelated to `origin/main`.
 - Branch: `work/milestone-1` (`main` holds only the first scaffolding commit)
-- **Verified commit: `4d5a4f8a5ba7634748a7756acab9977a4fcac572`**. HEAD is the commit right after it and changes only this file (`HANDOFF.md`), so every other file is identical. Get HEAD with `git rev-parse HEAD`; a file cannot contain the hash of the commit that adds it.
+- **Verified commit: `0d84fdeac7fbcdecd7bae16aa35459f66ad51d02`**. HEAD is the commit right after it and changes only this file (`HANDOFF.md`), so every other file is identical. Get HEAD with `git rev-parse HEAD`; a file cannot contain the hash of the commit that adds it.
 - Status: prototype/alpha. License: MIT, Copyright (c) 2026 Rodrigo Pantoja Navajas (see License decision below). OpenAPI: not_applicable (no HTTP).
 - Tracked files: 24 = the 23 listed in the manifest below + this file.
 - History note: an early, stale revision of this file was committed by accident in `c960391` (via `git add -A`); `2d95681` replaced it with a placeholder and later revisions replace that. No history was rewritten.
@@ -51,8 +51,14 @@ Rodrigo approved the MIT proposal (his words: "esta perfecto la propuesta MIT" a
 | N12 README relative links did not resolve inside packages | the four relative links (`docs/decisions/0001-architecture.md`, `CONTRIBUTING.md` x2, `LICENSE`) are now plain text that says the file is in the source repository (LICENSE: also in sdist and wheel). No repository URL was invented. The packaged wheel README has 0 relative links (checked). `test_sample_markdown_matches_readme` still passes |
 | twine check | ran `twine check` (twine 7.0.0, installed in a scratch venv outside the lock, so it is not pinned or hash-checked) on the 3.12 build: wheel PASSED, sdist PASSED. Local check only; nothing uploaded |
 
+## Sixth round (N15: README links to the real repository)
+| Item | Status |
+|---|---|
+| Remote state | `git remote -v`: origin = https://github.com/rodrix91/csv-quality-report.git; `git ls-remote` and `gh api` both give `main` = `314fafce15aba859e75d8efb940b075fea4a6b5c` (matches the previous local HEAD); default branch `main`; `gh` authenticated as rodrix91 (read-only calls only) |
+| N15 | the four plain-text mentions in README.md now link to https://github.com/rodrix91/csv-quality-report (repo root, `blob/main/docs/decisions/0001-architecture.md`, `blob/main/CONTRIBUTING.md` x2, `blob/main/LICENSE`). Each distinct URL returned HTTP 200 with `curl -sI`. The wheel's packaged README has no relative links. These links point at `main`, which will show the new README text only after this commit is pushed; they resolve today because the files already exist on `main` |
+
 ## Verified commands for CodeSentinel
-Run in a fresh `git clone` + fresh venv at the verified commit, installing ONLY from the lock (no `pip install -e .`; the package was confirmed not installed). All results are real. The full sequence below was run separately with Python 3.13.5, 3.11.17 and 3.12.15 (3.11 and 3.12 are uv-managed interpreters on this box; re-run again at the verified commit for this round), each in its own fresh clone and venv, with identical results.
+Run in a fresh `git clone` + fresh venv at the verified commit, installing ONLY from the lock (no `pip install -e .`; the package was confirmed not installed). All results are real. The full sequence below was run separately with Python 3.13.5, 3.11.17 and 3.12.15 (3.11 and 3.12 are uv-managed interpreters on this box; re-run again at the verified commit for this round, installs and builds hit PyPI only), each in its own fresh clone and venv, with identical results.
 
 | Step | Command | Result |
 |---|---|---|
@@ -65,7 +71,7 @@ Run in a fresh `git clone` + fresh venv at the verified commit, installing ONLY 
 | build | `python -m build --wheel` | built csv_quality_report-0.1.0-py3-none-any.whl (downloads setuptools==84.0.0 from PyPI; that download is not hash-checked) |
 | sdist | `python -m build --sdist`, then `tar tzf dist/*.tar.gz` | built csv_quality_report-0.1.0.tar.gz (32 entries); lists LICENSE, MANIFEST.in, requirements-dev.lock, tests/conftest.py, examples/sample.csv |
 | sdist unpacked test | untar the sdist in a clean dir; new venv; `pip install --require-hashes -r requirements-dev.lock`; `python -m pytest -q` inside the unpacked dir (package not installed) | 54 passed on each of 3.11, 3.12, 3.13 |
-| twine check | `twine check dist/*` (scratch venv, twine 7.0.0; not part of the lock) | PASSED for wheel and sdist |
+| twine check | `twine check dist/*` (scratch venv, twine 7.0.0; not part of the lock) | PASSED for wheel and sdist (3.12 build at the verified commit) |
 | artifact license check | inspect wheel zip and sdist tar | wheel and sdist both contain LICENSE, byte-identical to the repo file; wheel metadata shows `License-Expression: MIT` and `License-File: LICENSE` |
 | wheel smoke test | new clean venv, `pip install dist/*.whl`, then `csv-quality-report examples/tiny.csv --max-rows 1` and `python -m csv_quality_report examples/sample.csv` | both exit 0; sample output identical to the source run |
 | README sample | `PYTHONPATH=src python3 -m csv_quality_report examples/sample.csv` | exit 0; output is contained verbatim in README.md (a test also enforces this) |
@@ -99,7 +105,7 @@ Topics (8): `python`, `cli`, `csv`, `data-quality`, `data-profiling`, `data-anal
 ca0d6d67efde95cfe98a7b27bacd42597532d6e1ba67b788a4048471afc0d902  CONTRIBUTING.md
 4af3d72e1de7c4168061f9059aa2a59c8226f90468069ce155ab3b1b8c861d72  LICENSE
 aedd863cb18f2782f8202957fe0bc952c2d1a3bb67d4961f0f3b21c51b363be8  MANIFEST.in
-4f99ebaf817023704059898501d44e0a73f0d2cb200f00e11991531699ef9330  README.md
+4ffa29843efc74da370a43c502471d26c363969b0f6f2f7f2ffe6136809add28  README.md
 df8e0eba971a01fa671e09cfaba25be563c7d3f044a03e919b2a39349fb8fbb0  docs/decisions/0001-architecture.md
 765eb6bef0639221d201582e9da1148b38698a419cca29adf4d39fdf6423e9c4  examples/sample.csv
 f1036be91dc016c6de3b52d42a3bb4f800ce6dbf9598e690c1ea4b95478ce2fd  examples/tiny.csv
