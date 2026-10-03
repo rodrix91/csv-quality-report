@@ -1,10 +1,10 @@
 # HANDOFF: csv-quality-report
 
-- Repository: /workspace/showcase/csv-quality-report. Published by GitAura (not by this agent) at https://github.com/rodrix91/csv-quality-report: public, default branch `main`, license detected by GitHub as MIT. At the time of the last check the remote `main` was `314fafce15aba859e75d8efb940b075fea4a6b5c`. The commits after it in this file's history exist only locally on `work/milestone-1` and have NOT been pushed; this agent never pushes. The local `main` branch is still the first scaffolding commit and is unrelated to `origin/main`.
-- Branch: `work/milestone-1` (`main` holds only the first scaffolding commit)
-- **Verified commit: `0d84fdeac7fbcdecd7bae16aa35459f66ad51d02`**. HEAD is the commit right after it and changes only this file (`HANDOFF.md`), so every other file is identical. Get HEAD with `git rev-parse HEAD`; a file cannot contain the hash of the commit that adds it.
+- Repository: /workspace/showcase/csv-quality-report. Published at https://github.com/rodrix91/csv-quality-report (public, default branch `main`, license detected by GitHub as MIT). When this revision was prepared (2026-10-03, about 19:30 La Paz time) `git fetch origin` and `git ls-remote` gave `origin/main` = `1471ff4cd93a9948ab2b08640aaa9e6d67350442` (34 commits; the last one, `1471ff4`, added `.github/dependabot.yml` and was authored by PulseOps <pulseops@localhost>, per `git log`). `work/milestone-1` was fast-forwarded to that commit before this file was edited. Whether this revision of the file has itself been pushed is deliberately not recorded here (it would be stale as soon as it is pushed): check with `git status -sb` and `git ls-remote origin main`. This agent never pushes unless explicitly told to.
+- Branches (verified with git on 2026-10-03): `work/milestone-1` is `origin/main` plus the single commit that edits this file. The local `main` branch is still the first scaffolding commit `154e9ab`; it is an ancestor of `origin/main` (`git merge-base --is-ancestor main origin/main` is true) and is simply 33 commits behind. It was not touched.
+- **Verified commit: `1471ff4cd93a9948ab2b08640aaa9e6d67350442`** (= `origin/main` when prepared). HEAD is that commit plus one commit that changes only `HANDOFF.md`, so every other file is identical to the verified commit (`git diff 1471ff4c HEAD --stat` lists only this file). A file cannot contain the hash of the commit that adds it.
 - Status: prototype/alpha. License: MIT, Copyright (c) 2026 Rodrigo Pantoja Navajas (see License decision below). OpenAPI: not_applicable (no HTTP).
-- Tracked files: 24 = the 23 listed in the manifest below + this file.
+- Tracked files: 25 = the 24 listed in the manifest below + this file (the manifest now includes `.github/dependabot.yml`).
 - History note: an early, stale revision of this file was committed by accident in `c960391` (via `git add -A`); `2d95681` replaced it with a placeholder and later revisions replace that. No history was rewritten.
 
 ## Fixes since the first audit (CodeSentinel, a0c58bcd)
@@ -54,8 +54,28 @@ Rodrigo approved the MIT proposal (his words: "esta perfecto la propuesta MIT" a
 ## Sixth round (N15: README links to the real repository)
 | Item | Status |
 |---|---|
-| Remote state | `git remote -v`: origin = https://github.com/rodrix91/csv-quality-report.git; `git ls-remote` and `gh api` both give `main` = `314fafce15aba859e75d8efb940b075fea4a6b5c` (matches the previous local HEAD); default branch `main`; `gh` authenticated as rodrix91 (read-only calls only) |
-| N15 | the four plain-text mentions in README.md now link to https://github.com/rodrix91/csv-quality-report (repo root, `blob/main/docs/decisions/0001-architecture.md`, `blob/main/CONTRIBUTING.md` x2, `blob/main/LICENSE`). Each distinct URL returned HTTP 200 with `curl -sI`. The wheel's packaged README has no relative links. These links point at `main`, which will show the new README text only after this commit is pushed; they resolve today because the files already exist on `main` |
+| Remote state | (historical, at the time of the sixth round; superseded by the seventh round) `git remote -v`: origin = https://github.com/rodrix91/csv-quality-report.git; `git ls-remote` and `gh api` both gave `main` = `314fafce15aba859e75d8efb940b075fea4a6b5c` (it matched the local HEAD then); default branch `main`; `gh` authenticated as rodrix91 (read-only calls only) |
+| N15 | the four plain-text mentions in README.md now link to https://github.com/rodrix91/csv-quality-report (repo root, `blob/main/docs/decisions/0001-architecture.md`, `blob/main/CONTRIBUTING.md` x2, `blob/main/LICENSE`). Each distinct URL returned HTTP 200 with `curl -sI`. The wheel's packaged README has no relative links. These links point at `main`; the commits of that round were later pushed (see the seventh round) |
+
+## Seventh round (N18 stale statements; Dependabot rules)
+| Item | Status |
+|---|---|
+| Real state | verified with git: `origin/main` = `1471ff4cd93a9948ab2b08640aaa9e6d67350442`; `HEAD` of `work/milestone-1` was `53197bfbfd2e6a5b3adcb8de9c540e93f3d89486`, an ancestor of it; `git merge --ff-only origin/main` fast-forwarded by one commit (`1471ff4`, adds `.github/dependabot.yml`, 12 lines). The 53197bf commits (README links, previous HANDOFF) are already on `origin/main`. Local `main` = `154e9ab`, an ancestor of `origin/main`, 33 commits behind |
+| N18 | the statements "commits after 314fafce exist only locally / have NOT been pushed" and "local `main` is unrelated to `origin/main`" were false after the push and are removed; the statement that `main` holds only the scaffolding commit was corrected to the verified facts above |
+| Other stale claims | "Tracked files 24" updated to 25; "HEAD changes only this file" re-stated against the new verified commit; the sixth-round remote-state row marked as historical. `.github/` holds only `dependabot.yml` (checked with `git ls-files .github`): there are no CI workflows, so "No CI" still holds |
+| Scope | this revision changes only `HANDOFF.md` relative to `1471ff4c` |
+
+## Dependabot updates
+Verified from the repository: `.github/dependabot.yml` configures ecosystem `pip`, directory `/`, schedule weekly on Monday, at most 2 open PRs, label `dependencies`, commit-message prefix `deps`.
+
+Not confirmed: that Dependabot really detects `requirements-dev.txt` (the only direct-dependency file), and whether its PRs also touch `requirements-dev.lock` or the `setuptools` pin in `pyproject.toml`. That stays unconfirmed until the first Dependabot PR exists; read each PR's file list instead of assuming. No CI workflow exists, so nothing automated runs the checks below; they are manual.
+
+No Dependabot PR is merged unless all of this holds:
+1. In a clean clone checked out at the PR branch, regenerate the hashed lock from `requirements-dev.txt` and commit it to the PR: `uv pip compile requirements-dev.txt --generate-hashes --universal --python-version 3.11 -o requirements-dev.lock` (command taken verbatim from CONTRIBUTING.md; run at `1471ff4c` with uv 0.12.22 it reproduced the committed lock exactly, `git diff` empty).
+2. On Python 3.11, 3.12 and 3.13, each in a fresh venv: `pip install --require-hashes -r requirements-dev.lock`, then `python -m pytest -q`, `ruff check .`, `ruff format --check .` and `mypy`. If any step fails, the PR does not merge.
+3. (B-3) If the PR changes the pinned `setuptools` in `[build-system]` of `pyproject.toml`, rebuild both artifacts with `python -m build` from a clean clone before merging, and check that the wheel and the sdist still contain `LICENSE`, byte-identical to the repository's file (`twine check` is a useful extra; twine is not in the lock, so use a scratch venv).
+
+Baseline: steps 2 and 3 pass at `1471ff4c` on 3.11.17, 3.12.15 and 3.13.5 (see the results below).
 
 ## Verified commands for CodeSentinel
 Run in a fresh `git clone` + fresh venv at the verified commit, installing ONLY from the lock (no `pip install -e .`; the package was confirmed not installed). All results are real. The full sequence below was run separately with Python 3.13.5, 3.11.17 and 3.12.15 (3.11 and 3.12 are uv-managed interpreters on this box; re-run again at the verified commit for this round, installs and builds hit PyPI only), each in its own fresh clone and venv, with identical results.
@@ -71,7 +91,9 @@ Run in a fresh `git clone` + fresh venv at the verified commit, installing ONLY 
 | build | `python -m build --wheel` | built csv_quality_report-0.1.0-py3-none-any.whl (downloads setuptools==84.0.0 from PyPI; that download is not hash-checked) |
 | sdist | `python -m build --sdist`, then `tar tzf dist/*.tar.gz` | built csv_quality_report-0.1.0.tar.gz (32 entries); lists LICENSE, MANIFEST.in, requirements-dev.lock, tests/conftest.py, examples/sample.csv |
 | sdist unpacked test | untar the sdist in a clean dir; new venv; `pip install --require-hashes -r requirements-dev.lock`; `python -m pytest -q` inside the unpacked dir (package not installed) | 54 passed on each of 3.11, 3.12, 3.13 |
-| twine check | `twine check dist/*` (scratch venv, twine 7.0.0; not part of the lock) | PASSED for wheel and sdist (3.12 build at the verified commit) |
+| twine check | `twine check dist/*` (scratch venv, twine 7.0.0; not part of the lock) | PASSED for wheel and sdist on each of 3.11, 3.12, 3.13 |
+| sdist vs MANIFEST.in | list the sdist and check expected entries | LICENSE, MANIFEST.in, requirements-dev.lock, tests/conftest.py, examples/sample.csv, examples/tiny.csv, README.md, pyproject.toml present; neither `HANDOFF.md` nor `.github/` is in the sdist (32 entries) |
+| detect-secrets | `git ls-files -z \| xargs -0 detect-secrets scan` (detect-secrets 1.5.0 from CodeSentinel's venv, read-only use) | 0 findings |
 | artifact license check | inspect wheel zip and sdist tar | wheel and sdist both contain LICENSE, byte-identical to the repo file; wheel metadata shows `License-Expression: MIT` and `License-File: LICENSE` |
 | wheel smoke test | new clean venv, `pip install dist/*.whl`, then `csv-quality-report examples/tiny.csv --max-rows 1` and `python -m csv_quality_report examples/sample.csv` | both exit 0; sample output identical to the source run |
 | README sample | `PYTHONPATH=src python3 -m csv_quality_report examples/sample.csv` | exit 0; output is contained verbatim in README.md (a test also enforces this) |
@@ -95,12 +117,13 @@ Topics (8): `python`, `cli`, `csv`, `data-quality`, `data-profiling`, `data-anal
 3. Python 3.11+, no runtime dependencies, 54 pytest tests; limitations: loads the whole file in memory (no streaming), heuristic type inference, UTF-8 only.
 
 ## Not verified / caveats
-- Windows/macOS not tested. No CI. No large-file or performance testing. No coverage measurement.
+- Windows/macOS not tested. No CI workflows (only a Dependabot config exists). No large-file or performance testing. No coverage measurement.
 - Network was used only to download dev tools and the build backend from PyPI; the tool itself makes no network calls.
 - The hashed lock was generated with uv and verified with pip `--require-hashes`; the build-isolation setuptools download is pinned by version only.
 
-## File manifest (23 tracked files, sha256, excluding this file)
+## File manifest (24 tracked files, sha256, excluding this file)
 ```text
+d7151503d304c8e41bba59f8b56b6c76d3931e46a70d46acf45c012c68ad67c5  .github/dependabot.yml
 3e861aeb236be27a3b09a357ae458e64a5a31ab17733249981792cfaea96686d  .gitignore
 ca0d6d67efde95cfe98a7b27bacd42597532d6e1ba67b788a4048471afc0d902  CONTRIBUTING.md
 4af3d72e1de7c4168061f9059aa2a59c8226f90468069ce155ab3b1b8c861d72  LICENSE
