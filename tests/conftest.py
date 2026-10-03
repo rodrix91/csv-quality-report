@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from collections.abc import Callable
 from pathlib import Path
 
@@ -19,3 +20,14 @@ def write_csv(tmp_path: Path) -> Callable[..., Path]:
         return path
 
     return _write
+
+
+@pytest.fixture
+def cli_env() -> dict[str, str]:
+    """Environment for ``python -m csv_quality_report`` subprocesses.
+
+    Puts ``src/`` on PYTHONPATH so the tests pass without ``pip install -e .``.
+    """
+    src = str(Path(__file__).resolve().parent.parent / "src")
+    existing = os.environ.get("PYTHONPATH")
+    return {**os.environ, "PYTHONPATH": src + (os.pathsep + existing if existing else "")}

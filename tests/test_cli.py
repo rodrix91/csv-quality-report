@@ -75,12 +75,13 @@ def test_markdown_is_default_format(
     assert "| a | int | 0 | 0.0 | 2 | 1 | 2 | 1 (1), 2 (1) |" in out
 
 
-def test_sample_markdown_matches_readme() -> None:
+def test_sample_markdown_matches_readme(cli_env: dict[str, str]) -> None:
     """The README embeds this exact output; keep them in sync."""
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
     proc = subprocess.run(
         [sys.executable, "-m", "csv_quality_report", "examples/sample.csv"],
         cwd=ROOT,
+        env=cli_env,
         capture_output=True,
         text=True,
         check=True,
@@ -260,9 +261,10 @@ def test_unknown_format_is_usage_error(write_csv: WriteCsv) -> None:
     assert exc.value.code == 2
 
 
-def test_module_invocation_exit_code(tmp_path: Path) -> None:
+def test_module_invocation_exit_code(tmp_path: Path, cli_env: dict[str, str]) -> None:
     proc = subprocess.run(
         [sys.executable, "-m", "csv_quality_report", str(tmp_path / "missing.csv")],
+        env=cli_env,
         capture_output=True,
         text=True,
     )

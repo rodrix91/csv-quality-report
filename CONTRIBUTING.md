@@ -10,8 +10,10 @@ Requires Python 3.11+. From the repository root:
 python3 -m venv .venv
 . .venv/bin/activate
 pip install -r requirements-dev.txt   # or: pip install -r requirements-dev.lock  (exact pins)
-pip install -e .
+pip install -e .                      # optional: only for the `csv-quality-report` command
 ```
+
+The tests do not need `pip install -e .` (pytest puts `src/` on the path and subprocess tests set `PYTHONPATH=src`). Run all commands from the repository root.
 
 ## Checks (run all before opening a PR)
 

@@ -37,7 +37,7 @@ pip install -r requirements-dev.txt
 pip install -e .
 ```
 
-You can also run it without installing: `PYTHONPATH=src python3 -m csv_quality_report FILE`.
+You can also run the tool without installing it: `PYTHONPATH=src python3 -m csv_quality_report FILE`. Installing the package (`pip install -e .`) is only needed for the `csv-quality-report` command or for using it from other environments; the test suite does **not** require it.
 
 ## Usage
 
@@ -189,6 +189,8 @@ Design rationale and alternatives: [docs/decisions/0001-architecture.md](docs/de
 ```bash
 python -m pytest
 ```
+
+This works after installing only the dev dependencies (`pip install -r requirements-dev.txt`) from the repository root: pytest is configured with `pythonpath = ["src"]`, and the tests that start a subprocess set `PYTHONPATH=src` themselves.
 
 Tests (`tests/`) are behavior tests that call the CLI: happy path, missing values, ragged rows, empty file, bad encoding (Latin-1, UTF-16), BOM, duplicate column names, JSON output, `--max-rows`, and exit codes. One test also checks that the sample output in this README matches a real run. See [CONTRIBUTING.md](CONTRIBUTING.md) for lint, type-check and build commands.
 
