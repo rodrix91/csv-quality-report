@@ -182,7 +182,7 @@ flowchart TD
 | `render.py` | Markdown and JSON output |
 | `errors.py` | error classes and exit codes |
 
-Design rationale and alternatives: `docs/decisions/0001-architecture.md` (in the source repository; not included in the packages).
+Design rationale and alternatives: [docs/decisions/0001-architecture.md](https://github.com/rodrix91/csv-quality-report/blob/main/docs/decisions/0001-architecture.md) (in the [source repository](https://github.com/rodrix91/csv-quality-report); not included in the packages).
 
 ## Testing
 
@@ -192,7 +192,7 @@ python -m pytest
 
 This works after installing only the dev dependencies (`pip install -r requirements-dev.txt`) from the repository root: pytest is configured with `pythonpath = ["src"]`, and the tests that start a subprocess set `PYTHONPATH=src` themselves.
 
-Tests (`tests/`) are behavior tests that call the CLI: happy path, missing values, ragged rows, empty file, bad encoding (Latin-1, UTF-16), BOM, duplicate column names, JSON output, `--max-rows`, and exit codes. One test also checks that the sample output in this README matches a real run. See `CONTRIBUTING.md` (in the source repository; not included in the packages) for lint, type-check and build commands.
+Tests (`tests/`) are behavior tests that call the CLI: happy path, missing values, ragged rows, empty file, bad encoding (Latin-1, UTF-16), BOM, duplicate column names, JSON output, `--max-rows`, and exit codes. One test also checks that the sample output in this README matches a real run. See [CONTRIBUTING.md](https://github.com/rodrix91/csv-quality-report/blob/main/CONTRIBUTING.md) (in the [source repository](https://github.com/rodrix91/csv-quality-report); not included in the packages) for lint, type-check and build commands.
 
 ## Limitations
 
@@ -210,8 +210,8 @@ Tests (`tests/`) are behavior tests that call the CLI: happy path, missing value
 
 ## Contributing
 
-See `CONTRIBUTING.md` in the source repository (not included in the packages).
+See [CONTRIBUTING.md](https://github.com/rodrix91/csv-quality-report/blob/main/CONTRIBUTING.md) in the [source repository](https://github.com/rodrix91/csv-quality-report) (not included in the packages).
 
 ## License
 
-MIT. See the `LICENSE` file (included in the source repository, the sdist and the wheel). Copyright (c) 2026 Rodrigo Pantoja Navajas.
+MIT. See the [LICENSE](https://github.com/rodrix91/csv-quality-report/blob/main/LICENSE) file (included in the [source repository](https://github.com/rodrix91/csv-quality-report), the sdist and the wheel). Copyright (c) 2026 Rodrigo Pantoja Navajas.
