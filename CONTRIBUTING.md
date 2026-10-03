@@ -36,10 +36,10 @@ Local secrets scan (tracked files and git history; exit code 1 / no output means
 
 ```bash
 git grep -EIn "(AKIA[0-9A-Z]{16}|ghp_[A-Za-z0-9]{36}|-----BEGIN [A-Z ]*PRIVATE KEY-----|(api[_-]?key|secret|token|passw(or)?d)[\"' ]*[:=])"
-git log -p --all -- . ':(exclude)HANDOFF.md' | grep -EIn "(AKIA[0-9A-Z]{16}|ghp_[A-Za-z0-9]{36}|-----BEGIN [A-Z ]*PRIVATE KEY-----|(api[_-]?key|secret|token|passw(or)?d)[\"' ]*[:=])"
+git log -p --all | grep -EIn "(AKIA[0-9A-Z]{16}|ghp_[A-Za-z0-9]{36}|-----BEGIN [A-Z ]*PRIVATE KEY-----|(api[_-]?key|secret|token|passw(or)?d)[\"' ]*[:=])" | grep -vF 'positive control with a fake'
 ```
 
-The history scan excludes `HANDOFF.md` because an early, stale revision of it (commit `c960391`, committed by accident) quoted the scan pattern's own trigger text; that match was inspected and is not a secret.
+The history scan filters out exactly one known false positive: a line in a stale `HANDOFF.md` revision (commit `c960391`, committed by accident, and its later removal) that described the scan's own test file. It was inspected and is not a secret. Everything else in history, including the rest of `HANDOFF.md`, is scanned.
 
 This is a simple pattern check, not a substitute for a dedicated scanner.
 
