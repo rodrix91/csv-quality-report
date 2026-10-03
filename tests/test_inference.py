@@ -22,3 +22,17 @@ from csv_quality_report.inference import infer_type
 )
 def test_infer_type(values: list[str], expected: str) -> None:
     assert infer_type(values) == expected
+
+
+@pytest.mark.parametrize(
+    "values",
+    [
+        ["9" * 5000],  # beyond Python's 4300-digit int conversion limit
+        ["1", "9" * 5000],
+        ["1e999"],
+        ["1.5", "-1e999"],
+        ["1" * 400, "1.5"],  # int too large for a finite float, mixed with a float
+    ],
+)
+def test_unrepresentable_numbers_degrade_to_string(values: list[str]) -> None:
+    assert infer_type(values) == "string"

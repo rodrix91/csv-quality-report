@@ -60,4 +60,4 @@ def render_json(report: Report, source: str) -> str:
             for c in report.columns
         ],
     }
-    return json.dumps(data, indent=2, ensure_ascii=False) + "\n"
+    return json.dumps(data, indent=2, ensure_ascii=False, allow_nan=False) + "\n"

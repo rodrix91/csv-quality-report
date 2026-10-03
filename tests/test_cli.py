@@ -292,3 +292,48 @@ def test_duplicate_column_suffix_avoids_existing_name(
     names = [c["name"] for c in rep["columns"]]
     assert names == ["a", "a_3", "a_2"]
     assert len(set(names)) == 3
+
+
+# --- numbers that cannot be represented -----------------------------------
+
+
+def test_huge_integer_column_degrades_to_string_without_crashing(
+    write_csv: WriteCsv, capsys: pytest.CaptureFixture[str]
+) -> None:
+    path = write_csv("n\n1\n" + "9" * 5000 + "\n")
+    rep = report_of(path, capsys)
+    n = col(rep, "n")
+    assert (n["type"], n["min"], n["max"], n["distinct"]) == ("string", None, None, 2)
+
+
+def test_huge_integer_column_markdown_exit_code_zero(
+    write_csv: WriteCsv, capsys: pytest.CaptureFixture[str]
+) -> None:
+    assert main([str(write_csv("n\n" + "9" * 5000 + "\n"))]) == 0
+    assert "| n | string |" in capsys.readouterr().out
+
+
+def test_overflowing_float_is_string_and_json_is_strictly_valid(
+    write_csv: WriteCsv, capsys: pytest.CaptureFixture[str]
+) -> None:
+    path = write_csv("x\n1e999\n2.5\n")
+    assert main([str(path), "--format", "json"]) == 0
+    out = capsys.readouterr().out
+
+    def reject(constant: str) -> None:
+        raise AssertionError(f"non-standard JSON constant: {constant}")
+
+    data = json.loads(out, parse_constant=reject)  # NaN/Infinity would raise
+    x = col(data, "x")
+    assert (x["type"], x["min"], x["max"]) == ("string", None, None)
+    assert "Infinity" not in out.replace('"1e999"', "")
+
+
+def test_large_but_finite_integers_still_int(
+    write_csv: WriteCsv, capsys: pytest.CaptureFixture[str]
+) -> None:
+    big = "9" * 400
+    rep = report_of(write_csv(f"n\n1\n{big}\n"), capsys)
+    n = col(rep, "n")
+    assert n["type"] == "int"
+    assert n["max"] == int(big)
