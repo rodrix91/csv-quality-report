@@ -2,7 +2,7 @@
 
 - Repository: /workspace/showcase/csv-quality-report (local only; no remote, nothing pushed, nothing created on GitHub)
 - Branch: `work/milestone-1` (`main` holds only the first scaffolding commit)
-- **Verified commit: `f752ee1bdf3e171aa9fdccd049d900689940ace1`**. HEAD is the commit right after it and changes only this file (`HANDOFF.md`), so every other file is identical. Get HEAD with `git rev-parse HEAD`; a file cannot contain the hash of the commit that adds it.
+- **Verified commit: `1f72d0f52b48633d7a275b717c12c84f3d041d96`**. HEAD is the commit right after it and changes only this file (`HANDOFF.md`), so every other file is identical. Get HEAD with `git rev-parse HEAD`; a file cannot contain the hash of the commit that adds it.
 - Status: prototype/alpha. License: pending owner decision (no LICENSE file; see LICENSE-PROPOSAL.md). OpenAPI: not_applicable (no HTTP).
 - Tracked files: 24 = the 23 listed in the manifest below + this file.
 - History note: an early, stale revision of this file was committed by accident in `c960391` (via `git add -A`); `2d95681` replaced it with a placeholder and later revisions replace that. No history was rewritten.
@@ -20,9 +20,17 @@
 Second audit (CodeSentinel, bbaaba02: approved with 3 minor defects):
 | Defect | Fix |
 |---|---|
-| N1 sdist lacked tests/conftest.py | `MANIFEST.in` with `include tests/conftest.py`; sdist rebuilt and listed: contains tests/conftest.py, tests/test_render.py and MANIFEST.in (27 entries). Caveat: the sdist does not ship `examples/`, so tests that read the examples would not pass from an unpacked sdist (not tried; out of scope) |
+| N1 sdist lacked tests/conftest.py | `MANIFEST.in` with `include tests/conftest.py`; sdist rebuilt and listed: contains tests/conftest.py, tests/test_render.py and MANIFEST.in (27 entries at that time). The sdist initially lacked `examples/` (see N5) |
 | N2 history scan excluded all of HANDOFF.md | exclusion removed; the documented command now filters only the one known line (`grep -vF 'positive control with a fake'`). Without the filter exactly 2 lines match (the stale line in c960391 and its removal in 2d95681); with it, 0 |
 | N3 no direct test of render_json with inf/nan | `tests/test_render.py`: 3 non-finite cases must raise ValueError, plus a strict-JSON check. Mutation: changing `allow_nan=False` to `True` makes 3 of the 4 tests fail; restored, all pass |
+
+Third audit (CodeSentinel, ec27c724: approved_for_publication_draft with non-blocking findings):
+| Finding | Status |
+|---|---|
+| N5 sdist lacked examples/ (unpacked sdist: 1 failed, 53 passed) | fixed: `graft examples` added to `MANIFEST.in`. Unpacked the old sdist in a clean dir with a fresh lock-only venv: 1 failed, 53 passed (reproduced). Same for the new sdist: 54 passed. Wheel content unchanged (13 members, identical names and sha256 vs ec27c72); neither sdist nor wheel contains any license file |
+| N6 | known limitation (no code change): the packaged README links to `LICENSE-PROPOSAL.md`, which is not shipped in the sdist or wheel, so that link is dead on package indexes |
+| N7 | known limitation (no code change): the history-scan filter in CONTRIBUTING.md (`grep -vF 'positive control with a fake'`) matches by substring, so any other line containing that phrase would also be hidden |
+| N8 | correction: `tests/test_render.py` is +45 lines, not the +42 stated in the previous report |
 
 ## Verified commands for CodeSentinel
 Run in a fresh `git clone` + fresh venv at the verified commit, installing ONLY from the lock (no `pip install -e .`; the package was confirmed not installed). All results are real. Python 3.13.5 was the primary interpreter; the same sequence was also run with 3.11.17 and 3.12.15 (same results).
@@ -36,7 +44,8 @@ Run in a fresh `git clone` + fresh venv at the verified commit, installing ONLY 
 | format | `ruff format --check .` | 17 files already formatted |
 | types | `mypy` (strict; src and tests) | Success: no issues found in 12 source files (mypy 2.4.0) |
 | build | `python -m build --wheel` | built csv_quality_report-0.1.0-py3-none-any.whl (downloads setuptools==84.0.0 from PyPI; that download is not hash-checked) |
-| sdist | `python -m build --sdist`, then `tar tzf dist/*.tar.gz` | built csv_quality_report-0.1.0.tar.gz; lists tests/conftest.py, tests/test_render.py, MANIFEST.in |
+| sdist | `python -m build --sdist`, then `tar tzf dist/*.tar.gz` | built csv_quality_report-0.1.0.tar.gz; lists tests/conftest.py, tests/test_render.py, MANIFEST.in, examples/sample.csv, examples/tiny.csv; no license file |
+| sdist unpacked test | untar the sdist in a clean dir; new venv; `pip install --require-hashes -r requirements-dev.lock`; `python -m pytest -q` inside the unpacked dir (package not installed) | 54 passed |
 | wheel metadata | inspect the wheel zip | no license file inside, no License-File header |
 | wheel smoke test | new clean venv, `pip install dist/*.whl`, then `csv-quality-report examples/tiny.csv --max-rows 1` and `python -m csv_quality_report examples/sample.csv` | both exit 0; sample output identical to the source run |
 | README sample | `PYTHONPATH=src python3 -m csv_quality_report examples/sample.csv` | exit 0; output is contained verbatim in README.md (a test also enforces this) |
@@ -47,7 +56,7 @@ Earlier checks, not repeated at the verified commit: `pip install -r requirement
 
 Scan pattern: AWS key ids, GitHub personal-token prefixes, PEM private-key headers, and key/secret/token/password names followed by a colon or equals sign. It is a plain grep, not a dedicated scanner.
 
-not_run: coverage, pip-audit, CI workflow, Windows/macOS, large-file/performance tests; Python 3.11/3.12 re-run after the latest commits; installing and testing from the unpacked sdist.
+not_run: coverage, pip-audit, CI workflow, Windows/macOS, large-file/performance tests; Python 3.11/3.12 re-run after the latest commits (last run on them: 50 tests at 2d95681).
 
 ## Proposed GitHub description and topics (for GitRank)
 Description: Quick data-quality report for a CSV file: types, missing values, distinct counts, top values and duplicate rows. Standard-library Python CLI (prototype/alpha).
@@ -69,7 +78,7 @@ Topics (8): `python`, `cli`, `csv`, `data-quality`, `data-profiling`, `data-anal
 3e861aeb236be27a3b09a357ae458e64a5a31ab17733249981792cfaea96686d  .gitignore
 e2602e46046636d10f7dae3a31d9aaf75b9f792de72e59526d27d7d4609703d5  CONTRIBUTING.md
 0a9ca443aa87ec8d282a93824e267982b6faa52b5f79a0a3ea8446891a22ce19  LICENSE-PROPOSAL.md
-e402f83300e381f3ac4f17c46d050400ad1762413d7e06405dc4c19e6ce91c08  MANIFEST.in
+b2b7115a8f260fc4888496c959d6efc93f258aa96554f39c46491b18d2a0b501  MANIFEST.in
 cd69c52add2509257b81728c72e2e2bbc32d9fd01d4fbd55124aa556abccf7b4  README.md
 df8e0eba971a01fa671e09cfaba25be563c7d3f044a03e919b2a39349fb8fbb0  docs/decisions/0001-architecture.md
 765eb6bef0639221d201582e9da1148b38698a419cca29adf4d39fdf6423e9c4  examples/sample.csv
