@@ -1,2 +1,3 @@
 include tests/conftest.py
 graft examples
+include requirements-dev.lock
