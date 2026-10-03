@@ -2,10 +2,10 @@
 
 - Repository: /workspace/showcase/csv-quality-report (local only; no remote, nothing pushed, nothing created on GitHub)
 - Branch: `work/milestone-1` (`main` holds only the first scaffolding commit)
-- **Verified commit: `2d95681cb4b759d7fbcb9a7f632e97248edc8215`**. HEAD is the commit right after it and changes only this file (`HANDOFF.md`), so every other file is identical. Get HEAD with `git rev-parse HEAD`; a file cannot contain the hash of the commit that adds it.
+- **Verified commit: `f752ee1bdf3e171aa9fdccd049d900689940ace1`**. HEAD is the commit right after it and changes only this file (`HANDOFF.md`), so every other file is identical. Get HEAD with `git rev-parse HEAD`; a file cannot contain the hash of the commit that adds it.
 - Status: prototype/alpha. License: pending owner decision (no LICENSE file; see LICENSE-PROPOSAL.md). OpenAPI: not_applicable (no HTTP).
-- Tracked files: 22 = the 21 listed in the manifest below + this file.
-- History note: an early, stale revision of this file was committed by accident in `c960391` (via `git add -A`); `2d95681` replaced it with a placeholder and this version replaces that. No history was rewritten.
+- Tracked files: 24 = the 23 listed in the manifest below + this file.
+- History note: an early, stale revision of this file was committed by accident in `c960391` (via `git add -A`); `2d95681` replaced it with a placeholder and later revisions replace that. No history was rewritten.
 
 ## Fixes since the first audit (CodeSentinel, a0c58bcd)
 | Defect | Fix |
@@ -17,29 +17,37 @@
 | D5 lock without hashes, unpinned build backend | `setuptools==84.0.0` in build-system; `requirements-dev.lock` generated with hashes by `uv pip compile --generate-hashes` (uv 0.12.22) |
 | D6 HANDOFF untracked, wrong file count, verification not at HEAD | HANDOFF committed; 21-file manifest recomputed; full sequence re-run at the verified commit |
 
+Second audit (CodeSentinel, bbaaba02: approved with 3 minor defects):
+| Defect | Fix |
+|---|---|
+| N1 sdist lacked tests/conftest.py | `MANIFEST.in` with `include tests/conftest.py`; sdist rebuilt and listed: contains tests/conftest.py, tests/test_render.py and MANIFEST.in (27 entries). Caveat: the sdist does not ship `examples/`, so tests that read the examples would not pass from an unpacked sdist (not tried; out of scope) |
+| N2 history scan excluded all of HANDOFF.md | exclusion removed; the documented command now filters only the one known line (`grep -vF 'positive control with a fake'`). Without the filter exactly 2 lines match (the stale line in c960391 and its removal in 2d95681); with it, 0 |
+| N3 no direct test of render_json with inf/nan | `tests/test_render.py`: 3 non-finite cases must raise ValueError, plus a strict-JSON check. Mutation: changing `allow_nan=False` to `True` makes 3 of the 4 tests fail; restored, all pass |
+
 ## Verified commands for CodeSentinel
 Run in a fresh `git clone` + fresh venv at the verified commit, installing ONLY from the lock (no `pip install -e .`; the package was confirmed not installed). All results are real. Python 3.13.5 was the primary interpreter; the same sequence was also run with 3.11.17 and 3.12.15 (same results).
 
 | Step | Command | Result |
 |---|---|---|
 | venv | `python3 -m venv .venv && . .venv/bin/activate` | ok |
-| install | `pip install --require-hashes -r requirements-dev.lock` | ok on 3.11, 3.12, 3.13 (14 packages; no editable install) |
-| tests | `python -m pytest -q` | 50 passed, 0 failed (about 0.25s) on 3.11, 3.12 and 3.13 |
+| install | `pip install --require-hashes -r requirements-dev.lock` | ok on 3.13 at the verified commit (and on 3.11, 3.12 earlier); 14 packages; no editable install |
+| tests | `python -m pytest -q` | 54 passed, 0 failed (about 0.23s) on 3.13.5 at the verified commit (50 passed on 3.11.17 and 3.12.15 at the earlier commit 2d95681; not re-run on them after the new tests) |
 | lint | `ruff check .` | All checks passed (ruff 0.16.10) |
-| format | `ruff format --check .` | 16 files already formatted |
-| types | `mypy` (strict; src and tests) | Success: no issues found in 11 source files (mypy 2.4.0) |
+| format | `ruff format --check .` | 17 files already formatted |
+| types | `mypy` (strict; src and tests) | Success: no issues found in 12 source files (mypy 2.4.0) |
 | build | `python -m build --wheel` | built csv_quality_report-0.1.0-py3-none-any.whl (downloads setuptools==84.0.0 from PyPI; that download is not hash-checked) |
+| sdist | `python -m build --sdist`, then `tar tzf dist/*.tar.gz` | built csv_quality_report-0.1.0.tar.gz; lists tests/conftest.py, tests/test_render.py, MANIFEST.in |
 | wheel metadata | inspect the wheel zip | no license file inside, no License-File header |
 | wheel smoke test | new clean venv, `pip install dist/*.whl`, then `csv-quality-report examples/tiny.csv --max-rows 1` and `python -m csv_quality_report examples/sample.csv` | both exit 0; sample output identical to the source run |
 | README sample | `PYTHONPATH=src python3 -m csv_quality_report examples/sample.csv` | exit 0; output is contained verbatim in README.md (a test also enforces this) |
 | secrets scan, tracked files | first command in the "Local secrets scan" block of CONTRIBUTING.md | no matches (exit 1) |
-| secrets scan, history | second command in the same block (excludes HANDOFF.md, see history note) | no matches (exit 1) |
+| secrets scan, history | second command in the same block (filters one known line, see history note) | no matches (exit 1) |
 
 Earlier checks, not repeated at the verified commit: `pip install -r requirements-dev.txt` in a fresh venv gave a `pip freeze` identical to the old unhashed lock (before the lock was regenerated).
 
 Scan pattern: AWS key ids, GitHub personal-token prefixes, PEM private-key headers, and key/secret/token/password names followed by a colon or equals sign. It is a plain grep, not a dedicated scanner.
 
-not_run: sdist build, coverage, pip-audit, CI workflow, Windows/macOS, large-file/performance tests.
+not_run: coverage, pip-audit, CI workflow, Windows/macOS, large-file/performance tests; Python 3.11/3.12 re-run after the latest commits; installing and testing from the unpacked sdist.
 
 ## Proposed GitHub description and topics (for GitRank)
 Description: Quick data-quality report for a CSV file: types, missing values, distinct counts, top values and duplicate rows. Standard-library Python CLI (prototype/alpha).
@@ -49,18 +57,19 @@ Topics (8): `python`, `cli`, `csv`, `data-quality`, `data-profiling`, `data-anal
 ## Capability summary (for GitAura)
 1. `python -m csv_quality_report data.csv [--format markdown|json] [--max-rows N]` profiles a local UTF-8 CSV: per column inferred type (int/float/bool/date/string), missing count and %, distinct count, numeric min/max, top 3 values; plus the dataset's duplicate row count.
 2. Fails clearly with distinct nonzero exit codes (3 unreadable, 4 not UTF-8, 5 empty, 6 ragged rows, 2 usage); duplicate column names get deterministic _2/_3 suffixes; unrepresentable numbers (huge integers, 1e999) degrade to string and JSON output is always standard JSON.
-3. Python 3.11+, no runtime dependencies, 50 pytest tests; limitations: loads the whole file in memory (no streaming), heuristic type inference, UTF-8 only.
+3. Python 3.11+, no runtime dependencies, 54 pytest tests; limitations: loads the whole file in memory (no streaming), heuristic type inference, UTF-8 only.
 
 ## Not verified / caveats
 - Windows/macOS not tested. No CI. No large-file or performance testing. No coverage measurement.
 - Network was used only to download dev tools and the build backend from PyPI; the tool itself makes no network calls.
 - The hashed lock was generated with uv and verified with pip `--require-hashes`; the build-isolation setuptools download is pinned by version only.
 
-## File manifest (21 tracked files, sha256, excluding this file)
+## File manifest (23 tracked files, sha256, excluding this file)
 ```text
 3e861aeb236be27a3b09a357ae458e64a5a31ab17733249981792cfaea96686d  .gitignore
-b82826ef0ffa0ff925da0ff0d68bce8f3a266b842b93e9c76fcfdac839d0cf7d  CONTRIBUTING.md
+e2602e46046636d10f7dae3a31d9aaf75b9f792de72e59526d27d7d4609703d5  CONTRIBUTING.md
 0a9ca443aa87ec8d282a93824e267982b6faa52b5f79a0a3ea8446891a22ce19  LICENSE-PROPOSAL.md
+e402f83300e381f3ac4f17c46d050400ad1762413d7e06405dc4c19e6ce91c08  MANIFEST.in
 cd69c52add2509257b81728c72e2e2bbc32d9fd01d4fbd55124aa556abccf7b4  README.md
 df8e0eba971a01fa671e09cfaba25be563c7d3f044a03e919b2a39349fb8fbb0  docs/decisions/0001-architecture.md
 765eb6bef0639221d201582e9da1148b38698a419cca29adf4d39fdf6423e9c4  examples/sample.csv
@@ -79,4 +88,5 @@ c310517759244d306c1c9df84ab917cae0ace8c0918d16f3de59787a721dd970  requirements-d
 f272e40fb74ac55569a772549102f8aecba83711db6a6864c26b2fda9c304159  tests/conftest.py
 816bde67da49fc4abe7d50572b45463d161401f61f2b556b3a399ac6b99bd854  tests/test_cli.py
 5e365fce6d2282f76e463956756647bae036b1f0ad7e8a63a735acb19c342d37  tests/test_inference.py
+c05c5da45093ae103c7a5a50e21c022c073e59596dcac94f40906d0ed52e1b86  tests/test_render.py
 ```
