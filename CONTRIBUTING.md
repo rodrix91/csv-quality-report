@@ -9,7 +9,7 @@ Requires Python 3.11+. From the repository root:
 ```bash
 python3 -m venv .venv
 . .venv/bin/activate
-pip install -r requirements-dev.txt   # or: pip install -r requirements-dev.lock  (exact pins)
+pip install --require-hashes -r requirements-dev.lock   # exact pins + hashes (or: pip install -r requirements-dev.txt)
 pip install -e .                      # optional: only for the `csv-quality-report` command
 ```
 
@@ -43,7 +43,8 @@ This is a simple pattern check, not a substitute for a dedicated scanner.
 
 ## Guidelines
 
-- Runtime code must stay standard-library only. Dev tools go in `requirements-dev.txt`; refresh `requirements-dev.lock` with `pip freeze --exclude-editable > requirements-dev.lock` after changing them.
+- Runtime code must stay standard-library only. Dev tools go in `requirements-dev.txt`. After changing them, regenerate the hashed lock with [uv](https://docs.astral.sh/uv/) (the lock was generated with uv 0.12.22): `uv pip compile requirements-dev.txt --generate-hashes --universal --python-version 3.11 -o requirements-dev.lock`.
+- The build backend is pinned exactly in `pyproject.toml` (`setuptools==84.0.0`); `python -m build` downloads it in an isolated environment, and that download is not covered by `requirements-dev.lock` hashes.
 - Add or update behavior tests in `tests/` for every behavior change.
 - If you change the CLI output, regenerate the sample output in `README.md`; `tests/test_cli.py::test_sample_markdown_matches_readme` fails when they drift.
 - Keep type hints on all functions; keep modules small.

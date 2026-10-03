@@ -24,7 +24,7 @@ Out of scope: data cleaning, schema validation, large-file/streaming processing,
 
 - Python 3.11 or newer
 - Runtime dependencies: **none** (standard library only)
-- Development: `pytest`, `ruff`, `mypy`, `build` (pinned in `requirements-dev.txt`; full pins in `requirements-dev.lock`)
+- Development: `pytest`, `ruff`, `mypy`, `build` (pinned in `requirements-dev.txt`; full pins with hashes in `requirements-dev.lock`)
 
 ## Install
 
@@ -33,7 +33,7 @@ From a clone of this repository:
 ```bash
 python3 -m venv .venv
 . .venv/bin/activate
-pip install -r requirements-dev.txt
+pip install --require-hashes -r requirements-dev.lock   # exact pins with hashes (alternative: -r requirements-dev.txt)
 pip install -e .
 ```
 
