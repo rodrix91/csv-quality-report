@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "csv-quality-report"
+version = "0.1.0"
+description = "Quick data-quality report for a CSV file (standard library only)."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = []
+authors = [{ name = "rodrix91" }]
+
+[project.scripts]
+csv-quality-report = "csv_quality_report.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
