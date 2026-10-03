@@ -19,12 +19,36 @@ class Table:
     truncated: bool  # True when --max-rows stopped reading early
 
 
+def dedupe_header(header: list[str]) -> list[str]:
+    """Make column names unique: later repeats get ``_2``, ``_3``, ... suffixes.
+
+    ``["a", "a", "a"]`` becomes ``["a", "a_2", "a_3"]``. A suffixed name that
+    would collide with another existing name keeps counting up.
+    """
+    seen: set[str] = set(header)
+    used: set[str] = set()
+    result: list[str] = []
+    for name in header:
+        if name not in used:
+            used.add(name)
+            result.append(name)
+            continue
+        n = 2
+        while f"{name}_{n}" in used or f"{name}_{n}" in seen:
+            n += 1
+        new = f"{name}_{n}"
+        used.add(new)
+        result.append(new)
+    return result
+
+
 def read_table(path: Path, max_rows: int | None = None) -> Table:
     """Read ``path`` as UTF-8 (a leading BOM is accepted).
 
     Raises a ``CsvQualityError`` subclass for unreadable files, invalid UTF-8,
     empty files and rows whose cell count differs from the header's.
-    Fully blank lines are skipped. At most ``max_rows`` data rows are read.
+    Fully blank lines are skipped. Duplicate column names are made unique
+    with ``_2``, ``_3`` suffixes (see ``dedupe_header``). At most ``max_rows`` data rows are read.
     """
     try:
         raw = path.read_bytes()
@@ -64,4 +88,4 @@ def read_table(path: Path, max_rows: int | None = None) -> Table:
 
     if header is None:
         raise EmptyFileError(f"'{path}' is empty (no header row)")
-    return Table(header=header, rows=rows, truncated=truncated)
+    return Table(header=dedupe_header(header), rows=rows, truncated=truncated)

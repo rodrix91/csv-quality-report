@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import argparse
 import sys
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Sequence
 
 from .errors import CsvQualityError
 from .profile import build_report
@@ -30,11 +30,16 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("path", type=Path, help="CSV file to analyze (UTF-8)")
     parser.add_argument(
-        "--format", choices=("markdown", "json"), default="markdown",
+        "--format",
+        choices=("markdown", "json"),
+        default="markdown",
         help="output format (default: markdown)",
     )
     parser.add_argument(
-        "--max-rows", type=_positive_int, default=None, metavar="N",
+        "--max-rows",
+        type=_positive_int,
+        default=None,
+        metavar="N",
         help="analyze only the first N data rows",
     )
     return parser

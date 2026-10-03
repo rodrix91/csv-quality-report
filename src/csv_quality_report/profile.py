@@ -67,8 +67,7 @@ def build_report(table: Table) -> Report:
     (total rows minus unique rows), comparing raw cell text.
     """
     columns = [
-        _profile_column(name, [row[i] for row in table.rows])
-        for i, name in enumerate(table.header)
+        _profile_column(name, [row[i] for row in table.rows]) for i, name in enumerate(table.header)
     ]
     unique = len({tuple(row) for row in table.rows})
     return Report(

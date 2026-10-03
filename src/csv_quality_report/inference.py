@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Iterable
 from datetime import date
-from typing import Iterable
 
 _INT_RE = re.compile(r"^[+-]?\d+$")
 _FLOAT_RE = re.compile(r"^[+-]?(\d+\.\d*|\.\d+|\d+)([eE][+-]?\d+)?$")
