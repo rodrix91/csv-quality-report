@@ -59,6 +59,12 @@ def _checks_section(checks: Sequence[CheckResult]) -> list[str]:
     return lines
 
 
+def _untrimmed_line(report: Report) -> list[str]:
+    """Markdown line naming columns with untrimmed values, only when there are some."""
+    found = [f"{_md_escape(c.name)} ({c.untrimmed})" for c in report.columns if c.untrimmed]
+    return ["- Untrimmed values: " + ", ".join(found)] if found else []
+
+
 def render_markdown(report: Report, source: str, checks: Sequence[CheckResult] = ()) -> str:
     lines = [
         f"# CSV quality report: {_md_escape(source)}",
@@ -70,6 +76,7 @@ def render_markdown(report: Report, source: str, checks: Sequence[CheckResult] =
         *_na_line(report),
         *(["- Compression: gzip"] if report.compressed else []),
         f"- Duplicate rows: {report.duplicate_rows}",
+        *_untrimmed_line(report),
         "",
         "| Column | Type | Missing | Missing % | Distinct | Min | Max "
         f"| Top {report.top_n} values |",
@@ -105,6 +112,7 @@ def render_json(report: Report, source: str, checks: Sequence[CheckResult] = ())
                 "min": c.min,
                 "max": c.max,
                 "top_values": [{"value": v, "count": n} for v, n in c.top_values],
+                "untrimmed": c.untrimmed,
             }
             for c in report.columns
         ],

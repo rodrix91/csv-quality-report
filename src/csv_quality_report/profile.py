@@ -34,6 +34,7 @@ class ColumnProfile:
     min: int | float | str | None  # str (original ISO 8601 text) for date/datetime
     max: int | float | str | None
     top_values: list[tuple[str, int]]
+    untrimmed: int = 0  # non-missing cells with leading or trailing whitespace
 
 
 @dataclass(frozen=True)
@@ -79,12 +80,34 @@ class _ColumnAccumulator:
     Memory grows with the number of distinct values, not with the row count.
     """
 
-    __slots__ = ("counts", "missing", "name")
+    __slots__ = ("counts", "missing", "name", "untrimmed")
 
     def __init__(self, name: str) -> None:
         self.name = name
         self.missing = 0
+        self.untrimmed = 0
         self.counts: Counter[str] = Counter()
+
+    def strip_counts(self, na: set[str]) -> None:
+        """Turn raw cell-text counts into stripped-value counts.
+
+        The pass counts cells exactly as read; this merges them by stripped
+        text once per distinct value, counting as ``untrimmed`` the non-missing
+        cells that had surrounding whitespace, then moves missing cells (empty
+        or in ``na``) out of the counter. First-seen order, which decides ties
+        in top values, is kept: each stripped value takes the position of its
+        first raw spelling.
+        """
+        raw = self.counts
+        if any(key != key.strip() for key in raw):
+            merged: Counter[str] = Counter()
+            for key, count in raw.items():
+                value = key.strip()
+                merged[value] += count
+                if value != key and value not in na:
+                    self.untrimmed += count
+            self.counts = merged
+        self.missing = sum(self.counts.pop(token, 0) for token in na)
 
     def finish(self, total: int, decimal_comma: bool, top_n: int = TOP_N) -> ColumnProfile:
         # Inference, min and max only depend on which values occur, so looking
@@ -113,6 +136,7 @@ class _ColumnAccumulator:
             max=high,
             # most_common is stable: ties keep first-seen order.
             top_values=self.counts.most_common(top_n),
+            untrimmed=self.untrimmed,
         )
 
 
@@ -147,17 +171,18 @@ def profile_rows(
     total = 0
     # Work on batches of rows transposed into columns, so counting runs inside
     # Counter.update (implemented in C) instead of one Python step per cell.
-    # Missing cells are counted under the key "" and moved out afterwards.
+    # Cells are counted as read; stripping, untrimmed counts and missing cells
+    # are resolved afterwards, once per distinct value (see strip_counts).
     # Only one batch is held in memory at a time.
     it = iter(rows)
     while batch := list(islice(it, _BATCH_ROWS)):
         total += len(batch)
         seen.update(map(_row_digest, batch))
         for counter, column in zip(counters, zip(*batch, strict=True), strict=True):
-            counter.update(map(str.strip, column))
+            counter.update(column)
     na = {token.strip() for token in na_tokens} | {""}
     for acc in columns:
-        acc.missing = sum(acc.counts.pop(token, 0) for token in na)
+        acc.strip_counts(na)
     return _Profiled(
         columns=[acc.finish(total, decimal_comma, top_n) for acc in columns],
         rows=total,
