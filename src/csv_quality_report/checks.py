@@ -7,7 +7,7 @@ still prints the full report, lists failed checks on stderr and exits with
 
 from __future__ import annotations
 
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 
 from .profile import Report
@@ -53,8 +53,15 @@ def evaluate(
     max_missing: float | None = None,
     max_duplicates: int | None = None,
     required_columns: Iterable[str] = (),
+    column_max_missing: Mapping[str, float] | None = None,
 ) -> list[CheckResult]:
     """Evaluate the requested thresholds; a value equal to its limit passes.
+
+    ``column_max_missing`` maps column names to their own missing-value
+    limit, which overrides ``max_missing`` for that column and can be used
+    without it. A limit for a column that is not in the header fails as a
+    ``required_column`` check, because it usually means a typo or a renamed
+    column; it is not silently ignored.
 
     ``required_columns`` are matched exactly (case-sensitive) against the
     reported header, after duplicate-name suffixes; each one gives a check
@@ -65,18 +72,21 @@ def evaluate(
     hide a value just above the limit.
     """
     results: list[CheckResult] = []
-    if max_missing is not None:
-        for col in report.columns:
-            pct = 100.0 * col.missing / report.rows if report.rows else 0.0
-            results.append(
-                CheckResult(
-                    check=CHECK_MAX_MISSING,
-                    column=col.name,
-                    limit=max_missing,
-                    value=round(pct, 4),
-                    passed=pct <= max_missing,
-                )
+    column_limits = dict(column_max_missing or {})
+    for col in report.columns:
+        limit = column_limits.get(col.name, max_missing)
+        if limit is None:
+            continue
+        pct = 100.0 * col.missing / report.rows if report.rows else 0.0
+        results.append(
+            CheckResult(
+                check=CHECK_MAX_MISSING,
+                column=col.name,
+                limit=limit,
+                value=round(pct, 4),
+                passed=pct <= limit,
             )
+        )
     if max_duplicates is not None:
         results.append(
             CheckResult(
@@ -90,7 +100,8 @@ def evaluate(
     header = [col.name for col in report.columns]
     present = set(header)
     listed = ", ".join(header[:_MAX_LISTED]) + (", ..." if len(header) > _MAX_LISTED else "")
-    for name in dict.fromkeys(required_columns):
+    unknown_limited = (name for name in column_limits if name not in present)
+    for name in dict.fromkeys([*required_columns, *unknown_limited]):
         found = name in present
         results.append(
             CheckResult(
