@@ -70,6 +70,14 @@ def _non_negative_int(text: str) -> int:
     return value
 
 
+def _column_names(text: str) -> tuple[str, ...]:
+    """Parse ``id,date,weight`` into unique, stripped, non-empty names (order kept)."""
+    names = tuple(dict.fromkeys(n.strip() for n in text.split(",") if n.strip()))
+    if not names:
+        raise argparse.ArgumentTypeError(f"invalid --require-columns value: {text!r} (no names)")
+    return names
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="python -m csv_quality_report",
@@ -128,6 +136,13 @@ def build_parser() -> argparse.ArgumentParser:
         help="fail if any column has more than PCT %% missing values (0-100)",
     )
     gates.add_argument(
+        "--require-columns",
+        type=_column_names,
+        default=(),
+        metavar="NAMES",
+        help="fail if any of these comma-separated columns is missing (exact, case-sensitive)",
+    )
+    gates.add_argument(
         "--max-duplicates",
         type=_non_negative_int,
         default=None,
@@ -151,7 +166,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     except CsvQualityError as exc:
         print(f"error: {exc.message}", file=sys.stderr)
         return exc.exit_code
-    checks = evaluate(report, max_missing=args.max_missing, max_duplicates=args.max_duplicates)
+    checks = evaluate(
+        report,
+        max_missing=args.max_missing,
+        max_duplicates=args.max_duplicates,
+        required_columns=args.require_columns,
+    )
     render = render_json if args.format == "json" else render_markdown
     sys.stdout.write(render(report, str(args.path), checks))
     failed = [c for c in checks if not c.passed]
