@@ -187,7 +187,7 @@ def _invalid_utf8_offset(path: Path) -> int:
                 decoder.decode(chunk, final=not chunk)
             except UnicodeDecodeError as exc:
                 return consumed - pending + exc.start
-            if not chunk:
+            if not chunk:  # pragma: no cover - only called after a decoding error
                 return 0
             consumed += len(chunk)
 
@@ -200,7 +200,7 @@ def _guarded(path: Path, records: Iterator[list[str]], reader: _CsvReader) -> It
         raise _encoding_error(path) from exc
     except csv.Error as exc:
         raise RaggedRowError(f"malformed CSV near line {reader.line_num}: {exc}") from exc
-    except OSError as exc:
+    except OSError as exc:  # pragma: no cover - I/O failure mid-read (e.g. lost mount)
         raise FileReadError(f"cannot read '{path}': {exc.strerror or exc}") from exc
 
 
@@ -236,7 +236,7 @@ def open_rows(path: Path, max_rows: int | None = None, delimiter: str = ",") -> 
                 handle.seek(0)
             except UnicodeDecodeError as exc:
                 raise _encoding_error(path) from exc
-            except OSError as exc:
+            except OSError as exc:  # pragma: no cover - I/O failure mid-read
                 raise FileReadError(f"cannot read '{path}': {exc.strerror or exc}") from exc
             delimiter = detect_delimiter(sample)
 

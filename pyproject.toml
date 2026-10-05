@@ -35,3 +35,12 @@ python_version = "3.11"
 strict = true
 files = ["src", "tests"]
 mypy_path = "src"
+
+[tool.coverage.run]
+source = ["csv_quality_report"]
+branch = true
+patch = ["subprocess"]  # also measure the CLI tests that run `python -m`
+
+[tool.coverage.report]
+show_missing = true
+fail_under = 100  # line + branch; exclusions need a `# pragma: no cover - reason`

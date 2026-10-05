@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import csv
 import random
 from collections.abc import Callable, Iterator
 from pathlib import Path
@@ -9,7 +10,7 @@ from pathlib import Path
 import pytest
 
 from csv_quality_report.cli import main
-from csv_quality_report.errors import EncodingError, RaggedRowError
+from csv_quality_report.errors import DelimiterDetectionError, EncodingError, RaggedRowError
 from csv_quality_report.profile import (
     _BATCH_ROWS,
     _row_digest,
@@ -17,7 +18,7 @@ from csv_quality_report.profile import (
     profile_file,
     profile_rows,
 )
-from csv_quality_report.reader import _CHUNK, open_rows, read_table
+from csv_quality_report.reader import _CHUNK, detect_delimiter, open_rows, read_table
 
 WriteCsv = Callable[..., Path]
 ROOT = Path(__file__).resolve().parent.parent
@@ -190,3 +191,44 @@ def test_file_is_closed_after_an_error(write_csv: WriteCsv) -> None:
     # On every platform the handle must be closed: re-opening for writing works.
     path.write_text("ok\n", encoding="utf-8")
     assert profile_file(path).rows == 0
+
+
+# --- malformed input and detection edge cases --------------------------------
+
+
+def test_field_over_the_csv_size_limit_is_a_malformed_csv_error(
+    write_csv: WriteCsv, capsys: pytest.CaptureFixture[str]
+) -> None:
+    huge = "x" * (csv.field_size_limit() + 1)
+    path = write_csv(f"a,b\n1,{huge}\n")
+    assert main([str(path)]) == 6
+    assert "malformed CSV near line 2" in capsys.readouterr().err
+
+
+def test_detection_survives_samples_that_do_not_parse() -> None:
+    # Lower the csv field limit so a field inside the 64 KiB sample exceeds it:
+    # every candidate then fails to parse and detection must say so cleanly.
+    previous = csv.field_size_limit(100)
+    try:
+        with pytest.raises(DelimiterDetectionError) as excinfo:
+            detect_delimiter("a;b\n1;" + "x" * 200 + "\n")
+    finally:
+        csv.field_size_limit(previous)
+    assert "no separator gives the same number of fields" in excinfo.value.message
+
+
+def test_oversized_field_beyond_the_sample_does_not_affect_detection() -> None:
+    huge = "x" * (csv.field_size_limit() + 1)
+    assert detect_delimiter(f"a;b\n1;{huge}\n") == ";"
+
+
+def test_detection_ignores_blank_lines() -> None:
+    assert detect_delimiter("\n\na;b\n\n1;2\n\n") == ";"
+
+
+def test_auto_detection_reports_encoding_errors_with_offset(
+    write_csv: WriteCsv, capsys: pytest.CaptureFixture[str]
+) -> None:
+    path = write_csv("id;name\n1;José\n".encode("latin-1"))
+    assert main([str(path), "--delimiter", "auto"]) == 4
+    assert "invalid byte at offset 13" in capsys.readouterr().err
