@@ -12,6 +12,8 @@ All notable changes to this project are documented here. The format follows [Kee
 - JSON output: `delimiter` and `delimiter_detected` fields. Markdown output names the delimiter when it is not the default comma.
 - `reader.open_rows()` and `profile.profile_file()` for streaming use from Python.
 - ADR 0002 documenting the streaming design.
+- `min`/`max` for `date` columns, as ISO strings (#11).
+- `scripts/update_readme_samples.py` regenerates the README samples from real runs.
 - CI measures line and branch coverage (subprocess CLI runs included) and requires 100%; new tests cover malformed CSV (field over the `csv` size limit) and encoding errors with `--delimiter auto`.
 
 ### Changed

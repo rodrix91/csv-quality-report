@@ -28,6 +28,8 @@ python -m build                  # build sdist + wheel into dist/ (needs network
 
 **Always build from a clean clone** (`git clone <repo> /tmp/build-check && cd /tmp/build-check`), not from a working directory that has stray files: the sdist and wheel are assembled from whatever is on disk, and files that are ignored by git (old `build/`, `dist/`, `*.egg-info`, local notes) can leak into or distort the artifacts.
 
+If a change alters the output, refresh the samples embedded in the README with `python scripts/update_readme_samples.py` (`--check` only reports); the test suite fails while they are stale.
+
 Quick manual check of the CLI (prefix with `PYTHONPATH=src` if the package is not installed):
 
 ```bash
