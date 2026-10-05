@@ -265,6 +265,64 @@ def check_date_order(order: str | None) -> None:
         raise ValueError(f"unsupported date order: {order!r} (use one of {', '.join(DATE_ORDERS)})")
 
 
+# Spaces allowed between a number and its affix, also the no-break spaces that
+# spreadsheets insert ("$\u00a01.234,56").
+_AFFIX_SPACES = " \u00a0\u202f"
+# An affix made only of these would change the number itself (a "-" affix
+# would drop signs, a "." affix decimal points).
+_NUMBER_PUNCTUATION = frozenset("+-.," + _AFFIX_SPACES)
+
+
+def check_number_affixes(affixes: Iterable[str]) -> tuple[str, ...]:
+    """Validate ``--number-affix`` texts; return them stripped, without repeats, in order.
+
+    Raises ``ValueError`` for an empty affix, one made only of signs,
+    separators and spaces, or one that is itself a number.
+    """
+    result: list[str] = []
+    for given in affixes:
+        affix = given.strip(_AFFIX_SPACES)
+        if not affix:
+            raise ValueError(f"empty number affix: {given!r}")
+        if set(affix) <= _NUMBER_PUNCTUATION:
+            raise ValueError(f"{affix!r} is not a valid number affix (signs and separators only)")
+        if {value_type(affix), value_type(affix, decimal_comma=True)} & {TYPE_INT, TYPE_FLOAT}:
+            raise ValueError(f"{affix!r} is a number, not a number affix")
+        if affix not in result:
+            result.append(affix)
+    return tuple(result)
+
+
+def split_number_affix(
+    value: str,
+    affixes: tuple[str, ...],
+    decimal_comma: bool = False,
+    thousands: str | None = None,
+) -> tuple[str, str | None]:
+    """Remove the first matching affix from a number; return the rest and the affix.
+
+    ``affixes`` are tried in the given order (put longer ones first, so
+    ``US$`` wins over ``$``), as a prefix and then as a suffix, together with
+    the spaces next to them. A leading sign may come before a prefix
+    (``-$ 5`` gives ``-5``). The affix is removed only when what remains is
+    an ``int`` or ``float`` under ``decimal_comma`` and ``thousands``;
+    otherwise ``(value, None)`` is returned.
+    """
+    sign, body = (value[0], value[1:]) if value[:1] in "+-" else ("", value)
+    for affix in affixes:
+        if body.startswith(affix):
+            rest = body[len(affix) :].lstrip(_AFFIX_SPACES)
+        elif body.endswith(affix):
+            rest = body[: -len(affix)].rstrip(_AFFIX_SPACES)
+        else:
+            continue
+        number = sign + rest
+        plain = number if thousands is None else strip_thousands(number, thousands, decimal_comma)
+        if value_type(plain, decimal_comma) in (TYPE_INT, TYPE_FLOAT):
+            return number, affix
+    return value, None
+
+
 def check_thousands(thousands: str | None, decimal_comma: bool) -> None:
     """Raise ``ValueError`` when the thousands separator is also the decimal mark."""
     if thousands is None:

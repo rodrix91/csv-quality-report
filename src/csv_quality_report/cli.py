@@ -10,7 +10,7 @@ from pathlib import Path
 from . import __version__
 from .checks import COLUMN_TYPES, evaluate
 from .errors import EXIT_CHECKS, CsvQualityError, OutputWriteError
-from .inference import DATE_ORDERS, bool_word_map, check_thousands
+from .inference import DATE_ORDERS, bool_word_map, check_number_affixes, check_thousands
 from .profile import TOP_N, profile_file
 from .reader import DEFAULT_ENCODING, DELIMITER_AUTO, display_name, normalize_encoding
 from .render import render_json, render_markdown
@@ -192,6 +192,14 @@ def build_parser() -> argparse.ArgumentParser:
         "(repeatable; true/false always count)",
     )
     parser.add_argument(
+        "--number-affix",
+        action="append",
+        default=[],
+        metavar="TEXT",
+        help="text allowed before or after numbers, such as $, Gs., kg or %% (repeatable; "
+        "removed only when the rest is a number; each column reports which it had)",
+    )
+    parser.add_argument(
         "--na",
         type=_na_tokens,
         default=(),
@@ -285,6 +293,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     try:
         check_thousands(args.thousands, args.decimal_comma)
         bool_word_map(bool_words)
+        check_number_affixes(args.number_affix)
     except ValueError as exc:
         parser.error(str(exc))
     try:
@@ -300,6 +309,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             thousands=args.thousands,
             date_order=args.date_order,
             bool_words=bool_words,
+            number_affixes=tuple(args.number_affix),
         )
     except CsvQualityError as exc:
         print(f"error: {exc.message}", file=sys.stderr)

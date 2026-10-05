@@ -12,6 +12,7 @@
   "thousands": ".",
   "date_order": "dmy",
   "bool_words": [],
+  "number_affixes": [],
   "duplicate_rows": 0,
   "untrimmed_columns": [],
   "columns": [
@@ -41,7 +42,8 @@
           "count": 2
         }
       ],
-      "untrimmed": 0
+      "untrimmed": 0,
+      "affixes": {}
     },
     {
       "name": "SKU",
@@ -69,7 +71,8 @@
           "count": 1
         }
       ],
-      "untrimmed": 0
+      "untrimmed": 0,
+      "affixes": {}
     },
     {
       "name": "Stock",
@@ -97,7 +100,8 @@
           "count": 1
         }
       ],
-      "untrimmed": 0
+      "untrimmed": 0,
+      "affixes": {}
     },
     {
       "name": "Costo unitario",
@@ -125,7 +129,8 @@
           "count": 1
         }
       ],
-      "untrimmed": 0
+      "untrimmed": 0,
+      "affixes": {}
     },
     {
       "name": "Última revisión",
@@ -153,7 +158,8 @@
           "count": 2
         }
       ],
-      "untrimmed": 0
+      "untrimmed": 0,
+      "affixes": {}
     }
   ],
   "checks": []

@@ -68,5 +68,12 @@
     "args": ["--encoding", "cp1252"],
     "exit_code": 7,
     "about": "The same file with the default comma: the tool stops and names the declared delimiter instead of producing a one-column report."
+  },
+  {
+    "name": "py_invoices_affixes",
+    "file": "py_invoices_affixes.csv",
+    "args": ["--delimiter", "auto", "--decimal-comma", "--thousands", "dot", "--na", "s/d", "--number-affix", "Gs.", "--number-affix", "US$", "--number-affix", "kg", "--number-affix", "lb", "--number-affix", "%"],
+    "exit_code": 0,
+    "about": "Invoice export with currency symbols, units and percentages: amounts become numbers, and the per-column affix counts show guaraníes mixed with dollars and one weight in pounds; 'a convenir' keeps the discount as text."
   }
 ]

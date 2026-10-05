@@ -20,12 +20,14 @@ from .inference import (
     BoolWords,
     bool_word_map,
     check_date_order,
+    check_number_affixes,
     check_thousands,
     infer_type,
     normalize_bool,
     normalize_date,
     parse_datetime,
     parse_float,
+    split_number_affix,
     strip_thousands,
     value_type,
 )
@@ -80,6 +82,9 @@ class ColumnProfile:
     type_hint: TypeHint | None = None  # string columns that mostly fit another type
     min_length: int | None = None  # shortest non-missing stripped value, in characters
     max_length: int | None = None  # longest non-missing stripped value, in characters
+    # (affix, cells) for --number-affix texts removed from this column's numbers,
+    # most frequent first; several affixes can mean mixed currencies or units
+    affixes: tuple[tuple[str, int], ...] = ()
 
 
 @dataclass(frozen=True)
@@ -99,6 +104,7 @@ class Report:
     date_order: str | None = None  # order of non-ISO dates given ("dmy", "mdy" or "ymd")
     bool_words: BoolWords = ()  # extra (true, false) word pairs, as given
     sep_line: bool = False  # the input started with an Excel "sep=" line, which was skipped
+    number_affixes: tuple[str, ...] = ()  # --number-affix texts, as validated
 
 
 def _untrimmed_names(header: list[str]) -> tuple[str, ...]:
@@ -156,16 +162,20 @@ def _plain_values(
     thousands: str | None = None,
     date_order: str | None = None,
     bool_map: dict[str, str] | None = None,
+    affixes: tuple[str, ...] = (),
 ) -> list[str]:
-    """``values`` as inference reads them: numbers without thousands separators,
-    dates rewritten as ISO 8601 and boolean words as true/false, when those
-    options are given.
+    """``values`` as inference reads them: numbers without their affixes and
+    thousands separators, dates rewritten as ISO 8601 and boolean words as
+    true/false, when those options are given.
 
-    The rewrites never apply to the same value (a grouped number has
+    Affixes are removed first, and only from values that are then numbers.
+    The other rewrites never apply to the same value (a grouped number has
     three-digit groups, a date a one- or two-digit middle part, and boolean
     words cannot be numbers or dates), so their order does not matter.
     """
     plain = list(values)
+    if affixes:
+        plain = [split_number_affix(v, affixes, decimal_comma, thousands)[0] for v in plain]
     if thousands is not None:
         plain = [strip_thousands(v, thousands, decimal_comma) for v in plain]
     if date_order is not None:
@@ -181,6 +191,7 @@ def _type_hint(
     thousands: str | None = None,
     date_order: str | None = None,
     bool_map: dict[str, str] | None = None,
+    affixes: tuple[str, ...] = (),
 ) -> TypeHint | None:
     """Dominant non-string type of a ``string`` column, if one covers 90% of its cells.
 
@@ -195,7 +206,7 @@ def _type_hint(
     weights = list(counts.values())
     # Classify numbers without their thousands separators and dates in ISO
     # form, but report the stray values as written.
-    plain = _plain_values(keys, decimal_comma, thousands, date_order, bool_map)
+    plain = _plain_values(keys, decimal_comma, thousands, date_order, bool_map, affixes)
     total = sum(weights)
     kinds: list[str] = []
     text_cells = 0
@@ -227,6 +238,25 @@ def _type_hint(
         nonconforming=total - covered,
         examples=tuple(v for v, _ in stray[:_HINT_EXAMPLES]),
     )
+
+
+def _split_affixes(
+    counts: Counter[str], affixes: tuple[str, ...], decimal_comma: bool, thousands: str | None
+) -> tuple[list[str], tuple[tuple[str, int], ...]]:
+    """Distinct values without their affixes, and the cells per removed affix.
+
+    The values keep the order of ``counts``; the affixes are listed most
+    frequent first (first seen on ties). One pass, without an intermediate
+    list of pairs, so the extra memory is one string per distinct value.
+    """
+    numbers: list[str] = []
+    found: Counter[str] = Counter()
+    for value, count in counts.items():
+        number, affix = split_number_affix(value, affixes, decimal_comma, thousands)
+        numbers.append(number)
+        if affix is not None:
+            found[affix] += count
+    return numbers, tuple(found.most_common())
 
 
 class _ColumnAccumulator:
@@ -272,6 +302,7 @@ class _ColumnAccumulator:
         thousands: str | None = None,
         date_order: str | None = None,
         bool_map: dict[str, str] | None = None,
+        affixes: tuple[str, ...] = (),
     ) -> ColumnProfile:
         # Inference, min and max only depend on which values occur, so looking
         # at distinct values gives the same answer as looking at every cell.
@@ -279,10 +310,22 @@ class _ColumnAccumulator:
         # With a thousands separator, a date order or boolean words, values
         # are inferred and measured in their plain form (1234,5, 2026-10-05,
         # true); top values and lengths keep the text as written.
+        # Affixes are split once, in one pass that also counts them.
+        numbers, affix_counts = (
+            _split_affixes(self.counts, affixes, decimal_comma, thousands)
+            if affixes
+            else (None, ())
+        )
         values: Iterable[str] = (
             distinct
-            if thousands is None and date_order is None and bool_map is None
-            else _plain_values(distinct, decimal_comma, thousands, date_order, bool_map)
+            if thousands is None and date_order is None and bool_map is None and numbers is None
+            else _plain_values(
+                distinct if numbers is None else numbers,
+                decimal_comma,
+                thousands,
+                date_order,
+                bool_map,
+            )
         )
         col_type = infer_type(values, decimal_comma)
         low: int | float | str | None = None
@@ -311,11 +354,14 @@ class _ColumnAccumulator:
             top_values=self.counts.most_common(top_n),
             untrimmed=self.untrimmed,
             mean=mean,
-            type_hint=_type_hint(self.counts, decimal_comma, thousands, date_order, bool_map)
+            type_hint=_type_hint(
+                self.counts, decimal_comma, thousands, date_order, bool_map, affixes
+            )
             if col_type == TYPE_STRING
             else None,
             min_length=min(map(len, distinct)) if distinct else None,
             max_length=max(map(len, distinct)) if distinct else None,
+            affixes=affix_counts,
         )
 
 
@@ -335,6 +381,7 @@ def profile_rows(
     thousands: str | None = None,
     date_order: str | None = None,
     bool_words: BoolWords = (),
+    number_affixes: tuple[str, ...] = (),
 ) -> _Profiled:
     """Profile ``rows`` in a single pass; each row must have ``len(header)`` cells.
 
@@ -347,12 +394,15 @@ def profile_rows(
     being stored, so a false match would need a hash collision (probability
     below 1e-20 even for billions of rows).
 
-    ``thousands``, ``date_order`` and ``bool_words`` are validated before any
-    row is read and raise ``ValueError`` when unsupported or contradictory.
+    ``thousands``, ``date_order``, ``bool_words`` and ``number_affixes`` are
+    validated before any row is read and raise ``ValueError`` when unsupported
+    or contradictory.
     """
     check_thousands(thousands, decimal_comma)
     check_date_order(date_order)
     bool_map = bool_word_map(bool_words) if bool_words else None
+    # Longer affixes first: when two would both leave a number, the longer wins.
+    affixes = tuple(sorted(check_number_affixes(number_affixes), key=len, reverse=True))
     columns = [_ColumnAccumulator(name) for name in header]
     counters = [acc.counts for acc in columns]
     seen: set[bytes] = set()
@@ -373,7 +423,7 @@ def profile_rows(
         acc.strip_counts(na)
     return _Profiled(
         columns=[
-            acc.finish(total, decimal_comma, top_n, thousands, date_order, bool_map)
+            acc.finish(total, decimal_comma, top_n, thousands, date_order, bool_map, affixes)
             for acc in columns
         ],
         rows=total,
@@ -389,6 +439,7 @@ def build_report(
     thousands: str | None = None,
     date_order: str | None = None,
     bool_words: BoolWords = (),
+    number_affixes: tuple[str, ...] = (),
 ) -> Report:
     """Profile every column of an in-memory ``table``.
 
@@ -398,7 +449,8 @@ def build_report(
     thousands separator of numbers; ``date_order`` (``"dmy"``, ``"mdy"`` or
     ``"ymd"``) reads dates such as ``05/10/2026`` in that order;
     ``bool_words`` are extra ``(true, false)`` word pairs such as
-    ``("sí", "no")``.
+    ``("sí", "no")``; ``number_affixes`` are texts such as ``"$"`` or ``"kg"``
+    removed from around numbers.
     """
     result = profile_rows(
         table.header,
@@ -409,6 +461,7 @@ def build_report(
         thousands,
         date_order,
         bool_words,
+        number_affixes,
     )
     return Report(
         rows=result.rows,
@@ -426,6 +479,7 @@ def build_report(
         thousands=thousands,
         date_order=date_order,
         bool_words=bool_words,
+        number_affixes=check_number_affixes(number_affixes),
     )
 
 
@@ -441,6 +495,7 @@ def profile_file(
     thousands: str | None = None,
     date_order: str | None = None,
     bool_words: BoolWords = (),
+    number_affixes: tuple[str, ...] = (),
 ) -> Report:
     """Stream ``path`` and profile it without loading the whole file into memory.
 
@@ -463,6 +518,7 @@ def profile_file(
             thousands,
             date_order,
             bool_words,
+            number_affixes,
         )
         return Report(
             rows=result.rows,
@@ -480,4 +536,5 @@ def profile_file(
             thousands=thousands,
             date_order=date_order,
             bool_words=bool_words,
+            number_affixes=check_number_affixes(number_affixes),
         )
