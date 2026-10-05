@@ -8,7 +8,7 @@ from typing import Any
 
 from .checks import CheckResult
 from .profile import ColumnProfile, Report
-from .reader import DELIMITER_NAMES, delimiter_name
+from .reader import DEFAULT_ENCODING, DELIMITER_NAMES, delimiter_name
 
 
 def _num(value: int | float | str | None) -> str:
@@ -97,6 +97,7 @@ def render_markdown(report: Report, source: str, checks: Sequence[CheckResult] =
         *_delimiter_line(report),
         *_na_line(report),
         *(["- Compression: gzip"] if report.compressed else []),
+        *([f"- Encoding: {report.encoding}"] if report.encoding != DEFAULT_ENCODING else []),
         f"- Duplicate rows: {report.duplicate_rows}",
         *_untrimmed_line(report),
         *_untrimmed_columns_line(report),
@@ -125,6 +126,7 @@ def render_json(report: Report, source: str, checks: Sequence[CheckResult] = ())
         "na_tokens": list(report.na_tokens),
         "top_n": report.top_n,
         "compressed": report.compressed,
+        "encoding": report.encoding,
         "duplicate_rows": report.duplicate_rows,
         "untrimmed_columns": list(report.untrimmed_columns),
         "columns": [

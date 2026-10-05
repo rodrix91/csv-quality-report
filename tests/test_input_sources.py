@@ -120,7 +120,8 @@ def test_stdin_encoding_error_says_offset_is_unavailable(
     err = capsys.readouterr().err
     assert err == (
         "error: '<stdin>' is not valid UTF-8 (the offset of the invalid byte is not "
-        "available on standard input); re-save the file as UTF-8\n"
+        "available on standard input); re-save the file as UTF-8, or name its encoding "
+        "with --encoding (spreadsheet exports are often cp1252)\n"
     )
 
 

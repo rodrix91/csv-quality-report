@@ -22,7 +22,7 @@ from .inference import (
     parse_float,
     value_type,
 )
-from .reader import Table, open_rows
+from .reader import DEFAULT_ENCODING, Table, open_rows
 
 TOP_N = 3  # default number of most frequent values per column (--top)
 # A type hint needs at least 9/10 of the non-missing cells. Kept as integers:
@@ -83,6 +83,7 @@ class Report:
     top_n: int = TOP_N  # how many most frequent values each column lists
     compressed: bool = False  # the input was gzip-compressed
     untrimmed_columns: tuple[str, ...] = ()  # header names with surrounding whitespace
+    encoding: str = DEFAULT_ENCODING  # codec used to decode the input
 
 
 def _untrimmed_names(header: list[str]) -> tuple[str, ...]:
@@ -323,6 +324,7 @@ def build_report(
         top_n=top_n,
         compressed=table.compressed,
         untrimmed_columns=_untrimmed_names(table.header),
+        encoding=table.encoding,
     )
 
 
@@ -333,13 +335,14 @@ def profile_file(
     decimal_comma: bool = False,
     na_tokens: tuple[str, ...] = (),
     top_n: int = TOP_N,
+    encoding: str = DEFAULT_ENCODING,
 ) -> Report:
     """Stream ``path`` and profile it without loading the whole file into memory.
 
     Same rules and errors as ``reader.open_rows``; same result as
     ``build_report(read_table(...))``.
     """
-    with open_rows(path, max_rows=max_rows, delimiter=delimiter) as stream:
+    with open_rows(path, max_rows=max_rows, delimiter=delimiter, encoding=encoding) as stream:
         result = profile_rows(stream.header, stream, decimal_comma, na_tokens, top_n)
         return Report(
             rows=result.rows,
@@ -352,4 +355,5 @@ def profile_file(
             top_n=top_n,
             compressed=stream.compressed,
             untrimmed_columns=_untrimmed_names(stream.header),
+            encoding=stream.encoding,
         )
