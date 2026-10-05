@@ -1,0 +1,90 @@
+name: CSV quality report
+description: Profile a CSV file (types, missing values, duplicates, ranges) and fail the job when data-quality thresholds are exceeded.
+author: rodrix91
+branding:
+  icon: check-square
+  color: green
+
+inputs:
+  path:
+    description: CSV file to check, relative to the workspace. Gzip-compressed files are detected automatically.
+    required: true
+  args:
+    description: >-
+      Extra command-line arguments, split on whitespace, for example
+      "--delimiter auto --na NA,s/d --max-missing 5 --max-duplicates 0".
+      See the README for every option.
+    required: false
+    default: ""
+  python-version:
+    description: Python version used to run the tool (3.11 or newer).
+    required: false
+    default: "3.12"
+  summary:
+    description: Write the Markdown report to the job summary ("true" or "false").
+    required: false
+    default: "true"
+
+outputs:
+  exit-code:
+    description: Exit code of the tool (0 success, 8 a quality gate failed, 2 to 7 and 9 errors; see the README).
+    value: ${{ steps.run.outputs.exit-code }}
+  passed:
+    description: '"true" when the file was read and every requested check passed, otherwise "false".'
+    value: ${{ steps.run.outputs.passed }}
+  report-json:
+    description: Path of the JSON report (empty when the file could not be read).
+    value: ${{ steps.run.outputs.report-json }}
+
+runs:
+  using: composite
+  steps:
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ inputs.python-version }}
+
+    - name: Install csv-quality-report
+      shell: bash
+      env:
+        ACTION_PATH: ${{ github.action_path }}
+      run: python -m pip install --disable-pip-version-check --quiet "$ACTION_PATH"
+
+    - name: Run csv-quality-report
+      id: run
+      shell: bash
+      # Inputs reach the script only through environment variables, never
+      # interpolated into it, so they cannot inject shell commands.
+      env:
+        INPUT_PATH: ${{ inputs.path }}
+        INPUT_ARGS: ${{ inputs.args }}
+        INPUT_SUMMARY: ${{ inputs.summary }}
+      run: |
+        report_dir="${RUNNER_TEMP}/csv-quality-report-${GITHUB_ACTION}"
+        mkdir -p "$report_dir"
+        json="$report_dir/report.json"
+        markdown="$report_dir/report.md"
+        rm -f "$json"
+
+        # Split the extra arguments on whitespace without glob expansion.
+        set -f
+        read -r -a extra <<< "$INPUT_ARGS"
+        set +f
+
+        set +e
+        python -m csv_quality_report "$INPUT_PATH" "${extra[@]}" --json-output "$json" > "$markdown"
+        code=$?
+        set -e
+
+        cat "$markdown"
+        if [ "$INPUT_SUMMARY" = "true" ] && [ -s "$markdown" ]; then
+          cat "$markdown" >> "$GITHUB_STEP_SUMMARY"
+        fi
+
+        {
+          echo "exit-code=$code"
+          if [ "$code" -eq 0 ]; then echo "passed=true"; else echo "passed=false"; fi
+          if [ -f "$json" ]; then echo "report-json=$json"; else echo "report-json="; fi
+        } >> "$GITHUB_OUTPUT"
+
+        exit "$code"
