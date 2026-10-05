@@ -92,3 +92,15 @@ def test_negative_values(write_csv: WriteCsv, capsys: pytest.CaptureFixture[str]
 def test_streaming_and_in_memory_agree(write_csv: WriteCsv) -> None:
     path = write_csv("a,b\n1,0.25\n2,\n2,0.75\n")
     assert profile_file(path) == build_report(read_table(path))
+
+
+def test_markdown_shows_the_mean(write_csv: WriteCsv, capsys: pytest.CaptureFixture[str]) -> None:
+    huge = "9" * 400  # a mean of integers this long is not representable as a float
+    path = write_csv(f"n,f,t,h\n1,0.5,x,{huge}\n2,0.25,y,{huge}\n4,,z,{huge}\n")
+    assert main([str(path)]) == 0
+    out = capsys.readouterr().out
+    assert "| Min | Max | Mean | Top 3 values |\n" in out
+    assert "| n | int | 0 | 0.0 | 3 | 1 | 4 | 2.33333 | " in out
+    assert "| f | float | 1 | 33.3 | 2 | 0.25 | 0.5 | 0.375 | " in out
+    assert "| t | string | 0 | 0.0 | 3 |  |  |  | " in out
+    assert f"| h | int | 0 | 0.0 | 1 | {huge} | {huge} |  | " in out

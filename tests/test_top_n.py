@@ -64,7 +64,7 @@ def test_markdown_default_header_unchanged(
     write_csv: WriteCsv, capsys: pytest.CaptureFixture[str]
 ) -> None:
     assert main([str(write_csv(DATA))]) == 0
-    assert "| Min | Max | Top 3 values |\n" in capsys.readouterr().out
+    assert "| Min | Max | Mean | Top 3 values |\n" in capsys.readouterr().out
 
 
 @pytest.mark.parametrize("bad", ["-1", "x", "2.5"])

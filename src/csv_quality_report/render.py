@@ -130,14 +130,14 @@ def render_markdown(report: Report, source: str, checks: Sequence[CheckResult] =
         *_untrimmed_columns_line(report),
         *_type_hint_line(report),
         "",
-        "| Column | Type | Missing | Missing % | Distinct | Min | Max "
+        "| Column | Type | Missing | Missing % | Distinct | Min | Max | Mean "
         f"| Top {report.top_n} values |",
-        "|---|---|---|---|---|---|---|---|",
+        "|---|---|---|---|---|---|---|---|---|",
     ]
     for c in report.columns:
         lines.append(
             f"| {_md_escape(c.name)} | {c.type} | {c.missing} | {c.missing_pct:.1f} "
-            f"| {c.distinct} | {_num(c.min)} | {_num(c.max)} | {_top(c)} |"
+            f"| {c.distinct} | {_num(c.min)} | {_num(c.max)} | {_num(c.mean)} | {_top(c)} |"
         )
     lines.extend(_checks_section(checks))
     return "\n".join(lines) + "\n"
