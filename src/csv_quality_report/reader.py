@@ -42,8 +42,10 @@ def dedupe_header(header: list[str]) -> list[str]:
     return result
 
 
-def read_table(path: Path, max_rows: int | None = None) -> Table:
+def read_table(path: Path, max_rows: int | None = None, delimiter: str = ",") -> Table:
     """Read ``path`` as UTF-8 (a leading BOM is accepted).
+
+    ``delimiter`` is the single character that separates fields (default ``,``).
 
     Raises a ``CsvQualityError`` subclass for unreadable files, invalid UTF-8,
     empty files and rows whose cell count differs from the header's.
@@ -63,7 +65,7 @@ def read_table(path: Path, max_rows: int | None = None) -> Table:
             "re-save the file as UTF-8"
         ) from exc
 
-    reader = csv.reader(io.StringIO(text, newline=""))
+    reader = csv.reader(io.StringIO(text, newline=""), delimiter=delimiter)
     header: list[str] | None = None
     rows: list[list[str]] = []
     truncated = False

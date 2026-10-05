@@ -42,11 +42,12 @@ You can also run the tool without installing it: `PYTHONPATH=src python3 -m csv_
 ## Usage
 
 ```text
-python -m csv_quality_report PATH [--format markdown|json] [--max-rows N]
+python -m csv_quality_report PATH [--format markdown|json] [--max-rows N] [--delimiter CHAR]
 ```
 
 - `--format` — `markdown` (default) or `json`.
 - `--max-rows N` — analyze only the first `N` data rows (`N >= 1`). The output says when it stopped early (`truncated` in JSON).
+- `--delimiter CHAR` — field separator (default `,`). Accepts one character or the aliases `tab`, `comma`, `semicolon` and `pipe`. Use `--delimiter ";"` for files exported from spreadsheets with a Spanish, Portuguese or other comma-decimal locale. Decimal commas (`10,5`) are not parsed as numbers, so such columns are reported as `string`.
 
 ### Example: Markdown (default)
 
@@ -192,7 +193,7 @@ python -m pytest
 
 This works after installing only the dev dependencies (`pip install -r requirements-dev.txt`) from the repository root: pytest is configured with `pythonpath = ["src"]`, and the tests that start a subprocess set `PYTHONPATH=src` themselves.
 
-Tests (`tests/`) are behavior tests that call the CLI: happy path, missing values, ragged rows, empty file, bad encoding (Latin-1, UTF-16), BOM, duplicate column names, JSON output, `--max-rows`, and exit codes. One test also checks that the sample output in this README matches a real run. See [CONTRIBUTING.md](https://github.com/rodrix91/csv-quality-report/blob/main/CONTRIBUTING.md) (in the [source repository](https://github.com/rodrix91/csv-quality-report); not included in the packages) for lint, type-check and build commands.
+Tests (`tests/`) are behavior tests that call the CLI: happy path, missing values, ragged rows, empty file, bad encoding (Latin-1, UTF-16), BOM, duplicate column names, JSON output, `--max-rows`, `--delimiter`, and exit codes. One test also checks that the sample output in this README matches a real run. See [CONTRIBUTING.md](https://github.com/rodrix91/csv-quality-report/blob/main/CONTRIBUTING.md) (in the [source repository](https://github.com/rodrix91/csv-quality-report); not included in the packages) for lint, type-check and build commands.
 
 ## Limitations
 

@@ -23,6 +23,21 @@ def _positive_int(text: str) -> int:
     return value
 
 
+_DELIMITER_ALIASES = {"tab": "\t", "\\t": "\t", "comma": ",", "semicolon": ";", "pipe": "|"}
+
+
+def _delimiter(text: str) -> str:
+    """Accept one character, or a readable alias such as ``tab`` or ``semicolon``."""
+    value = _DELIMITER_ALIASES.get(text.lower(), text)
+    if len(value) != 1:
+        raise argparse.ArgumentTypeError(
+            f"invalid delimiter: {text!r} (use one character, or tab/comma/semicolon/pipe)"
+        )
+    if value in {'"', "\r", "\n"}:
+        raise argparse.ArgumentTypeError(f"invalid delimiter: {text!r} (reserved character)")
+    return value
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="python -m csv_quality_report",
@@ -42,13 +57,20 @@ def build_parser() -> argparse.ArgumentParser:
         metavar="N",
         help="analyze only the first N data rows",
     )
+    parser.add_argument(
+        "--delimiter",
+        type=_delimiter,
+        default=",",
+        metavar="CHAR",
+        help="field separator: one character, or tab/comma/semicolon/pipe (default: ,)",
+    )
     return parser
 
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     try:
-        table = read_table(args.path, max_rows=args.max_rows)
+        table = read_table(args.path, max_rows=args.max_rows, delimiter=args.delimiter)
     except CsvQualityError as exc:
         print(f"error: {exc.message}", file=sys.stderr)
         return exc.exit_code
