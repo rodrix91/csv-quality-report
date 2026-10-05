@@ -44,6 +44,7 @@ You can also run the tool without installing it: `PYTHONPATH=src python3 -m csv_
 ```text
 python -m csv_quality_report PATH [--format markdown|json] [--max-rows N] [--delimiter CHAR] [--decimal-comma] [--na TOKENS] [--top N] [--json-output FILE]
                              [--max-missing PCT] [--max-missing-column NAME=PCT ...] [--max-duplicates N] [--require-columns NAMES]
+                             [--require-type NAME=TYPE ...]
 python -m csv_quality_report --version
 ```
 
@@ -76,6 +77,7 @@ By default the tool only reports. With thresholds it also decides: the full repo
 - `--max-missing PCT` — fail if any column has more than `PCT` % missing values (0 to 100). The comparison uses the exact percentage, not the rounded `missing_pct` shown in the table.
 - `--max-missing-column NAME=PCT` — a missing-value limit for one column, overriding `--max-missing` for it; repeat the option for several columns, and use it with or without `--max-missing` (for example, `--max-missing 5 --max-missing-column comment=100 --max-missing-column shipment_id=0`). The name is exact and case-sensitive and is split from the value at the last `=`; if a name is given twice, the last limit wins. A limit for a column that is not in the header fails as a `required_column` check instead of being ignored, since it usually means a typo or a renamed column.
 - `--max-duplicates N` — fail if the file has more than `N` duplicate rows (`0`: none allowed).
+- `--require-type NAME=TYPE` — fail unless column `NAME` has type `TYPE` (`int`, `float`, `bool`, `date`, `datetime` or `string`); repeatable, the last type for a name wins. A column satisfies the type when it can be used as it: `int` columns satisfy `float`, `date` columns satisfy `datetime`, and every column satisfies `string`. A column with no values passes (use `--max-missing-column NAME=0` to require values). When a string column fails and its `type_hint` fits the required type, the message names the stray values: `column 'qty' is string, expected int (3 values do not fit: "N/A", "12a")`. An unknown column fails as `required_column`. JSON items of this check also carry `expected` and `actual`.
 - `--require-columns NAMES` — fail for each comma-separated column that is not in the header, for example when the exporting system renamed or dropped a field. Matching is exact and case-sensitive against the header as reported (after `_2`, `_3` suffixes for repeated names); the message lists the columns that are present. In JSON each required column is a `required_column` check with `value` 1 (present) or 0 (missing).
 
 JSON output always has a `checks` list (empty without thresholds); each item has `check`, `column` (`null` for file-level checks), `limit`, `value` and `passed`. Markdown adds a `## Checks` section only when thresholds are given.
@@ -84,7 +86,7 @@ Example: stop a nightly import when an extract has gaps or repeated rows (the st
 
 ```yaml
 - name: Check the shipments extract before loading it
-  run: python -m csv_quality_report data/shipments.csv --delimiter auto --na NA,s/d --max-missing 5 --max-duplicates 0 --require-columns shipment_id,date,weight_kg
+  run: python -m csv_quality_report data/shipments.csv --delimiter auto --na NA,s/d --max-missing 5 --max-duplicates 0 --require-columns shipment_id,date,weight_kg --require-type weight_kg=float
 ```
 
 ### Example: Markdown (default)
@@ -218,7 +220,7 @@ Errors are printed to stderr as `error: ...`; nothing is written to stdout.
 | 5 | Empty file (no header row) | `error: '/tmp/empty.csv' is empty (no header row)` |
 | 6 | Ragged row (cell count differs from header) or malformed CSV | `error: row at line 3 has 2 fields, expected 3 (from the header)` |
 | 7 | `--delimiter auto` cannot pick one separator | `error: cannot detect the delimiter: several separators fit every line (comma, semicolon); pass it explicitly with --delimiter` |
-| 8 | A quality gate failed (`--max-missing`, `--max-missing-column`, `--max-duplicates`, `--require-columns`); the report is still printed | `check failed: column 'weight_kg' has 12.5% missing values (limit 5%)` |
+| 8 | A quality gate failed (`--max-missing`, `--max-missing-column`, `--max-duplicates`, `--require-columns`, `--require-type`); the report is still printed | `check failed: column 'weight_kg' has 12.5% missing values (limit 5%)` |
 | 9 | The `--json-output` file cannot be written | `error: cannot write 'out/report.json': No such file or directory` |
 
 ## Use as a GitHub Action
@@ -345,7 +347,7 @@ flowchart TD
 | `inference.py` | heuristic type inference for one column |
 | `profile.py` | single-pass per-column statistics and duplicate-row count |
 | `render.py` | Markdown and JSON output |
-| `checks.py` | optional quality gates (`--max-missing`, `--max-missing-column`, `--max-duplicates`, `--require-columns`) evaluated on a finished report |
+| `checks.py` | optional quality gates (`--max-missing`, `--max-missing-column`, `--max-duplicates`, `--require-columns`, `--require-type`) evaluated on a finished report |
 | `errors.py` | error classes and exit codes |
 
 Design rationale and alternatives: [docs/decisions/0001-architecture.md](https://github.com/rodrix91/csv-quality-report/blob/main/docs/decisions/0001-architecture.md) and, for streaming, [docs/decisions/0002-streaming-profile.md](https://github.com/rodrix91/csv-quality-report/blob/main/docs/decisions/0002-streaming-profile.md) (in the [source repository](https://github.com/rodrix91/csv-quality-report); not included in the packages).

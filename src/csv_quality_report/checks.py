@@ -15,6 +15,17 @@ from .profile import Report
 CHECK_MAX_MISSING = "max_missing"
 CHECK_MAX_DUPLICATES = "max_duplicates"
 CHECK_REQUIRED_COLUMN = "required_column"
+CHECK_COLUMN_TYPE = "column_type"
+COLUMN_TYPES = ("int", "float", "bool", "date", "datetime", "string")
+# Inferred column types that satisfy each required type.
+_SATISFIES = {
+    "int": {"int"},
+    "float": {"int", "float"},
+    "bool": {"bool"},
+    "date": {"date"},
+    "datetime": {"date", "datetime"},
+    "string": set(COLUMN_TYPES),
+}
 _MAX_LISTED = 10  # columns named in a "missing column" message
 
 
@@ -29,6 +40,8 @@ class CheckResult:
     passed: bool
     detail: str = ""  # extra context for messages (not part of the JSON output)
     hint: str = ""  # a present column that matches after stripping whitespace
+    expected: str = ""  # column_type checks: the required type
+    actual: str = ""  # column_type checks: the inferred type
 
     def describe(self) -> str:
         """One-line, human-readable explanation used on stderr and in Markdown."""
@@ -42,6 +55,11 @@ class CheckResult:
                 return f"required column '{self.column}' is present"
             message = f"required column '{self.column}' is missing (columns: {self.detail})"
             return message + (f"; did you mean '{self.hint}'?" if self.hint else "")
+        if self.check == CHECK_COLUMN_TYPE:
+            if self.passed:
+                return f"column '{self.column}' is {self.actual}, as required ({self.expected})"
+            message = f"column '{self.column}' is {self.actual}, expected {self.expected}"
+            return message + (f" ({self.detail})" if self.detail else "")
         return f"{_fmt(self.value)} duplicate rows (limit {_fmt(self.limit)})"
 
 
@@ -56,6 +74,7 @@ def evaluate(
     max_duplicates: int | None = None,
     required_columns: Iterable[str] = (),
     column_max_missing: Mapping[str, float] | None = None,
+    column_types: Mapping[str, str] | None = None,
 ) -> list[CheckResult]:
     """Evaluate the requested thresholds; a value equal to its limit passes.
 
@@ -64,6 +83,13 @@ def evaluate(
     without it. A limit for a column that is not in the header fails as a
     ``required_column`` check, because it usually means a typo or a renamed
     column; it is not silently ignored.
+
+    ``column_types`` maps column names to a required type from
+    ``COLUMN_TYPES``. A column satisfies it when its inferred type can be used
+    as that type (int columns satisfy float, date columns satisfy datetime,
+    every column satisfies string); a column with no values passes. When a
+    failing string column has a type hint matching the requirement, the
+    message names the stray values. Unknown names fail as ``required_column``.
 
     ``required_columns`` are matched exactly (case-sensitive) against the
     reported header, after duplicate-name suffixes; each one gives a check
@@ -102,7 +128,32 @@ def evaluate(
     header = [col.name for col in report.columns]
     present = set(header)
     listed = ", ".join(header[:_MAX_LISTED]) + (", ..." if len(header) > _MAX_LISTED else "")
-    unknown_limited = (name for name in column_limits if name not in present)
+    by_name = {col.name: col for col in report.columns}
+    required_types = dict(column_types or {})
+    for name, expected in required_types.items():
+        column = by_name.get(name)
+        if column is None:
+            continue  # reported below as a missing required column
+        ok = column.distinct == 0 or column.type in _SATISFIES[expected]
+        detail = ""
+        hint = column.type_hint
+        if not ok and hint is not None and hint.type in _SATISFIES[expected]:
+            noun = "value does" if hint.nonconforming == 1 else "values do"
+            examples = ", ".join(f'"{v}"' for v in hint.examples)
+            detail = f"{hint.nonconforming} {noun} not fit: {examples}"
+        results.append(
+            CheckResult(
+                check=CHECK_COLUMN_TYPE,
+                column=name,
+                limit=1,
+                value=1 if ok else 0,
+                passed=ok,
+                detail=detail,
+                expected=expected,
+                actual=column.type,
+            )
+        )
+    unknown_limited = (name for name in [*column_limits, *required_types] if name not in present)
     for name in dict.fromkeys([*required_columns, *unknown_limited]):
         found = name in present
         near = [] if found else [h for h in header if h.strip() == name.strip()]
