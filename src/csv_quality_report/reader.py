@@ -4,12 +4,16 @@ from __future__ import annotations
 
 import codecs
 import csv
+import gzip
 import io
+import sys
+import zlib
 from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
+from itertools import chain
 from pathlib import Path
-from typing import Protocol
+from typing import Protocol, cast
 
 from .errors import (
     DelimiterDetectionError,
@@ -21,6 +25,11 @@ from .errors import (
 
 _CHUNK = 1 << 20  # bytes per read when locating an invalid UTF-8 byte
 DELIMITER_AUTO = "auto"
+STDIN = "-"  # path that means "read standard input"
+STDIN_NAME = "<stdin>"  # how standard input is named in messages and reports
+_GZIP_MAGIC = b"\x1f\x8b"  # first bytes of every gzip stream; CSV text never starts so
+# Errors a (possibly compressed) byte stream can raise while it is being read.
+_STREAM_ERRORS = (OSError, EOFError, zlib.error)
 DELIMITER_CANDIDATES = (",", ";", "\t", "|")
 SNIFF_CHARS = 64 * 1024  # how much text detection looks at
 SNIFF_RECORDS = 100  # how many lines detection checks
@@ -36,6 +45,7 @@ class Table:
     truncated: bool  # True when --max-rows stopped reading early
     delimiter: str = ","
     delimiter_detected: bool = False  # True when chosen by ``detect_delimiter``
+    compressed: bool = False  # True when the input was gzip-compressed
 
 
 def dedupe_header(header: list[str]) -> list[str]:
@@ -138,8 +148,10 @@ class RowStream:
         max_rows: int | None,
         delimiter: str,
         delimiter_detected: bool,
+        compressed: bool = False,
     ) -> None:
         self.path = path
+        self.compressed = compressed
         self.header = dedupe_header(raw_header)
         self.delimiter = delimiter
         self.delimiter_detected = delimiter_detected
@@ -151,7 +163,7 @@ class RowStream:
 
     def __iter__(self) -> Iterator[list[str]]:
         count = 0
-        for record in _guarded(self.path, self._records, self._reader):
+        for record in _guarded(self.path, self._records, self._reader, self.compressed):
             if not record:  # blank line
                 continue
             if self._max_rows is not None and count >= self._max_rows:
@@ -171,15 +183,26 @@ class _CsvReader(Protocol):
     def line_num(self) -> int: ...
 
 
-def _invalid_utf8_offset(path: Path) -> int:
+def is_stdin(path: Path) -> bool:
+    """True when ``path`` is ``-``, the conventional name for standard input."""
+    return str(path) == STDIN
+
+
+def display_name(path: Path) -> str:
+    """Name used for ``path`` in messages and reports (``<stdin>`` for ``-``)."""
+    return STDIN_NAME if is_stdin(path) else str(path)
+
+
+def _invalid_utf8_offset(path: Path, compressed: bool = False) -> int:
     """Byte offset (from the start of the file) of the first invalid UTF-8 byte.
 
-    Decodes in chunks so it works on files of any size. Only called after a
-    decoding error was seen, so a valid file returning 0 does not happen in practice.
+    Decodes in chunks so it works on files of any size. For a gzip file the
+    offset is counted in the decompressed data. Only called after a decoding
+    error was seen, so a valid file returning 0 does not happen in practice.
     """
     decoder = codecs.getincrementaldecoder("utf-8")()
     consumed = 0
-    with path.open("rb") as handle:
+    with gzip.open(path, "rb") if compressed else path.open("rb") as handle:
         while True:
             chunk = handle.read(_CHUNK)
             pending = len(decoder.getstate()[0])
@@ -192,23 +215,65 @@ def _invalid_utf8_offset(path: Path) -> int:
             consumed += len(chunk)
 
 
-def _guarded(path: Path, records: Iterator[list[str]], reader: _CsvReader) -> Iterator[list[str]]:
+def _guarded(
+    path: Path, records: Iterator[list[str]], reader: _CsvReader, compressed: bool = False
+) -> Iterator[list[str]]:
     """Re-raise low-level errors from ``records`` as ``CsvQualityError`` subclasses."""
     try:
         yield from records
     except UnicodeDecodeError as exc:
-        raise _encoding_error(path) from exc
+        raise _encoding_error(path, compressed) from exc
     except csv.Error as exc:
         raise RaggedRowError(f"malformed CSV near line {reader.line_num}: {exc}") from exc
-    except OSError as exc:  # pragma: no cover - I/O failure mid-read (e.g. lost mount)
-        raise FileReadError(f"cannot read '{path}': {exc.strerror or exc}") from exc
+    except _STREAM_ERRORS as exc:  # I/O failure, or corrupt or truncated gzip data
+        raise _read_error(path, exc) from exc
 
 
-def _encoding_error(path: Path) -> EncodingError:
+def _read_error(path: Path, exc: BaseException) -> FileReadError:
+    reason = exc.strerror if isinstance(exc, OSError) and exc.strerror else exc
+    return FileReadError(f"cannot read '{display_name(path)}': {reason}")
+
+
+def _encoding_error(path: Path, compressed: bool = False) -> EncodingError:
+    if is_stdin(path):
+        where = "the offset of the invalid byte is not available on standard input"
+    else:
+        offset = _invalid_utf8_offset(path, compressed)
+        where = f"invalid byte at offset {offset}"
+        if compressed:
+            where += " of the decompressed data"
     return EncodingError(
-        f"'{path}' is not valid UTF-8 (invalid byte at offset {_invalid_utf8_offset(path)}); "
-        "re-save the file as UTF-8"
+        f"'{display_name(path)}' is not valid UTF-8 ({where}); re-save the file as UTF-8"
     )
+
+
+@contextmanager
+def _text_stream(path: Path) -> Iterator[tuple[io.TextIOWrapper, bool]]:
+    """Open ``path`` (or standard input for ``-``) as UTF-8 text.
+
+    Yields the text stream and whether the input was gzip-compressed, which is
+    detected from the first two bytes, so ``.csv.gz`` files and compressed
+    pipes need no flag. Standard input is never closed.
+    """
+    owned = not is_stdin(path)
+    try:
+        binary = path.open("rb") if owned else cast(io.BufferedReader, sys.stdin.buffer)
+        compressed = binary.peek(2)[:2] == _GZIP_MAGIC
+    except OSError as exc:
+        raise _read_error(path, exc) from exc
+    try:
+        source = gzip.GzipFile(fileobj=binary, mode="rb") if compressed else binary
+        text = io.TextIOWrapper(cast(io.BufferedReader, source), encoding="utf-8-sig", newline="")
+        try:
+            yield text, compressed
+        finally:
+            if owned or compressed:
+                text.close()  # closing a GzipFile leaves its fileobj open
+            else:
+                text.detach()  # keep standard input usable
+    finally:
+        if owned:
+            binary.close()
 
 
 @contextmanager
@@ -216,36 +281,39 @@ def open_rows(path: Path, max_rows: int | None = None, delimiter: str = ",") -> 
     """Open ``path`` and yield a ``RowStream`` that reads it lazily.
 
     The file is read as UTF-8 (a leading BOM is accepted) without loading it
-    into memory. ``delimiter`` is one character, or ``"auto"`` to choose it
-    with ``detect_delimiter`` from the first ``SNIFF_CHARS`` characters.
+    into memory. ``-`` reads standard input, and gzip-compressed input is
+    decompressed on the fly (detected from its first bytes). ``delimiter`` is
+    one character, or ``"auto"`` to choose it with ``detect_delimiter`` from
+    the first ``SNIFF_CHARS`` characters; detection never seeks, so it also
+    works on pipes.
 
     Errors are ``CsvQualityError`` subclasses: unreadable file, invalid UTF-8,
     empty file (raised here), and ragged or malformed rows (raised while
     iterating, in the order they appear in the file). Fully blank lines are
     skipped. Duplicate column names get ``_2``, ``_3`` suffixes.
     """
-    try:
-        handle = path.open("r", encoding="utf-8-sig", newline="")
-    except OSError as exc:
-        raise FileReadError(f"cannot read '{path}': {exc.strerror or exc}") from exc
-    with handle:
+    with _text_stream(path) as (handle, compressed):
+        lines: Iterator[str] = handle
         detected = delimiter == DELIMITER_AUTO
         if detected:
             try:
                 sample = handle.read(SNIFF_CHARS + 1)
-                handle.seek(0)
+                if len(sample) > SNIFF_CHARS:
+                    sample += handle.readline()  # end the sample on a line boundary
             except UnicodeDecodeError as exc:
-                raise _encoding_error(path) from exc
-            except OSError as exc:  # pragma: no cover - I/O failure mid-read
-                raise FileReadError(f"cannot read '{path}': {exc.strerror or exc}") from exc
+                raise _encoding_error(path, compressed) from exc
+            except _STREAM_ERRORS as exc:
+                raise _read_error(path, exc) from exc
             delimiter = detect_delimiter(sample)
+            # Parse the sample again, then continue with the rest of the stream.
+            lines = chain(io.StringIO(sample, newline=""), handle)
 
-        reader = csv.reader(handle, delimiter=delimiter)
+        reader = csv.reader(lines, delimiter=delimiter)
         records = iter(reader)
-        header = next((r for r in _guarded(path, records, reader) if r), None)
+        header = next((r for r in _guarded(path, records, reader, compressed) if r), None)
         if header is None:
-            raise EmptyFileError(f"'{path}' is empty (no header row)")
-        yield RowStream(path, records, reader, header, max_rows, delimiter, detected)
+            raise EmptyFileError(f"'{display_name(path)}' is empty (no header row)")
+        yield RowStream(path, records, reader, header, max_rows, delimiter, detected, compressed)
 
 
 def read_table(path: Path, max_rows: int | None = None, delimiter: str = ",") -> Table:
@@ -262,4 +330,5 @@ def read_table(path: Path, max_rows: int | None = None, delimiter: str = ",") ->
             truncated=stream.truncated,
             delimiter=stream.delimiter,
             delimiter_detected=stream.delimiter_detected,
+            compressed=stream.compressed,
         )
