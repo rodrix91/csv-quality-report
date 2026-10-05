@@ -10,7 +10,7 @@ from pathlib import Path
 from . import __version__
 from .checks import COLUMN_TYPES, evaluate
 from .errors import EXIT_CHECKS, CsvQualityError, OutputWriteError
-from .inference import DATE_ORDERS, check_thousands
+from .inference import DATE_ORDERS, bool_word_map, check_thousands
 from .profile import TOP_N, profile_file
 from .reader import DEFAULT_ENCODING, DELIMITER_AUTO, display_name, normalize_encoding
 from .render import render_json, render_markdown
@@ -100,6 +100,16 @@ def _thousands(text: str) -> str:
     return value
 
 
+def _bool_words(text: str) -> tuple[str, str]:
+    """Parse ``sí,no`` into a (true word, false word) pair of stripped words."""
+    words = [word.strip() for word in text.split(",")]
+    if len(words) != 2 or not all(words):
+        raise argparse.ArgumentTypeError(
+            f"invalid --bool-words value: {text!r} (use TRUE,FALSE, e.g. sí,no)"
+        )
+    return words[0], words[1]
+
+
 def _column_type(text: str) -> tuple[str, str]:
     """Parse ``NAME=TYPE``; the last ``=`` separates them, so names may contain ``=``."""
     name, sep, kind = text.rpartition("=")
@@ -171,6 +181,15 @@ def build_parser() -> argparse.ArgumentParser:
         help="read dates such as 05/10/2026 (/ - or . separators, 4-digit years, optional "
         "time) as day/month/year (dmy), month/day/year (mdy) or year/month/day (ymd); "
         "never guessed",
+    )
+    parser.add_argument(
+        "--bool-words",
+        type=_bool_words,
+        action="append",
+        default=[],
+        metavar="TRUE,FALSE",
+        help="also read these words as booleans, any case, e.g. sí,no or verdadero,falso "
+        "(repeatable; true/false always count)",
     )
     parser.add_argument(
         "--na",
@@ -262,8 +281,10 @@ def _write_text(path: Path, text: str) -> None:
 def main(argv: Sequence[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
+    bool_words = tuple(dict.fromkeys(args.bool_words))  # repeated pairs count once
     try:
         check_thousands(args.thousands, args.decimal_comma)
+        bool_word_map(bool_words)
     except ValueError as exc:
         parser.error(str(exc))
     try:
@@ -278,6 +299,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             max_field_size=args.max_field_size,
             thousands=args.thousands,
             date_order=args.date_order,
+            bool_words=bool_words,
         )
     except CsvQualityError as exc:
         print(f"error: {exc.message}", file=sys.stderr)

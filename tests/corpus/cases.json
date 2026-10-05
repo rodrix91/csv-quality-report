@@ -47,5 +47,12 @@
     "args": ["--delimiter", "auto", "--decimal-comma", "--thousands", "dot", "--na", "s/d", "--date-order", "dmy", "--require-type", "Emisión=date", "--require-type", "Despacho=datetime", "--require-type", "Vencimiento=date"],
     "exit_code": 8,
     "about": "Day-first ERP export: dates and date-times read with --date-order dmy next to ISO values; an impossible due date (30/02/2026) blocks the date type and is named."
+  },
+  {
+    "name": "excel_es_booleans",
+    "file": "excel_es_booleans.csv",
+    "args": ["--delimiter", "auto", "--decimal-comma", "--thousands", "dot", "--date-order", "dmy", "--bool-words", "verdadero,falso", "--bool-words", "sí,no", "--require-type", "Pagado=bool", "--require-type", "Enviado=bool"],
+    "exit_code": 8,
+    "about": "Spanish Excel 'CSV UTF-8' export: BOM, CRLF, VERDADERO/FALSO and Sí/No flags read with --bool-words; one 'Pendiente' keeps Enviado as text, is named in the type hint and fails --require-type."
   }
 ]

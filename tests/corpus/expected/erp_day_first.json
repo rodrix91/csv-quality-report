@@ -12,6 +12,7 @@
   "encoding": "utf-8",
   "thousands": ".",
   "date_order": "dmy",
+  "bool_words": [],
   "duplicate_rows": 0,
   "untrimmed_columns": [],
   "columns": [

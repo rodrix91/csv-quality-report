@@ -17,9 +17,12 @@ from .inference import (
     TYPE_FLOAT,
     TYPE_INT,
     TYPE_STRING,
+    BoolWords,
+    bool_word_map,
     check_date_order,
     check_thousands,
     infer_type,
+    normalize_bool,
     normalize_date,
     parse_datetime,
     parse_float,
@@ -94,6 +97,7 @@ class Report:
     encoding: str = DEFAULT_ENCODING  # codec used to decode the input
     thousands: str | None = None  # thousands separator given (".", "," or " ")
     date_order: str | None = None  # order of non-ISO dates given ("dmy", "mdy" or "ymd")
+    bool_words: BoolWords = ()  # extra (true, false) word pairs, as given
 
 
 def _untrimmed_names(header: list[str]) -> tuple[str, ...]:
@@ -150,19 +154,23 @@ def _plain_values(
     decimal_comma: bool,
     thousands: str | None = None,
     date_order: str | None = None,
+    bool_map: dict[str, str] | None = None,
 ) -> list[str]:
-    """``values`` as inference reads them: numbers without thousands separators
-    and dates rewritten as ISO 8601, when those options are given.
+    """``values`` as inference reads them: numbers without thousands separators,
+    dates rewritten as ISO 8601 and boolean words as true/false, when those
+    options are given.
 
-    The two rewrites never apply to the same value (a grouped number has
-    three-digit groups, a date a one- or two-digit middle part), so their
-    order does not matter.
+    The rewrites never apply to the same value (a grouped number has
+    three-digit groups, a date a one- or two-digit middle part, and boolean
+    words cannot be numbers or dates), so their order does not matter.
     """
     plain = list(values)
     if thousands is not None:
         plain = [strip_thousands(v, thousands, decimal_comma) for v in plain]
     if date_order is not None:
         plain = [normalize_date(v, date_order) for v in plain]
+    if bool_map is not None:
+        plain = [normalize_bool(v, bool_map) for v in plain]
     return plain
 
 
@@ -171,6 +179,7 @@ def _type_hint(
     decimal_comma: bool,
     thousands: str | None = None,
     date_order: str | None = None,
+    bool_map: dict[str, str] | None = None,
 ) -> TypeHint | None:
     """Dominant non-string type of a ``string`` column, if one covers 90% of its cells.
 
@@ -185,7 +194,7 @@ def _type_hint(
     weights = list(counts.values())
     # Classify numbers without their thousands separators and dates in ISO
     # form, but report the stray values as written.
-    plain = _plain_values(keys, decimal_comma, thousands, date_order)
+    plain = _plain_values(keys, decimal_comma, thousands, date_order, bool_map)
     total = sum(weights)
     kinds: list[str] = []
     text_cells = 0
@@ -261,17 +270,18 @@ class _ColumnAccumulator:
         top_n: int = TOP_N,
         thousands: str | None = None,
         date_order: str | None = None,
+        bool_map: dict[str, str] | None = None,
     ) -> ColumnProfile:
         # Inference, min and max only depend on which values occur, so looking
         # at distinct values gives the same answer as looking at every cell.
         distinct = self.counts.keys()
-        # With a thousands separator or a date order, numbers and dates are
-        # inferred and measured in their plain form (1234,5 and 2026-10-05);
-        # top values and lengths keep the text as written.
+        # With a thousands separator, a date order or boolean words, values
+        # are inferred and measured in their plain form (1234,5, 2026-10-05,
+        # true); top values and lengths keep the text as written.
         values: Iterable[str] = (
             distinct
-            if thousands is None and date_order is None
-            else _plain_values(distinct, decimal_comma, thousands, date_order)
+            if thousands is None and date_order is None and bool_map is None
+            else _plain_values(distinct, decimal_comma, thousands, date_order, bool_map)
         )
         col_type = infer_type(values, decimal_comma)
         low: int | float | str | None = None
@@ -300,7 +310,7 @@ class _ColumnAccumulator:
             top_values=self.counts.most_common(top_n),
             untrimmed=self.untrimmed,
             mean=mean,
-            type_hint=_type_hint(self.counts, decimal_comma, thousands, date_order)
+            type_hint=_type_hint(self.counts, decimal_comma, thousands, date_order, bool_map)
             if col_type == TYPE_STRING
             else None,
             min_length=min(map(len, distinct)) if distinct else None,
@@ -323,6 +333,7 @@ def profile_rows(
     top_n: int = TOP_N,
     thousands: str | None = None,
     date_order: str | None = None,
+    bool_words: BoolWords = (),
 ) -> _Profiled:
     """Profile ``rows`` in a single pass; each row must have ``len(header)`` cells.
 
@@ -335,11 +346,12 @@ def profile_rows(
     being stored, so a false match would need a hash collision (probability
     below 1e-20 even for billions of rows).
 
-    ``thousands`` and ``date_order`` are validated before any row is read and
-    raise ``ValueError`` when unsupported or contradictory.
+    ``thousands``, ``date_order`` and ``bool_words`` are validated before any
+    row is read and raise ``ValueError`` when unsupported or contradictory.
     """
     check_thousands(thousands, decimal_comma)
     check_date_order(date_order)
+    bool_map = bool_word_map(bool_words) if bool_words else None
     columns = [_ColumnAccumulator(name) for name in header]
     counters = [acc.counts for acc in columns]
     seen: set[bytes] = set()
@@ -359,7 +371,10 @@ def profile_rows(
     for acc in columns:
         acc.strip_counts(na)
     return _Profiled(
-        columns=[acc.finish(total, decimal_comma, top_n, thousands, date_order) for acc in columns],
+        columns=[
+            acc.finish(total, decimal_comma, top_n, thousands, date_order, bool_map)
+            for acc in columns
+        ],
         rows=total,
         duplicate_rows=total - len(seen),
     )
@@ -372,6 +387,7 @@ def build_report(
     top_n: int = TOP_N,
     thousands: str | None = None,
     date_order: str | None = None,
+    bool_words: BoolWords = (),
 ) -> Report:
     """Profile every column of an in-memory ``table``.
 
@@ -379,10 +395,19 @@ def build_report(
     ``na_tokens`` are extra cell texts counted as missing; ``top_n`` is how
     many most frequent values each column lists; ``thousands`` is the
     thousands separator of numbers; ``date_order`` (``"dmy"``, ``"mdy"`` or
-    ``"ymd"``) reads dates such as ``05/10/2026`` in that order.
+    ``"ymd"``) reads dates such as ``05/10/2026`` in that order;
+    ``bool_words`` are extra ``(true, false)`` word pairs such as
+    ``("sí", "no")``.
     """
     result = profile_rows(
-        table.header, table.rows, decimal_comma, na_tokens, top_n, thousands, date_order
+        table.header,
+        table.rows,
+        decimal_comma,
+        na_tokens,
+        top_n,
+        thousands,
+        date_order,
+        bool_words,
     )
     return Report(
         rows=result.rows,
@@ -398,6 +423,7 @@ def build_report(
         encoding=table.encoding,
         thousands=thousands,
         date_order=date_order,
+        bool_words=bool_words,
     )
 
 
@@ -412,6 +438,7 @@ def profile_file(
     max_field_size: int | None = None,
     thousands: str | None = None,
     date_order: str | None = None,
+    bool_words: BoolWords = (),
 ) -> Report:
     """Stream ``path`` and profile it without loading the whole file into memory.
 
@@ -426,7 +453,14 @@ def profile_file(
         max_field_size=max_field_size,
     ) as stream:
         result = profile_rows(
-            stream.header, stream, decimal_comma, na_tokens, top_n, thousands, date_order
+            stream.header,
+            stream,
+            decimal_comma,
+            na_tokens,
+            top_n,
+            thousands,
+            date_order,
+            bool_words,
         )
         return Report(
             rows=result.rows,
@@ -442,4 +476,5 @@ def profile_file(
             encoding=stream.encoding,
             thousands=thousands,
             date_order=date_order,
+            bool_words=bool_words,
         )

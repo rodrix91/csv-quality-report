@@ -214,6 +214,40 @@ def normalize_date(value: str, order: str) -> str:
     return f"{iso}{g[4]}{g[5]:0>2}:{g[6]}{seconds}"
 
 
+BoolWords = tuple[tuple[str, str], ...]  # (true word, false word) pairs, as given
+
+
+def bool_word_map(pairs: BoolWords) -> dict[str, str]:
+    """Map each word of ``pairs``, casefolded, to ``"true"`` or ``"false"``.
+
+    ``true`` and ``false`` are always recognized and cannot change meaning.
+    Raises ``ValueError`` for an empty word, a pair whose words are equal
+    (ignoring case), a word given as true in one pair and false in another, or
+    a word that is already a number or a date: with ``1,0`` a quantity column
+    holding 0, 1 and 5 would turn into text, and 0/1 columns are reported as
+    ``int`` anyway.
+    """
+    mapping = {"true": "true", "false": "false"}
+    for pair in pairs:
+        if len(pair) != 2 or not all(word.strip() for word in pair):
+            raise ValueError(f"boolean words must be two non-empty words: {pair!r}")
+        true_word, false_word = (word.strip().casefold() for word in pair)
+        for word in (true_word, false_word):
+            if {value_type(word), value_type(word, decimal_comma=True)} - {TYPE_STRING, TYPE_BOOL}:
+                raise ValueError(f"{word!r} is a number or a date, not a boolean word")
+        if true_word == false_word:
+            raise ValueError(f"{pair[0]!r} and {pair[1]!r} are the same word (case is ignored)")
+        for word, meaning in ((true_word, "true"), (false_word, "false")):
+            if mapping.setdefault(word, meaning) != meaning:
+                raise ValueError(f"{word!r} cannot mean both true and false")
+    return mapping
+
+
+def normalize_bool(value: str, mapping: dict[str, str]) -> str:
+    """``"true"`` or ``"false"`` for a word in ``mapping`` (any case); else ``value``."""
+    return mapping.get(value.casefold(), value)
+
+
 def check_date_order(order: str | None) -> None:
     """Raise ``ValueError`` for a date order other than ``None`` or one of ``DATE_ORDERS``."""
     if order is not None and order not in _DATE_LAYOUTS:
