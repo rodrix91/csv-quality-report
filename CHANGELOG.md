@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-10-05
+
 ### Added
 
 - `--date-order dmy|mdy|ymd` reads dates such as `05/10/2026` (optionally with a time) in the given order, never guessed: the column becomes `date` or `datetime` with an ISO 8601 range, impossible dates are named in the type hint as written, and top values keep the original text. JSON gains `date_order`, Markdown a `Date order` line; the corpus gains a day-first ERP export (#61).
@@ -91,7 +93,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 - Initial version: per-column type inference, missing values, distinct counts, min/max and top values, duplicate rows, Markdown and JSON output.
 
-[Unreleased]: https://github.com/rodrix91/csv-quality-report/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/rodrix91/csv-quality-report/compare/v0.7.0...HEAD
+[0.7.0]: https://github.com/rodrix91/csv-quality-report/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/rodrix91/csv-quality-report/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/rodrix91/csv-quality-report/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/rodrix91/csv-quality-report/compare/v0.3.0...v0.4.0
