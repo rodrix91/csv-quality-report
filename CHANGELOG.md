@@ -7,6 +7,7 @@ All notable changes to this project are documented here. The format follows [Kee
 ### Added
 
 - Excel's `sep=` first line (`sep=;`, also quoted or after a BOM) is skipped instead of being read as the header. `--delimiter auto` uses the declared separator; a different explicit delimiter, including the default comma, stops with exit code 7 and names the declared one. Error line numbers still count the skipped line. JSON gains `sep_line`, and the Markdown delimiter line says when it was declared (#66).
+- `--date-order` accepts 12-hour times (`10/5/2026 2:30:00 PM`, `2:30pm`, `2:30 p.m.`, the Spanish `2:30 p. m.` with no-break spaces), read as 24-hour ISO 8601; hours outside 1 to 12 with a marker stay text and are named in the type hint (#68).
 - The end-to-end corpus can hold error cases, whose reference is the message printed on stderr (`expected/<name>.txt`); the first one is a `sep=;` file read with the wrong delimiter.
 
 ## [0.7.0] - 2026-10-05
