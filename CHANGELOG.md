@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-10-05
+
 ### Added
 
 - `type_hint` for `string` columns where at least 90% of the cells fit one other type: the type, the conforming share, and the stray values that block it (JSON field and a `Mostly typed` Markdown line). Values are classified once per distinct value with cheap prefilters and C-level counting; no cost on the 1,000,000-row benchmark, about 0.7 s in the worst case of one stray among 1,000,000 distinct integers (#43).
@@ -73,7 +75,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 - Initial version: per-column type inference, missing values, distinct counts, min/max and top values, duplicate rows, Markdown and JSON output.
 
-[Unreleased]: https://github.com/rodrix91/csv-quality-report/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/rodrix91/csv-quality-report/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/rodrix91/csv-quality-report/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/rodrix91/csv-quality-report/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/rodrix91/csv-quality-report/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/rodrix91/csv-quality-report/releases/tag/v0.2.0
