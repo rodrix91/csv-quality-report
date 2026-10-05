@@ -40,6 +40,14 @@ def _delimiter(text: str) -> str:
     return value
 
 
+def _na_tokens(text: str) -> tuple[str, ...]:
+    """Parse ``NA,null,-`` into unique, stripped, non-empty tokens (order kept)."""
+    tokens = tuple(dict.fromkeys(t.strip() for t in text.split(",") if t.strip()))
+    if not tokens:
+        raise argparse.ArgumentTypeError(f"invalid --na value: {text!r} (no tokens)")
+    return tokens
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="python -m csv_quality_report",
@@ -72,6 +80,13 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="numbers use ',' as decimal mark (10,5); values written with '.' are not floats",
     )
+    parser.add_argument(
+        "--na",
+        type=_na_tokens,
+        default=(),
+        metavar="TOKENS",
+        help="comma-separated cell values to count as missing, e.g. NA,null,- (case-sensitive)",
+    )
     return parser
 
 
@@ -83,6 +98,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             max_rows=args.max_rows,
             delimiter=args.delimiter,
             decimal_comma=args.decimal_comma,
+            na_tokens=args.na,
         )
     except CsvQualityError as exc:
         print(f"error: {exc.message}", file=sys.stderr)

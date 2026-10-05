@@ -36,6 +36,7 @@ class Report:
     columns: list[ColumnProfile]
     delimiter: str = ","
     delimiter_detected: bool = False
+    na_tokens: tuple[str, ...] = ()  # extra cell texts counted as missing
 
 
 def _row_digest(row: list[str]) -> bytes:
@@ -97,9 +98,16 @@ class _Profiled:
 
 
 def profile_rows(
-    header: list[str], rows: Iterable[list[str]], decimal_comma: bool = False
+    header: list[str],
+    rows: Iterable[list[str]],
+    decimal_comma: bool = False,
+    na_tokens: Iterable[str] = (),
 ) -> _Profiled:
     """Profile ``rows`` in a single pass; each row must have ``len(header)`` cells.
+
+    Cells whose stripped text is one of ``na_tokens`` count as missing, like
+    empty cells. They are removed from the counters once, after the pass, so
+    they cost nothing per row.
 
     ``duplicate_rows`` counts rows that exactly repeat an earlier row. Rows are
     compared by a 128-bit BLAKE2b fingerprint of their cell texts instead of
@@ -120,8 +128,9 @@ def profile_rows(
         seen.update(map(_row_digest, batch))
         for counter, column in zip(counters, zip(*batch, strict=True), strict=True):
             counter.update(map(str.strip, column))
+    na = {token.strip() for token in na_tokens} | {""}
     for acc in columns:
-        acc.missing = acc.counts.pop("", 0)
+        acc.missing = sum(acc.counts.pop(token, 0) for token in na)
     return _Profiled(
         columns=[acc.finish(total, decimal_comma) for acc in columns],
         rows=total,
@@ -129,12 +138,15 @@ def profile_rows(
     )
 
 
-def build_report(table: Table, decimal_comma: bool = False) -> Report:
+def build_report(
+    table: Table, decimal_comma: bool = False, na_tokens: tuple[str, ...] = ()
+) -> Report:
     """Profile every column of an in-memory ``table``.
 
-    ``decimal_comma`` makes float inference expect ``,`` as the decimal mark.
+    ``decimal_comma`` makes float inference expect ``,`` as the decimal mark;
+    ``na_tokens`` are extra cell texts counted as missing.
     """
-    result = profile_rows(table.header, table.rows, decimal_comma)
+    result = profile_rows(table.header, table.rows, decimal_comma, na_tokens)
     return Report(
         rows=result.rows,
         duplicate_rows=result.duplicate_rows,
@@ -142,6 +154,7 @@ def build_report(table: Table, decimal_comma: bool = False) -> Report:
         columns=result.columns,
         delimiter=table.delimiter,
         delimiter_detected=table.delimiter_detected,
+        na_tokens=na_tokens,
     )
 
 
@@ -150,6 +163,7 @@ def profile_file(
     max_rows: int | None = None,
     delimiter: str = ",",
     decimal_comma: bool = False,
+    na_tokens: tuple[str, ...] = (),
 ) -> Report:
     """Stream ``path`` and profile it without loading the whole file into memory.
 
@@ -157,7 +171,7 @@ def profile_file(
     ``build_report(read_table(...))``.
     """
     with open_rows(path, max_rows=max_rows, delimiter=delimiter) as stream:
-        result = profile_rows(stream.header, stream, decimal_comma)
+        result = profile_rows(stream.header, stream, decimal_comma, na_tokens)
         return Report(
             rows=result.rows,
             duplicate_rows=result.duplicate_rows,
@@ -165,4 +179,5 @@ def profile_file(
             columns=result.columns,
             delimiter=stream.delimiter,
             delimiter_detected=stream.delimiter_detected,
+            na_tokens=na_tokens,
         )

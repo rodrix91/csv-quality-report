@@ -33,6 +33,15 @@ def _delimiter_line(report: Report) -> list[str]:
     return [f"- Delimiter: {name}" + (" (detected)" if report.delimiter_detected else "")]
 
 
+def _na_line(report: Report) -> list[str]:
+    """Markdown line listing the extra missing-value tokens, only when there are some."""
+    if not report.na_tokens:
+        return []
+    return [
+        "- Also counted as missing: " + ", ".join(f"`{_md_escape(t)}`" for t in report.na_tokens)
+    ]
+
+
 def render_markdown(report: Report, source: str) -> str:
     lines = [
         f"# CSV quality report: {_md_escape(source)}",
@@ -41,6 +50,7 @@ def render_markdown(report: Report, source: str) -> str:
         + (" (stopped early by --max-rows)" if report.truncated else ""),
         f"- Columns: {len(report.columns)}",
         *_delimiter_line(report),
+        *_na_line(report),
         f"- Duplicate rows: {report.duplicate_rows}",
         "",
         "| Column | Type | Missing | Missing % | Distinct | Min | Max | Top 3 values |",
@@ -61,6 +71,7 @@ def render_json(report: Report, source: str) -> str:
         "truncated": report.truncated,
         "delimiter": report.delimiter,
         "delimiter_detected": report.delimiter_detected,
+        "na_tokens": list(report.na_tokens),
         "duplicate_rows": report.duplicate_rows,
         "columns": [
             {
