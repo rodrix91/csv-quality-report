@@ -47,7 +47,8 @@ python -m csv_quality_report PATH [--format markdown|json] [--max-rows N] [--del
 
 - `--format` — `markdown` (default) or `json`.
 - `--max-rows N` — analyze only the first `N` data rows (`N >= 1`). The output says when it stopped early (`truncated` in JSON).
-- `--delimiter CHAR` — field separator (default `,`). Accepts one character or the aliases `tab`, `comma`, `semicolon` and `pipe`. Use `--delimiter ";"` for files exported from spreadsheets with a Spanish, Portuguese or other comma-decimal locale. Decimal commas (`10,5`) are only parsed as numbers with `--decimal-comma`.
+- `--delimiter CHAR` — field separator (default `,`). Accepts one character, the aliases `tab`, `comma`, `semicolon` and `pipe`, or `auto` (see below). Use `--delimiter ";"` for files exported from spreadsheets with a Spanish, Portuguese or other comma-decimal locale. Decimal commas (`10,5`) are only parsed as numbers with `--decimal-comma`.
+- `--delimiter auto` — detect the separator among `,` `;` tab and `|`. A candidate is accepted only if it gives the same number of fields (more than one) on every one of the first 100 lines (within 64 KiB); quoted fields are respected. If exactly one candidate fits, it is used; a file where every candidate gives one field is treated as a one-column file; otherwise the tool stops with exit code 7 instead of guessing. The chosen delimiter is shown in the report.
 - `--decimal-comma` — read floats written with a comma as decimal mark (`10,5`, `-0,25`). With the flag, values written with `.` are no longer floats, thousands separators (`1.234,5`) are not recognized, and `1,234` means 1.234. Top values keep the original text; min/max are reported as numbers.
 
 ### Example: Markdown (default)
@@ -91,6 +92,8 @@ Output (captured from a real run, exit code 0):
   "source": "examples/tiny.csv",
   "rows": 3,
   "truncated": false,
+  "delimiter": ",",
+  "delimiter_detected": false,
   "duplicate_rows": 0,
   "columns": [
     {
@@ -140,6 +143,7 @@ Output (captured from a real run, exit code 0):
 - **Missing value** = an empty cell or a cell with only whitespace. Other tokens such as `NA` or `null` are *not* treated as missing.
 - Values are whitespace-stripped before type inference and counting.
 - **Type inference** looks at all non-missing values of a column, in this order: `bool` (`true`/`false`, any case) → `int` → `float` → `date` (strict `YYYY-MM-DD`) → `string`. `0`/`1` columns are `int`. A column with no non-missing values is reported as `string`. Numbers that cannot be represented also make the column `string`: integers with more digits than Python's integer-conversion limit (4300 by default) and floats that overflow to infinity such as `1e999`. As a result the JSON output never contains `NaN` or `Infinity` (it is always standard JSON).
+- **Delimiter in the output**: JSON always includes `delimiter` and `delimiter_detected`. Markdown adds a `Delimiter:` line only when the delimiter is not the default comma or was detected.
 - **Duplicate rows** = rows that exactly repeat an earlier row (total rows minus unique rows), comparing raw cell text.
 - **Top values**: ties are listed in order of first appearance.
 - **Duplicate column names** are made unique deterministically: later repeats get `_2`, `_3`, … suffixes (`a,a,a` → `a`, `a_2`, `a_3`; if a suffixed name already exists, the counter keeps increasing).
@@ -158,6 +162,7 @@ Errors are printed to stderr as `error: ...`; nothing is written to stdout.
 | 4 | Not valid UTF-8 | `error: '/tmp/lat.csv' is not valid UTF-8 (invalid byte at offset 8); re-save the file as UTF-8` |
 | 5 | Empty file (no header row) | `error: '/tmp/empty.csv' is empty (no header row)` |
 | 6 | Ragged row (cell count differs from header) or malformed CSV | `error: row at line 3 has 2 fields, expected 3 (from the header)` |
+| 7 | `--delimiter auto` cannot pick one separator | `error: cannot detect the delimiter: several separators fit every line (comma, semicolon); pass it explicitly with --delimiter` |
 
 ## Architecture
 
@@ -172,13 +177,14 @@ flowchart TD
     profile --> reader
     profile --> inference
     render --> profile
+    render --> reader
 ```
 
 | Module (`src/csv_quality_report/`) | Responsibility |
 |---|---|
 | `__main__.py` | `python -m` entry; calls `cli.main` |
 | `cli.py` | argument parsing, error → exit code mapping, output |
-| `reader.py` | read file, decode UTF-8, parse rows, validate shape, de-duplicate header names |
+| `reader.py` | read file, decode UTF-8, detect the delimiter, parse rows, validate shape, de-duplicate header names |
 | `inference.py` | heuristic type inference for one column |
 | `profile.py` | per-column statistics and duplicate-row count |
 | `render.py` | Markdown and JSON output |
@@ -194,13 +200,13 @@ python -m pytest
 
 This works after installing only the dev dependencies (`pip install -r requirements-dev.txt`) from the repository root: pytest is configured with `pythonpath = ["src"]`, and the tests that start a subprocess set `PYTHONPATH=src` themselves.
 
-Tests (`tests/`) are behavior tests that call the CLI: happy path, missing values, ragged rows, empty file, bad encoding (Latin-1, UTF-16), BOM, duplicate column names, JSON output, `--max-rows`, `--delimiter`, `--decimal-comma`, and exit codes. One test also checks that the sample output in this README matches a real run. See [CONTRIBUTING.md](https://github.com/rodrix91/csv-quality-report/blob/main/CONTRIBUTING.md) (in the [source repository](https://github.com/rodrix91/csv-quality-report); not included in the packages) for lint, type-check and build commands.
+Tests (`tests/`) are behavior tests that call the CLI: happy path, missing values, ragged rows, empty file, bad encoding (Latin-1, UTF-16), BOM, duplicate column names, JSON output, `--max-rows`, `--delimiter` (including detection), `--decimal-comma`, and exit codes. Two tests check that the Markdown and JSON samples in this README match a real run. See [CONTRIBUTING.md](https://github.com/rodrix91/csv-quality-report/blob/main/CONTRIBUTING.md) (in the [source repository](https://github.com/rodrix91/csv-quality-report); not included in the packages) for lint, type-check and build commands.
 
 ## Limitations
 
 - **No streaming**: the whole file is read and held in memory; not suited to files larger than available RAM.
 - **Type inference is a heuristic**: it only recognizes the patterns listed above (e.g. no thousands separators, decimal commas only with `--decimal-comma`, no timestamps, no `yes`/`no` booleans), and one stray value makes the whole column `string`.
-- UTF-8 only. The delimiter must be given explicitly when it is not a comma.
+- UTF-8 only. Delimiter detection (`--delimiter auto`) only considers `,` `;` tab and `|`, and only the first 100 lines.
 - With `--max-rows`, rows after the limit are not read, so problems in them are not detected.
 - Min/max for floats use Python `float` parsing.
 

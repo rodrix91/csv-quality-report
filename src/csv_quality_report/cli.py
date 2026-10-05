@@ -9,7 +9,7 @@ from pathlib import Path
 
 from .errors import CsvQualityError
 from .profile import build_report
-from .reader import read_table
+from .reader import DELIMITER_AUTO, read_table
 from .render import render_json, render_markdown
 
 
@@ -27,11 +27,13 @@ _DELIMITER_ALIASES = {"tab": "\t", "\\t": "\t", "comma": ",", "semicolon": ";", 
 
 
 def _delimiter(text: str) -> str:
-    """Accept one character, or a readable alias such as ``tab`` or ``semicolon``."""
+    """Accept one character, ``auto``, or an alias such as ``tab`` or ``semicolon``."""
+    if text.lower() == DELIMITER_AUTO:
+        return DELIMITER_AUTO
     value = _DELIMITER_ALIASES.get(text.lower(), text)
     if len(value) != 1:
         raise argparse.ArgumentTypeError(
-            f"invalid delimiter: {text!r} (use one character, or tab/comma/semicolon/pipe)"
+            f"invalid delimiter: {text!r} (use one character, auto, or tab/comma/semicolon/pipe)"
         )
     if value in {'"', "\r", "\n"}:
         raise argparse.ArgumentTypeError(f"invalid delimiter: {text!r} (reserved character)")
@@ -62,7 +64,8 @@ def build_parser() -> argparse.ArgumentParser:
         type=_delimiter,
         default=",",
         metavar="CHAR",
-        help="field separator: one character, or tab/comma/semicolon/pipe (default: ,)",
+        help="field separator: one character, auto (detect among , ; tab |), "
+        "or tab/comma/semicolon/pipe (default: ,)",
     )
     parser.add_argument(
         "--decimal-comma",
