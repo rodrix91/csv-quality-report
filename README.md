@@ -152,6 +152,8 @@ Output (captured from a real run, exit code 0):
       "min": null,
       "max": null,
       "mean": null,
+      "min_length": 4,
+      "max_length": 5,
       "top_values": [
         {
           "value": "apple",
@@ -174,6 +176,8 @@ Output (captured from a real run, exit code 0):
       "min": 3,
       "max": 5,
       "mean": 4.0,
+      "min_length": 1,
+      "max_length": 1,
       "top_values": [
         {
           "value": "3",
@@ -203,6 +207,7 @@ Output (captured from a real run, exit code 0):
 - **Duplicate rows** = rows that exactly repeat an earlier row (total rows minus unique rows), comparing raw cell text. Rows are compared through a 128-bit BLAKE2b fingerprint instead of being stored, so the count is exact unless two different rows collide on 128 bits (probability below 1e-20 even for billions of rows).
 - **Order of errors**: the file is read once from start to end, and the first problem met is reported. With `--max-rows`, the part of the file after the limit is not read at all.
 - **Mostly typed columns**: inference stays strict, so one stray value still makes a column `string`. But when at least 90% of a string column's non-missing cells fit one other type, the report says so and shows the values in the way: `type_hint` in JSON (`{"type": "int", "conforming_pct": 99.98, "nonconforming": 2, "examples": ["N/A", "12a"]}`, `null` otherwise) and a `- Mostly typed: qty is int except 2 values ("N/A", "12a")` line in Markdown. `float` covers ints and floats and `datetime` covers dates and date-times; the narrowest type wins a tie; examples are the most frequent stray values; `conforming_pct` is rounded down, so it never shows 100 while strays exist.
+- **Text length** (JSON only): `min_length` and `max_length` per column, in characters, over the non-missing values after stripping; `null` for a column with no values. A code column with `min_length` 1 and `max_length` 2 has truncated entries.
 - **Mean** (JSON only, the Markdown table keeps its columns): for `int` and `float` columns, the mean of the non-missing values, weighted by how often each value occurs and rounded to 6 significant digits; `null` for other types. Integers are summed exactly and floats with `math.fsum`, so long columns do not drift; integers too large for a float give `null`.
 - **Min / max**: numbers for `int` and `float` columns; ISO `YYYY-MM-DD` strings for `date` columns (earliest and latest date); for `datetime` columns the original text of the earliest and latest value, comparing values with an offset as instants (a plain date counts as midnight). A `datetime` column that mixes values with and without an offset has no range, because a local time could be in any zone. Empty for `bool` and `string`. In JSON they are numbers, strings or `null` accordingly.
 - **Top values**: ties are listed in order of first appearance.

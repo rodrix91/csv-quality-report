@@ -69,6 +69,8 @@ class ColumnProfile:
     untrimmed: int = 0  # non-missing cells with leading or trailing whitespace
     mean: float | None = None  # int and float columns only, 6 significant digits
     type_hint: TypeHint | None = None  # string columns that mostly fit another type
+    min_length: int | None = None  # shortest non-missing stripped value, in characters
+    max_length: int | None = None  # longest non-missing stripped value, in characters
 
 
 @dataclass(frozen=True)
@@ -247,6 +249,8 @@ class _ColumnAccumulator:
             untrimmed=self.untrimmed,
             mean=mean,
             type_hint=_type_hint(self.counts, decimal_comma) if col_type == TYPE_STRING else None,
+            min_length=min(map(len, distinct)) if distinct else None,
+            max_length=max(map(len, distinct)) if distinct else None,
         )
 
 
