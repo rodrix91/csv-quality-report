@@ -7,6 +7,7 @@ All notable changes to this project are documented here. The format follows [Kee
 ### Added
 
 - `--date-order dmy|mdy|ymd` reads dates such as `05/10/2026` (optionally with a time) in the given order, never guessed: the column becomes `date` or `datetime` with an ISO 8601 range, impossible dates are named in the type hint as written, and top values keep the original text. JSON gains `date_order`, Markdown a `Date order` line; the corpus gains a day-first ERP export (#61).
+- `--bool-words TRUE,FALSE` (repeatable) reads words such as `sí`/`no` or `verdadero`/`falso` as booleans in any case, never assumed; numeric or date words and contradictory pairs are usage errors. Stray values are named in the type hint as written. JSON gains `bool_words`, Markdown a `Boolean words` line; the corpus gains a Spanish Excel export (#63).
 
 ## [0.6.0] - 2026-10-05
 

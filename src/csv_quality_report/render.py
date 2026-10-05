@@ -97,6 +97,14 @@ def _thousands_line(report: Report) -> list[str]:
     return [f"- Thousands separator: {_THOUSANDS_NAMES[report.thousands]}"]
 
 
+def _bool_words_line(report: Report) -> list[str]:
+    """Markdown line listing the extra boolean words, when some were given."""
+    if not report.bool_words:
+        return []
+    pairs = ", ".join(f"`{_md_escape(t)}`/`{_md_escape(f)}`" for t, f in report.bool_words)
+    return [f"- Boolean words (true/false): {pairs}"]
+
+
 _DATE_ORDER_NAMES = {"dmy": "day/month/year", "mdy": "month/day/year", "ymd": "year/month/day"}
 
 
@@ -113,6 +121,7 @@ def render_markdown(report: Report, source: str, checks: Sequence[CheckResult] =
         *([f"- Encoding: {report.encoding}"] if report.encoding != DEFAULT_ENCODING else []),
         *_thousands_line(report),
         *([f"- Date order: {_DATE_ORDER_NAMES[report.date_order]}"] if report.date_order else []),
+        *_bool_words_line(report),
         f"- Duplicate rows: {report.duplicate_rows}",
         *_untrimmed_line(report),
         *_untrimmed_columns_line(report),
@@ -144,6 +153,7 @@ def render_json(report: Report, source: str, checks: Sequence[CheckResult] = ())
         "encoding": report.encoding,
         "thousands": report.thousands,
         "date_order": report.date_order,
+        "bool_words": [list(pair) for pair in report.bool_words],
         "duplicate_rows": report.duplicate_rows,
         "untrimmed_columns": list(report.untrimmed_columns),
         "columns": [

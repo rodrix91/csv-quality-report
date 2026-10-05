@@ -24,7 +24,7 @@ Analysts want a one-command data-quality summary of a local CSV. The tool should
 | Encoding auto-detection (e.g. chardet) | Opens more real-world files | Extra dependency and guessing can silently mis-decode; chosen: fail loudly and tell the user to re-save as UTF-8 |
 | Fallback decoding as Latin-1 | Never fails | Silently wrong text for other encodings. Rejected |
 | One module / single script | Less structure | Harder to test and extend; the module split costs little |
-| Type inference via trial parsing with many formats (dateutil, locales) | Recognizes more dates/numbers | Dependency or large heuristic surface; false positives. Chosen: strict, documented patterns *(Complemented after 0.6.0: local number and date layouts are read only when named, with `--decimal-comma`, `--thousands` and `--date-order`; the patterns stay strict and nothing is guessed.)* |
+| Type inference via trial parsing with many formats (dateutil, locales) | Recognizes more dates/numbers | Dependency or large heuristic surface; false positives. Chosen: strict, documented patterns *(Complemented after 0.6.0: local number and date layouts are read only when named, with `--decimal-comma`, `--thousands`, `--date-order` and `--bool-words`; the patterns stay strict and nothing is guessed.)* |
 | Reject duplicate column names with an error | Simple | Real-world files have them; a deterministic `_2`, `_3` suffix keeps the report usable |
 
 ## Consequences

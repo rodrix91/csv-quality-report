@@ -1,0 +1,190 @@
+{
+  "source": "tests/corpus/excel_es_booleans.csv",
+  "rows": 12,
+  "truncated": false,
+  "delimiter": ";",
+  "delimiter_detected": true,
+  "na_tokens": [],
+  "top_n": 3,
+  "compressed": false,
+  "encoding": "utf-8",
+  "thousands": ".",
+  "date_order": "dmy",
+  "bool_words": [
+    [
+      "verdadero",
+      "falso"
+    ],
+    [
+      "sí",
+      "no"
+    ]
+  ],
+  "duplicate_rows": 0,
+  "untrimmed_columns": [],
+  "columns": [
+    {
+      "name": "Pedido",
+      "type": "string",
+      "type_hint": null,
+      "missing": 0,
+      "missing_pct": 0.0,
+      "distinct": 12,
+      "min": null,
+      "max": null,
+      "mean": null,
+      "min_length": 5,
+      "max_length": 5,
+      "top_values": [
+        {
+          "value": "P-101",
+          "count": 1
+        },
+        {
+          "value": "P-102",
+          "count": 1
+        },
+        {
+          "value": "P-103",
+          "count": 1
+        }
+      ],
+      "untrimmed": 0
+    },
+    {
+      "name": "Pagado",
+      "type": "bool",
+      "type_hint": null,
+      "missing": 0,
+      "missing_pct": 0.0,
+      "distinct": 2,
+      "min": null,
+      "max": null,
+      "mean": null,
+      "min_length": 5,
+      "max_length": 9,
+      "top_values": [
+        {
+          "value": "VERDADERO",
+          "count": 7
+        },
+        {
+          "value": "FALSO",
+          "count": 5
+        }
+      ],
+      "untrimmed": 0
+    },
+    {
+      "name": "Enviado",
+      "type": "string",
+      "type_hint": {
+        "type": "bool",
+        "conforming_pct": 91.66,
+        "nonconforming": 1,
+        "examples": [
+          "Pendiente"
+        ]
+      },
+      "missing": 0,
+      "missing_pct": 0.0,
+      "distinct": 5,
+      "min": null,
+      "max": null,
+      "mean": null,
+      "min_length": 2,
+      "max_length": 9,
+      "top_values": [
+        {
+          "value": "Sí",
+          "count": 6
+        },
+        {
+          "value": "No",
+          "count": 3
+        },
+        {
+          "value": "SÍ",
+          "count": 1
+        }
+      ],
+      "untrimmed": 0
+    },
+    {
+      "name": "Fecha",
+      "type": "date",
+      "type_hint": null,
+      "missing": 0,
+      "missing_pct": 0.0,
+      "distinct": 11,
+      "min": "2026-03-03",
+      "max": "2026-03-17",
+      "mean": null,
+      "min_length": 10,
+      "max_length": 10,
+      "top_values": [
+        {
+          "value": "03/03/2026",
+          "count": 2
+        },
+        {
+          "value": "04/03/2026",
+          "count": 1
+        },
+        {
+          "value": "05/03/2026",
+          "count": 1
+        }
+      ],
+      "untrimmed": 0
+    },
+    {
+      "name": "Total",
+      "type": "float",
+      "type_hint": null,
+      "missing": 0,
+      "missing_pct": 0.0,
+      "distinct": 12,
+      "min": 58.0,
+      "max": 12800.0,
+      "mean": 1694.88,
+      "min_length": 2,
+      "max_length": 8,
+      "top_values": [
+        {
+          "value": "1.234,56",
+          "count": 1
+        },
+        {
+          "value": "89,9",
+          "count": 1
+        },
+        {
+          "value": "2.450",
+          "count": 1
+        }
+      ],
+      "untrimmed": 0
+    }
+  ],
+  "checks": [
+    {
+      "check": "column_type",
+      "column": "Pagado",
+      "limit": 1,
+      "value": 1,
+      "passed": true,
+      "expected": "bool",
+      "actual": "bool"
+    },
+    {
+      "check": "column_type",
+      "column": "Enviado",
+      "limit": 1,
+      "value": 0,
+      "passed": false,
+      "expected": "bool",
+      "actual": "string"
+    }
+  ]
+}

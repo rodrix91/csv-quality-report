@@ -12,6 +12,7 @@
   "encoding": "cp1252",
   "thousands": ".",
   "date_order": null,
+  "bool_words": [],
   "duplicate_rows": 1,
   "untrimmed_columns": [],
   "columns": [
