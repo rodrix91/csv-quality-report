@@ -111,6 +111,7 @@ def render_json(report: Report, source: str, checks: Sequence[CheckResult] = ())
                 "distinct": c.distinct,
                 "min": c.min,
                 "max": c.max,
+                "mean": c.mean,
                 "top_values": [{"value": v, "count": n} for v, n in c.top_values],
                 "untrimmed": c.untrimmed,
             }

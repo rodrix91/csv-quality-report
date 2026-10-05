@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import math
 from collections import Counter
 from collections.abc import Iterable
 from dataclasses import dataclass
@@ -35,6 +36,7 @@ class ColumnProfile:
     max: int | float | str | None
     top_values: list[tuple[str, int]]
     untrimmed: int = 0  # non-missing cells with leading or trailing whitespace
+    mean: float | None = None  # int and float columns only, 6 significant digits
 
 
 @dataclass(frozen=True)
@@ -72,6 +74,26 @@ def _datetime_range(values: Iterable[str]) -> tuple[str | None, str | None]:
     if len({d.tzinfo is None for d in instants.values()}) != 1:
         return None, None
     return min(instants, key=instants.__getitem__), max(instants, key=instants.__getitem__)
+
+
+def _mean(values: list[int] | list[float], counts: list[int]) -> float | None:
+    """Mean of ``values`` weighted by ``counts``, rounded to 6 significant digits.
+
+    Integers are summed exactly; floats with ``math.fsum`` over each value's
+    share, which avoids both the drift of naive summation and overflow for
+    values near the float limit. Returns ``None`` when the result cannot be
+    represented as a finite float (integers with hundreds of digits).
+    """
+    total = sum(counts)
+    try:
+        if all(isinstance(v, int) for v in values):
+            mean = sum(v * n for v, n in zip(values, counts, strict=True)) / total
+        else:
+            # Weight by share, not by count: v * n could overflow near 1e308.
+            mean = math.fsum(v * (n / total) for v, n in zip(values, counts, strict=True))
+    except OverflowError:
+        return None
+    return float(f"{mean:.6g}") if math.isfinite(mean) else None
 
 
 class _ColumnAccumulator:
@@ -116,11 +138,13 @@ class _ColumnAccumulator:
         col_type = infer_type(distinct, decimal_comma)
         low: int | float | str | None = None
         high: int | float | str | None = None
+        mean: float | None = None
         if distinct and col_type in (TYPE_INT, TYPE_FLOAT):
             nums = [
                 int(v) if col_type == TYPE_INT else parse_float(v, decimal_comma) for v in distinct
             ]
             low, high = min(nums), max(nums)
+            mean = _mean(nums, list(self.counts.values()))
         elif distinct and col_type == TYPE_DATE:
             # Inference guarantees strict YYYY-MM-DD, whose text order is date order.
             low, high = min(distinct), max(distinct)
@@ -137,6 +161,7 @@ class _ColumnAccumulator:
             # most_common is stable: ties keep first-seen order.
             top_values=self.counts.most_common(top_n),
             untrimmed=self.untrimmed,
+            mean=mean,
         )
 
 
