@@ -72,7 +72,7 @@ def test_markdown_is_default_format(
     assert main([str(path)]) == 0
     out = capsys.readouterr().out
     assert out.startswith("# CSV quality report:")
-    assert "| a | int | 0 | 0.0 | 2 | 1 | 2 | 1 (1), 2 (1) |" in out
+    assert "| a | int | 0 | 0.0 | 2 | 1 | 2 | 1.5 | 1 (1), 2 (1) |" in out
 
 
 def test_sample_markdown_matches_readme(cli_env: dict[str, str]) -> None:

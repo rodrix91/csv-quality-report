@@ -112,16 +112,16 @@ Output (captured from a real run, exit code 0):
 - Columns: 8
 - Duplicate rows: 1
 
-| Column | Type | Missing | Missing % | Distinct | Min | Max | Top 3 values |
-|---|---|---|---|---|---|---|---|
-| id | int | 0 | 0.0 | 7 | 1 | 7 | 5 (2), 1 (1), 2 (1) |
-| name | string | 0 | 0.0 | 7 |  |  | Elena (2), Alice (1), Bob (1) |
-| signup_date | date | 1 | 12.5 | 6 | 2024-01-15 | 2024-04-18 | 2024-03-11 (2), 2024-01-15 (1), 2024-02-03 (1) |
-| age | int | 2 | 25.0 | 5 | 29 | 52 | 38 (2), 34 (1), 29 (1) |
-| score | float | 1 | 12.5 | 6 | 69.5 | 95.75 | 81.0 (2), 88.5 (1), 92.0 (1) |
-| active | bool | 1 | 12.5 | 2 |  |  | true (4), false (3) |
-| city | string | 1 | 12.5 | 3 |  |  | La Paz (4), Santa Cruz (2), Cochabamba (1) |
-| last_seen | datetime | 1 | 12.5 | 6 | 2024-04-28T12:00 | 2024-05-04T08:45 | 2024-05-03T21:30 (2), 2024-05-02T09:15 (1), 2024-05-03 18:40 (1) |
+| Column | Type | Missing | Missing % | Distinct | Min | Max | Mean | Top 3 values |
+|---|---|---|---|---|---|---|---|---|
+| id | int | 0 | 0.0 | 7 | 1 | 7 | 4.125 | 5 (2), 1 (1), 2 (1) |
+| name | string | 0 | 0.0 | 7 |  |  |  | Elena (2), Alice (1), Bob (1) |
+| signup_date | date | 1 | 12.5 | 6 | 2024-01-15 | 2024-04-18 |  | 2024-03-11 (2), 2024-01-15 (1), 2024-02-03 (1) |
+| age | int | 2 | 25.0 | 5 | 29 | 52 | 38.6667 | 38 (2), 34 (1), 29 (1) |
+| score | float | 1 | 12.5 | 6 | 69.5 | 95.75 | 83.2857 | 81.0 (2), 88.5 (1), 92.0 (1) |
+| active | bool | 1 | 12.5 | 2 |  |  |  | true (4), false (3) |
+| city | string | 1 | 12.5 | 3 |  |  |  | La Paz (4), Santa Cruz (2), Cochabamba (1) |
+| last_seen | datetime | 1 | 12.5 | 6 | 2024-04-28T12:00 | 2024-05-04T08:45 |  | 2024-05-03T21:30 (2), 2024-05-02T09:15 (1), 2024-05-03 18:40 (1) |
 ```
 
 ### Example: JSON
@@ -216,7 +216,7 @@ Output (captured from a real run, exit code 0):
 - **Order of errors**: the file is read once from start to end, and the first problem met is reported. With `--max-rows`, the part of the file after the limit is not read at all.
 - **Mostly typed columns**: inference stays strict, so one stray value still makes a column `string`. But when at least 90% of a string column's non-missing cells fit one other type, the report says so and shows the values in the way: `type_hint` in JSON (`{"type": "int", "conforming_pct": 99.98, "nonconforming": 2, "examples": ["N/A", "12a"]}`, `null` otherwise) and a `- Mostly typed: qty is int except 2 values ("N/A", "12a")` line in Markdown. `float` covers ints and floats and `datetime` covers dates and date-times; the narrowest type wins a tie; examples are the most frequent stray values; `conforming_pct` is rounded down, so it never shows 100 while strays exist.
 - **Text length** (JSON only): `min_length` and `max_length` per column, in characters, over the non-missing values after stripping; `null` for a column with no values. A code column with `min_length` 1 and `max_length` 2 has truncated entries.
-- **Mean** (JSON only, the Markdown table keeps its columns): for `int` and `float` columns, the mean of the non-missing values, weighted by how often each value occurs and rounded to 6 significant digits; `null` for other types. Integers are summed exactly and floats with `math.fsum`, so long columns do not drift; integers too large for a float give `null`.
+- **Mean** (in JSON and, since 0.8.0, in the `Mean` column of the Markdown table; the table had no such column before): for `int` and `float` columns, the mean of the non-missing values, weighted by how often each value occurs and rounded to 6 significant digits; `null` for other types. Integers are summed exactly and floats with `math.fsum`, so long columns do not drift; integers too large for a float give `null`.
 - **Min / max**: numbers for `int` and `float` columns; ISO `YYYY-MM-DD` strings for `date` columns (earliest and latest date); for `datetime` columns the original text of the earliest and latest value (with `--date-order`, dates and date-times are reported in their ISO 8601 form), comparing values with an offset as instants (a plain date counts as midnight). A `datetime` column that mixes values with and without an offset has no range, because a local time could be in any zone. Empty for `bool` and `string`. In JSON they are numbers, strings or `null` accordingly.
 - **Top values**: ties are listed in order of first appearance.
 - **Duplicate column names** are made unique deterministically: later repeats get `_2`, `_3`, … suffixes (`a,a,a` → `a`, `a_2`, `a_3`; if a suffixed name already exists, the counter keeps increasing).
