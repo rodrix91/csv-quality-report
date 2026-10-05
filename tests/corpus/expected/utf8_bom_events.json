@@ -1,0 +1,131 @@
+{
+  "source": "tests/corpus/utf8_bom_events.csv",
+  "rows": 4,
+  "truncated": false,
+  "delimiter": ",",
+  "delimiter_detected": false,
+  "na_tokens": [],
+  "top_n": 3,
+  "compressed": false,
+  "encoding": "utf-8",
+  "thousands": null,
+  "duplicate_rows": 0,
+  "untrimmed_columns": [
+    " recorded_at "
+  ],
+  "columns": [
+    {
+      "name": "id",
+      "type": "int",
+      "type_hint": null,
+      "missing": 0,
+      "missing_pct": 0.0,
+      "distinct": 4,
+      "min": 1,
+      "max": 4,
+      "mean": 2.5,
+      "min_length": 1,
+      "max_length": 1,
+      "top_values": [
+        {
+          "value": "1",
+          "count": 1
+        },
+        {
+          "value": "2",
+          "count": 1
+        },
+        {
+          "value": "3",
+          "count": 1
+        }
+      ],
+      "untrimmed": 0
+    },
+    {
+      "name": " recorded_at ",
+      "type": "datetime",
+      "type_hint": null,
+      "missing": 0,
+      "missing_pct": 0.0,
+      "distinct": 3,
+      "min": "2026-03-01T08:00:00-04:00",
+      "max": "2026-03-02T09:15:00+02:00",
+      "mean": null,
+      "min_length": 20,
+      "max_length": 25,
+      "top_values": [
+        {
+          "value": "2026-03-02T09:15:00+02:00",
+          "count": 2
+        },
+        {
+          "value": "2026-03-01T08:00:00-04:00",
+          "count": 1
+        },
+        {
+          "value": "2026-03-01T13:30:00Z",
+          "count": 1
+        }
+      ],
+      "untrimmed": 0
+    },
+    {
+      "name": "active",
+      "type": "bool",
+      "type_hint": null,
+      "missing": 0,
+      "missing_pct": 0.0,
+      "distinct": 3,
+      "min": null,
+      "max": null,
+      "mean": null,
+      "min_length": 4,
+      "max_length": 5,
+      "top_values": [
+        {
+          "value": "true",
+          "count": 2
+        },
+        {
+          "value": "false",
+          "count": 1
+        },
+        {
+          "value": "TRUE",
+          "count": 1
+        }
+      ],
+      "untrimmed": 0
+    },
+    {
+      "name": "temperature",
+      "type": "float",
+      "type_hint": null,
+      "missing": 1,
+      "missing_pct": 25.0,
+      "distinct": 3,
+      "min": -3.0,
+      "max": 21.5,
+      "mean": 12.5833,
+      "min_length": 2,
+      "max_length": 5,
+      "top_values": [
+        {
+          "value": "21.5",
+          "count": 1
+        },
+        {
+          "value": "19.25",
+          "count": 1
+        },
+        {
+          "value": "-3",
+          "count": 1
+        }
+      ],
+      "untrimmed": 0
+    }
+  ],
+  "checks": []
+}

@@ -1,0 +1,44 @@
+[
+  {
+    "name": "es_excel_cp1252",
+    "file": "es_excel_cp1252.csv",
+    "args": ["--encoding", "cp1252", "--delimiter", "auto", "--decimal-comma", "--thousands", "dot", "--na", "s/d"],
+    "exit_code": 0,
+    "about": "Spanish spreadsheet export: cp1252, CRLF, semicolons, 1.234,56 amounts, s/d gaps, padded values, one duplicate row."
+  },
+  {
+    "name": "es_excel_cp1252_gates",
+    "file": "es_excel_cp1252.csv",
+    "args": ["--encoding", "cp1252", "--delimiter", ";", "--decimal-comma", "--thousands", "dot", "--na", "s/d", "--max-duplicates", "0", "--max-missing-column", "Importe=0", "--require-type", "Unidades=int", "--require-columns", "Fecha,Cliente,Total"],
+    "exit_code": 8,
+    "about": "The same export through quality gates: a duplicate row, a missing amount and a missing Total column fail; Unidades passes."
+  },
+  {
+    "name": "utf8_bom_events",
+    "file": "utf8_bom_events.csv",
+    "args": [],
+    "exit_code": 0,
+    "about": "UTF-8 with BOM: date-times with offsets compared as instants, booleans in two cases, padded header names."
+  },
+  {
+    "name": "tab_quoted",
+    "file": "tab_quoted.tsv",
+    "args": ["--delimiter", "auto"],
+    "exit_code": 0,
+    "about": "Tab separated with quoted fields that contain newlines, commas and tabs, and an exact duplicate record."
+  },
+  {
+    "name": "ports_pipe_gzip",
+    "file": "ports_pipe.csv.gz",
+    "args": ["--delimiter", "auto", "--top", "2"],
+    "exit_code": 0,
+    "about": "Pipe separated and gzip-compressed, detected from content."
+  },
+  {
+    "name": "mostly_typed",
+    "file": "mostly_typed.csv",
+    "args": ["--require-type", "qty=int", "--require-type", "ship_date=date"],
+    "exit_code": 8,
+    "about": "Stray values (N/A, 12a, pendiente) keep qty and ship_date as text; type hints name them and --require-type fails."
+  }
+]
