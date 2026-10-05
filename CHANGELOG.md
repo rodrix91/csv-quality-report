@@ -4,7 +4,11 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-05
+
 ### Added
+
+- `--version` prints the installed version.
 
 - `--delimiter CHAR` for semicolon, tab, pipe or any single-character separator, with the aliases `tab`, `comma`, `semicolon` and `pipe` (#1).
 - `--decimal-comma` to infer floats written as `10,5` (#2, #5).
@@ -27,6 +31,9 @@ All notable changes to this project are documented here. The format follows [Kee
 
 - The offset of an invalid UTF-8 byte is now counted from the start of the file; with a BOM it used to be three bytes too low.
 
-## [0.1.0]
+## [0.1.0] - 2026-10-03
 
 - Initial version: per-column type inference, missing values, distinct counts, min/max and top values, duplicate rows, Markdown and JSON output.
+
+[Unreleased]: https://github.com/rodrix91/csv-quality-report/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/rodrix91/csv-quality-report/releases/tag/v0.2.0
