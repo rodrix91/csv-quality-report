@@ -9,7 +9,7 @@ from pathlib import Path
 
 from . import __version__
 from .checks import evaluate
-from .errors import EXIT_CHECKS, CsvQualityError
+from .errors import EXIT_CHECKS, CsvQualityError, OutputWriteError
 from .profile import TOP_N, profile_file
 from .reader import DELIMITER_AUTO, display_name
 from .render import render_json, render_markdown
@@ -129,6 +129,13 @@ def build_parser() -> argparse.ArgumentParser:
         metavar="N",
         help=f"how many most frequent values to list per column (default: {TOP_N}; 0: none)",
     )
+    parser.add_argument(
+        "--json-output",
+        type=Path,
+        default=None,
+        metavar="FILE",
+        help="also write the JSON report (with checks) to FILE; stdout keeps --format",
+    )
     gates = parser.add_argument_group(
         "quality gates", f"exit with code {EXIT_CHECKS} when a threshold is exceeded"
     )
@@ -156,6 +163,14 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _write_text(path: Path, text: str) -> None:
+    """Write ``text`` to ``path`` as UTF-8, raising ``OutputWriteError`` on failure."""
+    try:
+        path.write_text(text, encoding="utf-8")
+    except OSError as exc:
+        raise OutputWriteError(f"cannot write '{path}': {exc.strerror or exc}") from exc
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     try:
@@ -176,8 +191,15 @@ def main(argv: Sequence[str] | None = None) -> int:
         max_duplicates=args.max_duplicates,
         required_columns=args.require_columns,
     )
+    source = display_name(args.path)
+    if args.json_output is not None:
+        try:
+            _write_text(args.json_output, render_json(report, source, checks))
+        except OutputWriteError as exc:
+            print(f"error: {exc.message}", file=sys.stderr)
+            return exc.exit_code
     render = render_json if args.format == "json" else render_markdown
-    sys.stdout.write(render(report, display_name(args.path), checks))
+    sys.stdout.write(render(report, source, checks))
     failed = [c for c in checks if not c.passed]
     for check in failed:
         print(f"check failed: {check.describe()}", file=sys.stderr)
