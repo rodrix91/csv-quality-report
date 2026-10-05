@@ -42,7 +42,7 @@ You can also run the tool without installing it: `PYTHONPATH=src python3 -m csv_
 ## Usage
 
 ```text
-python -m csv_quality_report PATH [--format markdown|json] [--max-rows N] [--delimiter CHAR] [--decimal-comma] [--na TOKENS] [--top N]
+python -m csv_quality_report PATH [--format markdown|json] [--max-rows N] [--delimiter CHAR] [--decimal-comma] [--na TOKENS] [--top N] [--json-output FILE]
                              [--max-missing PCT] [--max-duplicates N] [--require-columns NAMES]
 python -m csv_quality_report --version
 ```
@@ -53,6 +53,7 @@ python -m csv_quality_report --version
 - `--delimiter CHAR` — field separator (default `,`). Accepts one character, the aliases `tab`, `comma`, `semicolon` and `pipe`, or `auto` (see below). Use `--delimiter ";"` for files exported from spreadsheets with a Spanish, Portuguese or other comma-decimal locale. Decimal commas (`10,5`) are only parsed as numbers with `--decimal-comma`.
 - `--delimiter auto` — detect the separator among `,` `;` tab and `|`. A candidate is accepted only if it gives the same number of fields (more than one) on every one of the first 100 lines (within 64 KiB); quoted fields are respected. If exactly one candidate fits, it is used; a file where every candidate gives one field is treated as a one-column file; otherwise the tool stops with exit code 7 instead of guessing. The chosen delimiter is shown in the report.
 - `--decimal-comma` — read floats written with a comma as decimal mark (`10,5`, `-0,25`). With the flag, values written with `.` are no longer floats, thousands separators (`1.234,5`) are not recognized, and `1,234` means 1.234. Top values keep the original text; min/max are reported as numbers.
+- `--json-output FILE` — also write the JSON report (the same content as `--format json`, including `checks`) to `FILE`, while stdout keeps the chosen `--format`. The data is profiled once. The file is written even when a quality gate fails, so CI can keep it as an artifact; reading errors write no file, and a file that cannot be written stops with exit code 9.
 - `--top N` — how many most frequent values to list per column (default 3; `0` lists none). JSON reports the setting as `top_n`.
 - `--na TOKENS` — comma-separated cell values to count as missing, in addition to empty cells, e.g. `--na NA,null,s/d`. Matching is exact and case-sensitive after stripping spaces. A token list that starts with `-` must be attached with `=`: `--na=-,NA`. Missing tokens are excluded from type inference, distinct counts and top values, so a quantity column with `NA` gaps is still reported as `int`. Duplicate-row detection keeps comparing the raw text.
 
@@ -206,6 +207,7 @@ Errors are printed to stderr as `error: ...`; nothing is written to stdout.
 | 6 | Ragged row (cell count differs from header) or malformed CSV | `error: row at line 3 has 2 fields, expected 3 (from the header)` |
 | 7 | `--delimiter auto` cannot pick one separator | `error: cannot detect the delimiter: several separators fit every line (comma, semicolon); pass it explicitly with --delimiter` |
 | 8 | A quality gate failed (`--max-missing`, `--max-duplicates`, `--require-columns`); the report is still printed | `check failed: column 'weight_kg' has 12.5% missing values (limit 5%)` |
+| 9 | The `--json-output` file cannot be written | `error: cannot write 'out/report.json': No such file or directory` |
 
 ## Use from Python
 
@@ -314,7 +316,7 @@ Tests (`tests/`) are behavior tests that call the CLI: happy path, missing value
 
 ## Security notes
 
-- Reads one local file path given on the command line, or standard input with `-`; makes no network calls and writes no files. Gzip input is decompressed in a stream, with bounded memory.
+- Reads one local file path given on the command line, or standard input with `-`; makes no network calls and writes no files except the one named with `--json-output`. Gzip input is decompressed in a stream, with bounded memory.
 - Uses only the Python standard library at runtime.
 - CSV content is treated as data only (never executed). Markdown output escapes `|` and newlines in cell text but does not sanitize other Markdown, so render untrusted files' reports with care.
 

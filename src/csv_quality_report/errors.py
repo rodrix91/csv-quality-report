@@ -10,6 +10,7 @@ EXIT_EMPTY = 5
 EXIT_RAGGED = 6
 EXIT_DELIMITER = 7
 EXIT_CHECKS = 8  # report produced, but a --max-* quality threshold failed
+EXIT_WRITE = 9  # the --json-output file could not be written
 
 
 class CsvQualityError(Exception):
@@ -40,3 +41,7 @@ class RaggedRowError(CsvQualityError):
 
 class DelimiterDetectionError(CsvQualityError):
     exit_code = EXIT_DELIMITER
+
+
+class OutputWriteError(CsvQualityError):
+    exit_code = EXIT_WRITE
