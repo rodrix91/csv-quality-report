@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-10-05
+
 ### Added
 
 - `--json-output FILE` writes the JSON report to a file while stdout keeps the chosen format, in one pass; written even when a gate fails; new exit code 9 when the file cannot be written (#30).
@@ -59,6 +61,7 @@ All notable changes to this project are documented here. The format follows [Kee
 
 - Initial version: per-column type inference, missing values, distinct counts, min/max and top values, duplicate rows, Markdown and JSON output.
 
-[Unreleased]: https://github.com/rodrix91/csv-quality-report/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/rodrix91/csv-quality-report/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/rodrix91/csv-quality-report/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/rodrix91/csv-quality-report/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/rodrix91/csv-quality-report/releases/tag/v0.2.0
