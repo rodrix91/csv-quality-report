@@ -52,7 +52,25 @@ def report_json(path: Path, capsys: pytest.CaptureFixture[str], *args: str) -> d
         ("2026-10-05", "dmy", "2026-10-05"),  # ISO stays ISO
         ("05/10/2026 9h05", "dmy", "05/10/2026 9h05"),
         ("05/10/2026 9:5", "dmy", "05/10/2026 9:5"),
-        ("05/10/2026 09:05 PM", "mdy", "05/10/2026 09:05 PM"),
+        # 12-hour times (#68) are rewritten on the 24-hour clock.
+        ("05/10/2026 09:05 PM", "mdy", "2026-05-10 21:05"),
+        ("10/5/2026 2:30:00 PM", "mdy", "2026-10-05 14:30:00"),
+        ("10/5/2026 12:00 AM", "mdy", "2026-10-05 00:00"),
+        ("10/5/2026 12:15 pm", "mdy", "2026-10-05 12:15"),
+        ("10/5/2026 1:05 a.m.", "mdy", "2026-10-05 01:05"),
+        ("10/5/2026 11:59PM", "mdy", "2026-10-05 23:59"),
+        ("10/5/2026 2:30 P.M", "mdy", "2026-10-05 14:30"),
+        ("05/10/2026 2:30 p. m.", "dmy", "2026-10-05 14:30"),
+        ("05/10/2026 2:30\u00a0p.\u00a0m.", "dmy", "2026-10-05 14:30"),
+        ("05/10/2026 2:30\u202fa.\u202fm.", "dmy", "2026-10-05 02:30"),
+        ("2026/10/05 07:45:10 pm", "ymd", "2026-10-05 19:45:10"),
+        # Hours outside 1 to 12 with a marker, or malformed markers: unchanged.
+        ("10/5/2026 13:00 PM", "mdy", "10/5/2026 13:00 PM"),
+        ("10/5/2026 0:30 AM", "mdy", "10/5/2026 0:30 AM"),
+        ("10/5/2026 2:30 pmx", "mdy", "10/5/2026 2:30 pmx"),
+        ("10/5/2026 2:30 p m", "mdy", "10/5/2026 2:30 p m"),
+        ("10/5/2026 2:30  PM", "mdy", "10/5/2026 2:30  PM"),
+        ("10/5/2026 PM", "mdy", "10/5/2026 PM"),
         ("٠٥/10/2026", "dmy", "٠٥/10/2026"),  # Arabic-Indic digits
         ("fecha", "dmy", "fecha"),
         ("", "dmy", ""),
@@ -77,9 +95,19 @@ def test_normalize_date_agrees_with_strptime(order: str) -> None:
             parts = text.split(sep)
             text = sep.join(part.lstrip("0") if len(part) == 2 else part for part in parts)
         expected = moment.date().isoformat()
-        if rng.random() < 0.5:
+        clock = rng.random()
+        if clock < 0.4:
             text += moment.strftime(" %H:%M")
             expected += moment.strftime(" %H:%M")
+        elif clock < 0.8:  # 12-hour clock, with a random marker style
+            marker = rng.choice(["{}M", "{}m", "{}.m.", "{}. m."]).format(
+                "P" if moment.hour >= 12 else "A"
+            )
+            hour = str(moment.hour % 12 or 12)
+            text += f" {hour}:{moment:%M:%S} {marker}"
+            expected += moment.strftime(" %H:%M:%S")
+            parsed = datetime.strptime(f"{hour}:{moment:%M:%S} {marker[0]}M", "%I:%M:%S %p")
+            assert parsed.time() == moment.time()
         assert normalize_date(text, order) == expected, text
         assert datetime.fromisoformat(normalize_date(text, order)).date() == moment.date()
 
@@ -228,3 +256,20 @@ def test_min_and_max_dates_are_real_dates() -> None:
     result = profile_rows(["d"], [[v] for v in values], date_order="dmy")
     col = result.columns[0]
     assert (col.min, col.max) == (date(2025, 12, 1).isoformat(), date(2026, 6, 15).isoformat())
+
+
+def test_twelve_hour_column_range(write_csv: WriteCsv) -> None:
+    path = write_csv(
+        "t\n10/5/2026 1:00 PM\n10/5/2026 11:59 PM\n10/5/2026 12:30 AM\n10/5/2026 9:00 AM\n"
+    )
+    col = profile_file(path, date_order="mdy").columns[0]
+    assert (col.type, col.min, col.max) == ("datetime", "2026-10-05 00:30", "2026-10-05 23:59")
+    # Top values keep the text as written.
+    assert col.top_values[0] == ("10/5/2026 1:00 PM", 1)
+
+
+def test_impossible_twelve_hour_time_is_named(write_csv: WriteCsv) -> None:
+    rows = "".join(f"10/{day}/2026 {day}:00 PM\n" for day in range(1, 10)) + "10/9/2026 13:00 PM\n"
+    col = profile_file(write_csv("t\n" + rows), date_order="mdy").columns[0]
+    assert col.type_hint is not None
+    assert (col.type_hint.type, col.type_hint.examples) == ("datetime", ("10/9/2026 13:00 PM",))

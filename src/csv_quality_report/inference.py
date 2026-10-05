@@ -182,7 +182,11 @@ def strip_thousands(value: str, thousands: str, decimal_comma: bool = False) -> 
 # and the positions of year, month and day among its groups.
 DATE_ORDERS = ("dmy", "mdy", "ymd")
 # ASCII digits only: \d would also accept digits of other scripts.
-_TIME = r"(?:([ T])([0-9]{1,2}):([0-9]{2})(?::([0-9]{2}))?)?$"
+# Optional 12-hour marker: AM/PM in any case, with optional dots and spaces
+# (2:30 PM, 2:30pm, 2:30 p.m., and the Spanish "p. m." with no-break spaces).
+_SPACE = "[ \u00a0\u202f]?"
+_MERIDIEM = rf"(?:{_SPACE}([AaPp])(?:\.{_SPACE})?[Mm]\.?)?"
+_TIME = r"(?:([ T])([0-9]{1,2}):([0-9]{2})(?::([0-9]{2}))?" + _MERIDIEM + ")?$"
 _SHORT_FIRST_RE = re.compile(r"^([0-9]{1,2})([/.-])([0-9]{1,2})\2([0-9]{4})" + _TIME)
 _YEAR_FIRST_RE = re.compile(r"^([0-9]{4})([/.-])([0-9]{1,2})\2([0-9]{1,2})" + _TIME)
 _DATE_LAYOUTS = {  # order: (regex, group of year, group of month, group of day)
@@ -199,7 +203,9 @@ def normalize_date(value: str, order: str) -> str:
     ``2026-05-10`` with ``"mdy"``. Day and month take one or two digits, the
     year four; the separator is ``/``, ``-`` or ``.``, the same one twice. An
     optional time (``H:MM`` or ``HH:MM:SS``) after a space or ``T`` is kept,
-    with the hour padded to two digits. The calendar is not checked here:
+    with the hour padded to two digits. A 12-hour time (``2:30 PM``,
+    ``2:30 p. m.``) is rewritten on the 24-hour clock; its hour must be 1 to
+    12, or the value is returned unchanged. The calendar is not checked here:
     ``31/02/2026`` becomes ``2026-02-31``, which inference then rejects.
     """
     regex, year, month, day = _DATE_LAYOUTS[order]
@@ -210,8 +216,13 @@ def normalize_date(value: str, order: str) -> str:
     iso = f"{g[year - 1]}-{g[month - 1]:0>2}-{g[day - 1]:0>2}"
     if g[4] is None:
         return iso
+    hour = g[5]
+    if g[8] is not None:  # 12-hour clock: 12 AM is 00, 12 PM is 12
+        if not 1 <= int(hour) <= 12:
+            return value
+        hour = str(int(hour) % 12 + (12 if g[8] in "Pp" else 0))
     seconds = "" if g[7] is None else ":" + g[7]
-    return f"{iso}{g[4]}{g[5]:0>2}:{g[6]}{seconds}"
+    return f"{iso}{g[4]}{hour:0>2}:{g[6]}{seconds}"
 
 
 BoolWords = tuple[tuple[str, str], ...]  # (true word, false word) pairs, as given
