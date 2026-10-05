@@ -17,6 +17,22 @@ _DATETIME_RE = re.compile(
     r"^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}(:\d{2}(\.\d{1,6})?)?(Z|[+-]\d{2}(:?\d{2})?)?$"
 )
 _BOOLS = frozenset({"true", "false"})
+# Python refuses int() on strings with more digits than its limit (4300 by
+# default, configurable). Shorter strings matching _INT_RE always convert, so
+# the conversion is only attempted near the limit (640 is the lowest value the
+# limit can be set to, other than 0 for "no limit").
+_SAFE_INT_DIGITS = 640
+# Every int, float, date or datetime value starts with one of these: digits,
+# signs, or "." / "," (".5", ",5"). Booleans are the only typed values that
+# start with a letter (t or f, in any case).
+_TYPED_FIRST_CHARS = frozenset("0123456789+-.,")
+_BOOL_FIRST_CHARS = frozenset("tTfF")
+
+
+# Characters that can appear in an int, float, date or datetime value. A value
+# with any other character is a string, which one linear regex search finds
+# without the backtracking a union of the exact patterns would cost.
+_NOT_NUMERIC_OR_TEMPORAL_RE = re.compile(r"[^0-9+\-.,eE:TZ ]")
 
 TYPE_BOOL = "bool"
 TYPE_INT = "int"
@@ -54,6 +70,8 @@ def parse_datetime(value: str) -> datetime | None:
 def _is_int(value: str) -> bool:
     if not _INT_RE.match(value):
         return False
+    if len(value) < _SAFE_INT_DIGITS:  # far below Python's digit limit: always converts
+        return True
     try:
         int(value)
     except ValueError:  # e.g. more digits than Python's int/str conversion limit
@@ -100,5 +118,31 @@ def infer_type(values: Iterable[str], decimal_comma: bool = False) -> str:
     if all(_is_date(v) for v in items):
         return TYPE_DATE
     if all(parse_datetime(v) is not None for v in items):
+        return TYPE_DATETIME
+    return TYPE_STRING
+
+
+def value_type(value: str, decimal_comma: bool = False) -> str:
+    """Narrowest type of one stripped, non-missing value, by the ``infer_type`` rules.
+
+    Equivalent to ``infer_type([value])`` but cheaper, because it is called
+    once per distinct value. Two cheap filters (the first character, then one
+    linear search for characters no typed value can contain) reject most
+    text before the exact checks run. The order of the exact checks does not
+    change the result: an int is also a float and is checked first, a date is
+    checked before datetime, and the other types exclude each other.
+    """
+    first = value[:1]
+    if first in _BOOL_FIRST_CHARS:  # only true/false start with a letter
+        return TYPE_BOOL if value.lower() in _BOOLS else TYPE_STRING
+    if first not in _TYPED_FIRST_CHARS or _NOT_NUMERIC_OR_TEMPORAL_RE.search(value):
+        return TYPE_STRING  # most text is rejected by these two cheap checks
+    if _is_int(value):
+        return TYPE_INT
+    if _is_float(value, decimal_comma):
+        return TYPE_FLOAT
+    if _is_date(value):
+        return TYPE_DATE
+    if parse_datetime(value) is not None:
         return TYPE_DATETIME
     return TYPE_STRING

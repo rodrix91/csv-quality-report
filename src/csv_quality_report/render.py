@@ -73,6 +73,20 @@ def _untrimmed_columns_line(report: Report) -> list[str]:
     return [f"- Column names with surrounding whitespace: {names}"]
 
 
+def _type_hint_line(report: Report) -> list[str]:
+    """Markdown line for string columns that mostly fit another type, when there are any."""
+    parts = []
+    for c in report.columns:
+        if c.type_hint is not None:
+            h = c.type_hint
+            examples = ", ".join(f'"{_md_escape(v)}"' for v in h.examples)
+            noun = "value" if h.nonconforming == 1 else "values"
+            parts.append(
+                f"{_md_escape(c.name)} is {h.type} except {h.nonconforming} {noun} ({examples})"
+            )
+    return ["- Mostly typed: " + "; ".join(parts)] if parts else []
+
+
 def render_markdown(report: Report, source: str, checks: Sequence[CheckResult] = ()) -> str:
     lines = [
         f"# CSV quality report: {_md_escape(source)}",
@@ -86,6 +100,7 @@ def render_markdown(report: Report, source: str, checks: Sequence[CheckResult] =
         f"- Duplicate rows: {report.duplicate_rows}",
         *_untrimmed_line(report),
         *_untrimmed_columns_line(report),
+        *_type_hint_line(report),
         "",
         "| Column | Type | Missing | Missing % | Distinct | Min | Max "
         f"| Top {report.top_n} values |",
@@ -116,6 +131,14 @@ def render_json(report: Report, source: str, checks: Sequence[CheckResult] = ())
             {
                 "name": c.name,
                 "type": c.type,
+                "type_hint": None
+                if c.type_hint is None
+                else {
+                    "type": c.type_hint.type,
+                    "conforming_pct": c.type_hint.conforming_pct,
+                    "nonconforming": c.type_hint.nonconforming,
+                    "examples": list(c.type_hint.examples),
+                },
                 "missing": c.missing,
                 "missing_pct": c.missing_pct,
                 "distinct": c.distinct,
