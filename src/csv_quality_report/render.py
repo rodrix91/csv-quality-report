@@ -70,7 +70,8 @@ def render_markdown(report: Report, source: str, checks: Sequence[CheckResult] =
         *_na_line(report),
         f"- Duplicate rows: {report.duplicate_rows}",
         "",
-        "| Column | Type | Missing | Missing % | Distinct | Min | Max | Top 3 values |",
+        "| Column | Type | Missing | Missing % | Distinct | Min | Max "
+        f"| Top {report.top_n} values |",
         "|---|---|---|---|---|---|---|---|",
     ]
     for c in report.columns:
@@ -90,6 +91,7 @@ def render_json(report: Report, source: str, checks: Sequence[CheckResult] = ())
         "delimiter": report.delimiter,
         "delimiter_detected": report.delimiter_detected,
         "na_tokens": list(report.na_tokens),
+        "top_n": report.top_n,
         "duplicate_rows": report.duplicate_rows,
         "columns": [
             {

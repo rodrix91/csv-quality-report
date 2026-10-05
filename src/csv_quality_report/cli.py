@@ -10,7 +10,7 @@ from pathlib import Path
 from . import __version__
 from .checks import evaluate
 from .errors import EXIT_CHECKS, CsvQualityError
-from .profile import profile_file
+from .profile import TOP_N, profile_file
 from .reader import DELIMITER_AUTO
 from .render import render_json, render_markdown
 
@@ -110,6 +110,13 @@ def build_parser() -> argparse.ArgumentParser:
         metavar="TOKENS",
         help="comma-separated cell values to count as missing, e.g. NA,null,- (case-sensitive)",
     )
+    parser.add_argument(
+        "--top",
+        type=_non_negative_int,
+        default=TOP_N,
+        metavar="N",
+        help=f"how many most frequent values to list per column (default: {TOP_N}; 0: none)",
+    )
     gates = parser.add_argument_group(
         "quality gates", f"exit with code {EXIT_CHECKS} when a threshold is exceeded"
     )
@@ -139,6 +146,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             delimiter=args.delimiter,
             decimal_comma=args.decimal_comma,
             na_tokens=args.na,
+            top_n=args.top,
         )
     except CsvQualityError as exc:
         print(f"error: {exc.message}", file=sys.stderr)

@@ -14,7 +14,7 @@ Per column it reports:
 - missing count and percentage
 - distinct count (non-missing values)
 - min / max (numeric and date columns)
-- top 3 most frequent values
+- top 3 most frequent values (configurable with `--top`)
 
 At dataset level it reports the row count and the number of duplicate rows.
 
@@ -42,7 +42,7 @@ You can also run the tool without installing it: `PYTHONPATH=src python3 -m csv_
 ## Usage
 
 ```text
-python -m csv_quality_report PATH [--format markdown|json] [--max-rows N] [--delimiter CHAR] [--decimal-comma] [--na TOKENS]
+python -m csv_quality_report PATH [--format markdown|json] [--max-rows N] [--delimiter CHAR] [--decimal-comma] [--na TOKENS] [--top N]
                              [--max-missing PCT] [--max-duplicates N]
 python -m csv_quality_report --version
 ```
@@ -52,6 +52,7 @@ python -m csv_quality_report --version
 - `--delimiter CHAR` — field separator (default `,`). Accepts one character, the aliases `tab`, `comma`, `semicolon` and `pipe`, or `auto` (see below). Use `--delimiter ";"` for files exported from spreadsheets with a Spanish, Portuguese or other comma-decimal locale. Decimal commas (`10,5`) are only parsed as numbers with `--decimal-comma`.
 - `--delimiter auto` — detect the separator among `,` `;` tab and `|`. A candidate is accepted only if it gives the same number of fields (more than one) on every one of the first 100 lines (within 64 KiB); quoted fields are respected. If exactly one candidate fits, it is used; a file where every candidate gives one field is treated as a one-column file; otherwise the tool stops with exit code 7 instead of guessing. The chosen delimiter is shown in the report.
 - `--decimal-comma` — read floats written with a comma as decimal mark (`10,5`, `-0,25`). With the flag, values written with `.` are no longer floats, thousands separators (`1.234,5`) are not recognized, and `1,234` means 1.234. Top values keep the original text; min/max are reported as numbers.
+- `--top N` — how many most frequent values to list per column (default 3; `0` lists none). JSON reports the setting as `top_n`.
 - `--na TOKENS` — comma-separated cell values to count as missing, in addition to empty cells, e.g. `--na NA,null,s/d`. Matching is exact and case-sensitive after stripping spaces. A token list that starts with `-` must be attached with `=`: `--na=-,NA`. Missing tokens are excluded from type inference, distinct counts and top values, so a quantity column with `NA` gaps is still reported as `int`. Duplicate-row detection keeps comparing the raw text.
 
 ### Quality gates for pipelines
@@ -115,6 +116,7 @@ Output (captured from a real run, exit code 0):
   "delimiter": ",",
   "delimiter_detected": false,
   "na_tokens": [],
+  "top_n": 3,
   "duplicate_rows": 0,
   "columns": [
     {
