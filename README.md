@@ -209,6 +209,48 @@ Errors are printed to stderr as `error: ...`; nothing is written to stdout.
 | 8 | A quality gate failed (`--max-missing`, `--max-duplicates`, `--require-columns`); the report is still printed | `check failed: column 'weight_kg' has 12.5% missing values (limit 5%)` |
 | 9 | The `--json-output` file cannot be written | `error: cannot write 'out/report.json': No such file or directory` |
 
+## Use as a GitHub Action
+
+The repository is also a GitHub Action, so any workflow can check its CSV files. It installs the tool from the action's own checkout, profiles the file once, writes the Markdown report to the job summary, saves the JSON report, and fails the step when a quality gate fails.
+
+```yaml
+name: Data quality
+on: [push, pull_request]
+
+jobs:
+  check-extract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check shipments.csv
+        id: quality
+        uses: rodrix91/csv-quality-report@main  # pin a release tag or commit SHA for reproducible runs
+        with:
+          path: data/shipments.csv
+          args: --delimiter auto --na NA,s/d --max-missing 5 --max-duplicates 0 --require-columns shipment_id,date
+      - name: Keep the JSON report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: data-quality-report
+          path: ${{ steps.quality.outputs.report-json }}
+```
+
+| Input | Default | Meaning |
+|---|---|---|
+| `path` | (required) | CSV file, relative to the workspace; gzip is detected |
+| `args` | `""` | extra command-line options, split on whitespace (no glob expansion) |
+| `python-version` | `3.12` | Python used to run the tool (3.11 or newer) |
+| `summary` | `true` | write the Markdown report to the job summary |
+
+| Output | Meaning |
+|---|---|
+| `exit-code` | the tool's exit code (see "Errors and exit codes") |
+| `passed` | `true` when the file was read and every check passed |
+| `report-json` | path of the JSON report; empty when the file could not be read |
+
+Inputs reach the shell only through environment variables, never interpolated into the script, so a crafted `args` value cannot run commands. The action sets up its own Python with `actions/setup-python`. The repository's CI runs the action on the example files, once expecting success and once expecting a failed gate.
+
 ## Use from Python
 
 The same engine is available as a library. These names are the supported API, importable from `csv_quality_report`: `profile_file`, `build_report`, `read_table`, `evaluate`, `render_markdown`, `render_json`, `Report`, `ColumnProfile`, `CheckResult` and `CsvQualityError`. `profile_file` takes the same options as the command line (`max_rows`, `delimiter`, `decimal_comma`, `na_tokens`, `top_n`) and streams the file.

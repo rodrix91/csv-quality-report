@@ -44,3 +44,53 @@ jobs:
 
       - name: Type check
         run: mypy
+
+  action:
+    # Runs the repository's own GitHub Action (action.yml) end to end.
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Action passes on a clean file
+        id: ok
+        uses: ./
+        with:
+          path: examples/tiny.csv
+          args: --delimiter auto --max-missing 50 --require-columns item,qty
+
+      - name: Action fails when a quality gate fails
+        id: gate
+        continue-on-error: true
+        uses: ./
+        with:
+          path: examples/sample.csv
+          args: --max-duplicates 0
+          summary: "false"
+
+      - name: Check the action's outputs
+        env:
+          OK_CODE: ${{ steps.ok.outputs.exit-code }}
+          OK_PASSED: ${{ steps.ok.outputs.passed }}
+          OK_JSON: ${{ steps.ok.outputs.report-json }}
+          GATE_CODE: ${{ steps.gate.outputs.exit-code }}
+          GATE_PASSED: ${{ steps.gate.outputs.passed }}
+          GATE_JSON: ${{ steps.gate.outputs.report-json }}
+          GATE_OUTCOME: ${{ steps.gate.outcome }}
+        run: |
+          set -x
+          test "$OK_CODE" = 0
+          test "$OK_PASSED" = true
+          test "$GATE_CODE" = 8
+          test "$GATE_PASSED" = false
+          test "$GATE_OUTCOME" = failure
+          python - <<'PY'
+          import json, os
+          ok = json.load(open(os.environ["OK_JSON"], encoding="utf-8"))
+          assert ok["rows"] == 3 and ok["delimiter_detected"], ok
+          assert ok["checks"] and all(c["passed"] for c in ok["checks"]), ok["checks"]
+          gate = json.load(open(os.environ["GATE_JSON"], encoding="utf-8"))
+          failed = [c["check"] for c in gate["checks"] if not c["passed"]]
+          assert failed == ["max_duplicates"], failed
+          print("action outputs OK")
+          PY
