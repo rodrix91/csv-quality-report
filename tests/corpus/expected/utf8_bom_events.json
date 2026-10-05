@@ -9,6 +9,7 @@
   "compressed": false,
   "encoding": "utf-8",
   "thousands": null,
+  "date_order": null,
   "duplicate_rows": 0,
   "untrimmed_columns": [
     " recorded_at "

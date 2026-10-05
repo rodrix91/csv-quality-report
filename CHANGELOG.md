@@ -4,6 +4,10 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Added
+
+- `--date-order dmy|mdy|ymd` reads dates such as `05/10/2026` (optionally with a time) in the given order, never guessed: the column becomes `date` or `datetime` with an ISO 8601 range, impossible dates are named in the type hint as written, and top values keep the original text. JSON gains `date_order`, Markdown a `Date order` line; the corpus gains a day-first ERP export (#61).
+
 ## [0.6.0] - 2026-10-05
 
 ### Added
