@@ -9,6 +9,7 @@ EXIT_ENCODING = 4
 EXIT_EMPTY = 5
 EXIT_RAGGED = 6
 EXIT_DELIMITER = 7
+EXIT_CHECKS = 8  # report produced, but a --max-* quality threshold failed
 
 
 class CsvQualityError(Exception):

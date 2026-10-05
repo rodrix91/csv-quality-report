@@ -8,7 +8,8 @@ from collections.abc import Sequence
 from pathlib import Path
 
 from . import __version__
-from .errors import CsvQualityError
+from .checks import evaluate
+from .errors import EXIT_CHECKS, CsvQualityError
 from .profile import profile_file
 from .reader import DELIMITER_AUTO
 from .render import render_json, render_markdown
@@ -47,6 +48,26 @@ def _na_tokens(text: str) -> tuple[str, ...]:
     if not tokens:
         raise argparse.ArgumentTypeError(f"invalid --na value: {text!r} (no tokens)")
     return tokens
+
+
+def _percentage(text: str) -> float:
+    try:
+        value = float(text)
+    except ValueError:
+        raise argparse.ArgumentTypeError(f"invalid percentage: {text!r}") from None
+    if not 0.0 <= value <= 100.0:
+        raise argparse.ArgumentTypeError("must be between 0 and 100")
+    return value
+
+
+def _non_negative_int(text: str) -> int:
+    try:
+        value = int(text)
+    except ValueError:
+        raise argparse.ArgumentTypeError(f"invalid integer: {text!r}") from None
+    if value < 0:
+        raise argparse.ArgumentTypeError("must be >= 0")
+    return value
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -89,6 +110,23 @@ def build_parser() -> argparse.ArgumentParser:
         metavar="TOKENS",
         help="comma-separated cell values to count as missing, e.g. NA,null,- (case-sensitive)",
     )
+    gates = parser.add_argument_group(
+        "quality gates", f"exit with code {EXIT_CHECKS} when a threshold is exceeded"
+    )
+    gates.add_argument(
+        "--max-missing",
+        type=_percentage,
+        default=None,
+        metavar="PCT",
+        help="fail if any column has more than PCT %% missing values (0-100)",
+    )
+    gates.add_argument(
+        "--max-duplicates",
+        type=_non_negative_int,
+        default=None,
+        metavar="N",
+        help="fail if the file has more than N duplicate rows (0: none allowed)",
+    )
     return parser
 
 
@@ -105,6 +143,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     except CsvQualityError as exc:
         print(f"error: {exc.message}", file=sys.stderr)
         return exc.exit_code
+    checks = evaluate(report, max_missing=args.max_missing, max_duplicates=args.max_duplicates)
     render = render_json if args.format == "json" else render_markdown
-    sys.stdout.write(render(report, str(args.path)))
-    return 0
+    sys.stdout.write(render(report, str(args.path), checks))
+    failed = [c for c in checks if not c.passed]
+    for check in failed:
+        print(f"check failed: {check.describe()}", file=sys.stderr)
+    return EXIT_CHECKS if failed else 0

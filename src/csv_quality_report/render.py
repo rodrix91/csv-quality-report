@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Sequence
 from typing import Any
 
+from .checks import CheckResult
 from .profile import ColumnProfile, Report
 from .reader import DELIMITER_NAMES, delimiter_name
 
@@ -42,7 +44,22 @@ def _na_line(report: Report) -> list[str]:
     ]
 
 
-def render_markdown(report: Report, source: str) -> str:
+def _checks_section(checks: Sequence[CheckResult]) -> list[str]:
+    """Markdown section with each requested check, only when checks were requested."""
+    if not checks:
+        return []
+    failed = sum(not c.passed for c in checks)
+    lines = [
+        "",
+        f"## Checks: {'FAILED' if failed else 'passed'} ({failed} of {len(checks)} failed)",
+        "",
+    ]
+    for c in checks:
+        lines.append(f"- {'FAIL' if not c.passed else 'pass'}: {_md_escape(c.describe())}")
+    return lines
+
+
+def render_markdown(report: Report, source: str, checks: Sequence[CheckResult] = ()) -> str:
     lines = [
         f"# CSV quality report: {_md_escape(source)}",
         "",
@@ -61,10 +78,11 @@ def render_markdown(report: Report, source: str) -> str:
             f"| {_md_escape(c.name)} | {c.type} | {c.missing} | {c.missing_pct:.1f} "
             f"| {c.distinct} | {_num(c.min)} | {_num(c.max)} | {_top(c)} |"
         )
+    lines.extend(_checks_section(checks))
     return "\n".join(lines) + "\n"
 
 
-def render_json(report: Report, source: str) -> str:
+def render_json(report: Report, source: str, checks: Sequence[CheckResult] = ()) -> str:
     data: dict[str, Any] = {
         "source": source,
         "rows": report.rows,
@@ -85,6 +103,16 @@ def render_json(report: Report, source: str) -> str:
                 "top_values": [{"value": v, "count": n} for v, n in c.top_values],
             }
             for c in report.columns
+        ],
+        "checks": [
+            {
+                "check": c.check,
+                "column": c.column,
+                "limit": c.limit,
+                "value": c.value,
+                "passed": c.passed,
+            }
+            for c in checks
         ],
     }
     return json.dumps(data, indent=2, ensure_ascii=False, allow_nan=False) + "\n"

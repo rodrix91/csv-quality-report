@@ -43,6 +43,7 @@ You can also run the tool without installing it: `PYTHONPATH=src python3 -m csv_
 
 ```text
 python -m csv_quality_report PATH [--format markdown|json] [--max-rows N] [--delimiter CHAR] [--decimal-comma] [--na TOKENS]
+                             [--max-missing PCT] [--max-duplicates N]
 python -m csv_quality_report --version
 ```
 
@@ -52,6 +53,22 @@ python -m csv_quality_report --version
 - `--delimiter auto` — detect the separator among `,` `;` tab and `|`. A candidate is accepted only if it gives the same number of fields (more than one) on every one of the first 100 lines (within 64 KiB); quoted fields are respected. If exactly one candidate fits, it is used; a file where every candidate gives one field is treated as a one-column file; otherwise the tool stops with exit code 7 instead of guessing. The chosen delimiter is shown in the report.
 - `--decimal-comma` — read floats written with a comma as decimal mark (`10,5`, `-0,25`). With the flag, values written with `.` are no longer floats, thousands separators (`1.234,5`) are not recognized, and `1,234` means 1.234. Top values keep the original text; min/max are reported as numbers.
 - `--na TOKENS` — comma-separated cell values to count as missing, in addition to empty cells, e.g. `--na NA,null,s/d`. Matching is exact and case-sensitive after stripping spaces. A token list that starts with `-` must be attached with `=`: `--na=-,NA`. Missing tokens are excluded from type inference, distinct counts and top values, so a quantity column with `NA` gaps is still reported as `int`. Duplicate-row detection keeps comparing the raw text.
+
+### Quality gates for pipelines
+
+By default the tool only reports. With thresholds it also decides: the full report is still printed to stdout, every failed check is printed to stderr as `check failed: ...`, and the exit code is **8** when at least one check fails (0 when all pass). A value equal to its limit passes.
+
+- `--max-missing PCT` — fail if any column has more than `PCT` % missing values (0 to 100). The comparison uses the exact percentage, not the rounded `missing_pct` shown in the table.
+- `--max-duplicates N` — fail if the file has more than `N` duplicate rows (`0`: none allowed).
+
+JSON output always has a `checks` list (empty without thresholds); each item has `check`, `column` (`null` for file-level checks), `limit`, `value` and `passed`. Markdown adds a `## Checks` section only when thresholds are given.
+
+Example: stop a nightly import when an extract has gaps or repeated rows (the step fails on exit code 8):
+
+```yaml
+- name: Check the shipments extract before loading it
+  run: python -m csv_quality_report data/shipments.csv --delimiter auto --na NA,s/d --max-missing 5 --max-duplicates 0
+```
 
 ### Example: Markdown (default)
 
@@ -138,7 +155,8 @@ Output (captured from a real run, exit code 0):
         }
       ]
     }
-  ]
+  ],
+  "checks": []
 }
 ```
 
@@ -169,6 +187,7 @@ Errors are printed to stderr as `error: ...`; nothing is written to stdout.
 | 5 | Empty file (no header row) | `error: '/tmp/empty.csv' is empty (no header row)` |
 | 6 | Ragged row (cell count differs from header) or malformed CSV | `error: row at line 3 has 2 fields, expected 3 (from the header)` |
 | 7 | `--delimiter auto` cannot pick one separator | `error: cannot detect the delimiter: several separators fit every line (comma, semicolon); pass it explicitly with --delimiter` |
+| 8 | A quality gate failed (`--max-missing`, `--max-duplicates`); the report is still printed | `check failed: column 'weight_kg' has 12.5% missing values (limit 5%)` |
 
 ## Performance
 
@@ -190,6 +209,9 @@ flowchart TD
     cli --> profile
     cli --> render
     cli --> errors
+    cli --> checks
+    checks --> profile
+    render --> checks
     reader --> errors
     profile --> reader
     profile --> inference
@@ -205,6 +227,7 @@ flowchart TD
 | `inference.py` | heuristic type inference for one column |
 | `profile.py` | single-pass per-column statistics and duplicate-row count |
 | `render.py` | Markdown and JSON output |
+| `checks.py` | optional quality gates (`--max-missing`, `--max-duplicates`) evaluated on a finished report |
 | `errors.py` | error classes and exit codes |
 
 Design rationale and alternatives: [docs/decisions/0001-architecture.md](https://github.com/rodrix91/csv-quality-report/blob/main/docs/decisions/0001-architecture.md) and, for streaming, [docs/decisions/0002-streaming-profile.md](https://github.com/rodrix91/csv-quality-report/blob/main/docs/decisions/0002-streaming-profile.md) (in the [source repository](https://github.com/rodrix91/csv-quality-report); not included in the packages).
