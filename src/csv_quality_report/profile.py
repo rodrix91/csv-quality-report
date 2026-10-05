@@ -336,13 +336,20 @@ def profile_file(
     na_tokens: tuple[str, ...] = (),
     top_n: int = TOP_N,
     encoding: str = DEFAULT_ENCODING,
+    max_field_size: int | None = None,
 ) -> Report:
     """Stream ``path`` and profile it without loading the whole file into memory.
 
     Same rules and errors as ``reader.open_rows``; same result as
     ``build_report(read_table(...))``.
     """
-    with open_rows(path, max_rows=max_rows, delimiter=delimiter, encoding=encoding) as stream:
+    with open_rows(
+        path,
+        max_rows=max_rows,
+        delimiter=delimiter,
+        encoding=encoding,
+        max_field_size=max_field_size,
+    ) as stream:
         result = profile_rows(stream.header, stream, decimal_comma, na_tokens, top_n)
         return Report(
             rows=result.rows,
