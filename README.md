@@ -192,6 +192,50 @@ Errors are printed to stderr as `error: ...`; nothing is written to stdout.
 | 7 | `--delimiter auto` cannot pick one separator | `error: cannot detect the delimiter: several separators fit every line (comma, semicolon); pass it explicitly with --delimiter` |
 | 8 | A quality gate failed (`--max-missing`, `--max-duplicates`, `--require-columns`); the report is still printed | `check failed: column 'weight_kg' has 12.5% missing values (limit 5%)` |
 
+## Use from Python
+
+The same engine is available as a library. These names are the supported API, importable from `csv_quality_report`: `profile_file`, `build_report`, `read_table`, `evaluate`, `render_markdown`, `render_json`, `Report`, `ColumnProfile`, `CheckResult` and `CsvQualityError`. `profile_file` takes the same options as the command line (`max_rows`, `delimiter`, `decimal_comma`, `na_tokens`, `top_n`) and streams the file.
+
+```python
+from pathlib import Path
+
+from csv_quality_report import CsvQualityError, evaluate, profile_file, render_json
+
+try:
+    report = profile_file(Path("examples/sample.csv"), delimiter="auto", na_tokens=("NA",))
+except CsvQualityError as exc:  # unreadable file, bad encoding, ragged rows...
+    raise SystemExit(f"cannot profile: {exc.message} (exit code {exc.exit_code})")
+
+print(report.rows, "rows,", report.duplicate_rows, "duplicate")
+for column in report.columns:
+    print(
+        f"{column.name}: {column.type}, {column.missing_pct}% missing, range {column.min}..{column.max}"
+    )
+
+checks = evaluate(report, max_missing=20, required_columns=["id", "last_seen"])
+failed = [check.describe() for check in checks if not check.passed]
+print("checks failed:", failed or "none")
+
+json_text = render_json(report, "examples/sample.csv", checks)  # same JSON as --format json
+```
+
+Run from the repository root, it prints:
+
+```text
+8 rows, 1 duplicate
+id: int, 0.0% missing, range 1..7
+name: string, 0.0% missing, range None..None
+signup_date: date, 12.5% missing, range 2024-01-15..2024-04-18
+age: int, 25.0% missing, range 29..52
+score: float, 12.5% missing, range 69.5..95.75
+active: bool, 12.5% missing, range None..None
+city: string, 12.5% missing, range None..None
+last_seen: datetime, 12.5% missing, range 2024-04-28T12:00..2024-05-04T08:45
+checks failed: ["column 'age' has 25% missing values (limit 20%)"]
+```
+
+A test runs this example and compares its output, so it stays correct.
+
 ## Performance
 
 The file is profiled in a single streaming pass (see [ADR 0002](https://github.com/rodrix91/csv-quality-report/blob/main/docs/decisions/0002-streaming-profile.md)). On a synthetic 1,000,000-row, 8-column logistics file (55 MB, one column of unique IDs), JSON output, CPython 3.13:
@@ -243,7 +287,7 @@ python -m pytest
 
 This works after installing only the dev dependencies (`pip install -r requirements-dev.txt`) from the repository root: pytest is configured with `pythonpath = ["src"]`, and the tests that start a subprocess set `PYTHONPATH=src` themselves.
 
-Tests (`tests/`) are behavior tests that call the CLI: happy path, missing values, ragged rows, empty file, bad encoding (Latin-1, UTF-16), BOM, duplicate column names, JSON output, `--max-rows`, `--delimiter` (including detection), `--decimal-comma`, and exit codes. Two tests check that the Markdown and JSON samples in this README match a real run. CI requires 100% line and branch coverage (`coverage run -m pytest && coverage combine && coverage report`), including the CLI runs in subprocesses; the few excluded lines carry a `# pragma: no cover` with the reason. See [CONTRIBUTING.md](https://github.com/rodrix91/csv-quality-report/blob/main/CONTRIBUTING.md) (in the [source repository](https://github.com/rodrix91/csv-quality-report); not included in the packages) for lint, type-check and build commands.
+Tests (`tests/`) are behavior tests that call the CLI: happy path, missing values, ragged rows, empty file, bad encoding (Latin-1, UTF-16), BOM, duplicate column names, JSON output, `--max-rows`, `--delimiter` (including detection), `--decimal-comma`, and exit codes. Two tests check that the Markdown and JSON samples in this README match a real run. Another test runs the "Use from Python" example and compares its output. CI requires 100% line and branch coverage (`coverage run -m pytest && coverage combine && coverage report`), including the CLI runs in subprocesses; the few excluded lines carry a `# pragma: no cover` with the reason. See [CONTRIBUTING.md](https://github.com/rodrix91/csv-quality-report/blob/main/CONTRIBUTING.md) (in the [source repository](https://github.com/rodrix91/csv-quality-report); not included in the packages) for lint, type-check and build commands.
 
 ## Limitations
 
