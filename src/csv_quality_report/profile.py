@@ -46,6 +46,7 @@ class Report:
     delimiter_detected: bool = False
     na_tokens: tuple[str, ...] = ()  # extra cell texts counted as missing
     top_n: int = TOP_N  # how many most frequent values each column lists
+    compressed: bool = False  # the input was gzip-compressed
 
 
 def _row_digest(row: list[str]) -> bytes:
@@ -186,6 +187,7 @@ def build_report(
         delimiter_detected=table.delimiter_detected,
         na_tokens=na_tokens,
         top_n=top_n,
+        compressed=table.compressed,
     )
 
 
@@ -213,4 +215,5 @@ def profile_file(
             delimiter_detected=stream.delimiter_detected,
             na_tokens=na_tokens,
             top_n=top_n,
+            compressed=stream.compressed,
         )

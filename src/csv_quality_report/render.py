@@ -68,6 +68,7 @@ def render_markdown(report: Report, source: str, checks: Sequence[CheckResult] =
         f"- Columns: {len(report.columns)}",
         *_delimiter_line(report),
         *_na_line(report),
+        *(["- Compression: gzip"] if report.compressed else []),
         f"- Duplicate rows: {report.duplicate_rows}",
         "",
         "| Column | Type | Missing | Missing % | Distinct | Min | Max "
@@ -92,6 +93,7 @@ def render_json(report: Report, source: str, checks: Sequence[CheckResult] = ())
         "delimiter_detected": report.delimiter_detected,
         "na_tokens": list(report.na_tokens),
         "top_n": report.top_n,
+        "compressed": report.compressed,
         "duplicate_rows": report.duplicate_rows,
         "columns": [
             {

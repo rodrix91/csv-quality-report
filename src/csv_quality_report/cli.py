@@ -11,7 +11,7 @@ from . import __version__
 from .checks import evaluate
 from .errors import EXIT_CHECKS, CsvQualityError
 from .profile import TOP_N, profile_file
-from .reader import DELIMITER_AUTO
+from .reader import DELIMITER_AUTO, display_name
 from .render import render_json, render_markdown
 
 
@@ -83,7 +83,11 @@ def build_parser() -> argparse.ArgumentParser:
         prog="python -m csv_quality_report",
         description="Quick data-quality report for a CSV file.",
     )
-    parser.add_argument("path", type=Path, help="CSV file to analyze (UTF-8)")
+    parser.add_argument(
+        "path",
+        type=Path,
+        help="CSV file to analyze (UTF-8; gzip-compressed is detected); - reads standard input",
+    )
     parser.add_argument("--version", action="version", version=f"csv-quality-report {__version__}")
     parser.add_argument(
         "--format",
@@ -173,7 +177,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         required_columns=args.require_columns,
     )
     render = render_json if args.format == "json" else render_markdown
-    sys.stdout.write(render(report, str(args.path), checks))
+    sys.stdout.write(render(report, display_name(args.path), checks))
     failed = [c for c in checks if not c.passed]
     for check in failed:
         print(f"check failed: {check.describe()}", file=sys.stderr)
