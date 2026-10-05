@@ -25,14 +25,17 @@ def _top(col: ColumnProfile) -> str:
 
 def _delimiter_line(report: Report) -> list[str]:
     """Markdown line naming the delimiter, only when it is not the default comma."""
-    if report.delimiter == "," and not report.delimiter_detected:
+    if report.delimiter == "," and not report.delimiter_detected and not report.sep_line:
         return []
     name = (
         delimiter_name(report.delimiter)
         if report.delimiter in DELIMITER_NAMES
         else f"`{_md_escape(report.delimiter)}`"
     )
-    return [f"- Delimiter: {name}" + (" (detected)" if report.delimiter_detected else "")]
+    how = " (detected)" if report.delimiter_detected else ""
+    if report.sep_line:
+        how = " (declared by a sep= line)"
+    return [f"- Delimiter: {name}{how}"]
 
 
 def _na_line(report: Report) -> list[str]:
@@ -147,6 +150,7 @@ def render_json(report: Report, source: str, checks: Sequence[CheckResult] = ())
         "truncated": report.truncated,
         "delimiter": report.delimiter,
         "delimiter_detected": report.delimiter_detected,
+        "sep_line": report.sep_line,
         "na_tokens": list(report.na_tokens),
         "top_n": report.top_n,
         "compressed": report.compressed,

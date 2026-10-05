@@ -4,6 +4,7 @@
   "truncated": false,
   "delimiter": ";",
   "delimiter_detected": true,
+  "sep_line": false,
   "na_tokens": [],
   "top_n": 3,
   "compressed": false,

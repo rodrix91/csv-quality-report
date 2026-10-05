@@ -1,0 +1,1 @@
+error: 'tests/corpus/excel_sep_hint.csv' declares the semicolon delimiter in its first line (sep=;), but the delimiter in use is comma; pass --delimiter auto to follow the file

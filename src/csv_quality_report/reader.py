@@ -6,6 +6,7 @@ import codecs
 import csv
 import gzip
 import io
+import re
 import sys
 import zlib
 from collections.abc import Iterator
@@ -35,6 +36,8 @@ DELIMITER_CANDIDATES = (",", ";", "\t", "|")
 SNIFF_CHARS = 64 * 1024  # how much text detection looks at
 SNIFF_RECORDS = 100  # how many lines detection checks
 DELIMITER_NAMES = {",": "comma", ";": "semicolon", "\t": "tab", "|": "pipe"}
+# Excel's hint line, e.g. "sep=;": one separator character, optionally quoted.
+_SEP_LINE_RE = re.compile(r'"?sep=([^"\r\n])"?(?:\r\n|\r|\n)?', re.IGNORECASE)
 
 
 @dataclass(frozen=True)
@@ -48,6 +51,29 @@ class Table:
     delimiter_detected: bool = False  # True when chosen by ``detect_delimiter``
     compressed: bool = False  # True when the input was gzip-compressed
     encoding: str = DEFAULT_ENCODING  # normalized codec name used to decode the input
+    sep_line: bool = False  # True when a first line such as "sep=;" was skipped
+
+
+def declared_delimiter(line: str) -> str | None:
+    """The separator declared by an Excel ``sep=`` line (``sep=;`` gives ``;``), else ``None``.
+
+    The whole line must be the declaration: ``sep=``, in any case, one
+    character and an optional line end, optionally inside double quotes.
+    """
+    match = _SEP_LINE_RE.fullmatch(line)
+    return None if match is None else match.group(1)
+
+
+class _LineCounter:
+    """The ``line_num`` of a csv reader plus lines read before it started."""
+
+    def __init__(self, reader: _CsvReader, skipped: int) -> None:
+        self._reader = reader
+        self._skipped = skipped
+
+    @property
+    def line_num(self) -> int:
+        return self._reader.line_num + self._skipped
 
 
 def dedupe_header(header: list[str]) -> list[str]:
@@ -87,6 +113,11 @@ def _record_widths(sample: str, delimiter: str) -> set[int] | None:
     except csv.Error:
         return None
     return widths
+
+
+def _describe(delimiter: str) -> str:
+    """``semicolon``, ``tab``... or the quoted character, for messages."""
+    return DELIMITER_NAMES.get(delimiter, repr(delimiter))
 
 
 def delimiter_name(delimiter: str) -> str:
@@ -152,10 +183,12 @@ class RowStream:
         delimiter_detected: bool,
         compressed: bool = False,
         encoding: str = DEFAULT_ENCODING,
+        sep_line: bool = False,
     ) -> None:
         self.path = path
         self.compressed = compressed
         self.encoding = encoding
+        self.sep_line = sep_line
         self.header = dedupe_header(raw_header)
         self.delimiter = delimiter
         self.delimiter_detected = delimiter_detected
@@ -343,6 +376,12 @@ def open_rows(
     iterating, in the order they appear in the file). Fully blank lines are
     skipped. Duplicate column names get ``_2``, ``_3`` suffixes.
 
+    A first line such as ``sep=;`` (Excel's hint, see ``declared_delimiter``)
+    is skipped and recorded in ``sep_line``. With ``"auto"`` the declared
+    separator is used without sampling; any other delimiter must match it,
+    or ``DelimiterDetectionError`` is raised instead of reading the file with
+    the wrong one. Line numbers in errors still count the skipped line.
+
     ``max_field_size`` raises Python's ``csv`` field size limit (131,072
     characters by default) while the file is read. The limit is process-wide
     in the ``csv`` module, so the previous value is restored when the stream
@@ -363,28 +402,53 @@ def _open_rows(
 ) -> Iterator[RowStream]:
     """``open_rows`` without the field size handling."""
     with _text_stream(path, encoding) as (handle, compressed):
-        lines: Iterator[str] = handle
-        detected = delimiter == DELIMITER_AUTO
-        if detected:
-            try:
-                sample = handle.read(SNIFF_CHARS + 1)
+        try:
+            first = handle.readline()
+            declared = declared_delimiter(first)
+            if declared is not None:
+                first = ""  # a declaration, not data
+                if delimiter == DELIMITER_AUTO:
+                    delimiter = declared
+                elif delimiter != declared:
+                    raise DelimiterDetectionError(
+                        f"'{display_name(path)}' declares the {_describe(declared)} delimiter "
+                        f"in its first line (sep={declared}), but the delimiter in use is "
+                        f"{_describe(delimiter)}; pass --delimiter auto to follow the file"
+                    )
+            detected = delimiter == DELIMITER_AUTO
+            sample = first
+            if detected and len(first) <= SNIFF_CHARS:
+                sample += handle.read(SNIFF_CHARS + 1 - len(first))
                 if len(sample) > SNIFF_CHARS:
                     sample += handle.readline()  # end the sample on a line boundary
-            except UnicodeDecodeError as exc:
-                raise _encoding_error(path, compressed, encoding) from exc
-            except _STREAM_ERRORS as exc:
-                raise _read_error(path, exc) from exc
+        except UnicodeDecodeError as exc:
+            raise _encoding_error(path, compressed, encoding) from exc
+        except _STREAM_ERRORS as exc:
+            raise _read_error(path, exc) from exc
+        if detected:
             delimiter = detect_delimiter(sample)
-            # Parse the sample again, then continue with the rest of the stream.
-            lines = chain(io.StringIO(sample, newline=""), handle)
+        # Parse what was read ahead again, then continue with the rest of the stream.
+        lines = chain(io.StringIO(sample, newline=""), handle)
 
         reader = csv.reader(lines, delimiter=delimiter)
         records = iter(reader)
-        header = next((r for r in _guarded(path, records, reader, compressed, encoding) if r), None)
+        counter = _LineCounter(reader, 0 if declared is None else 1)
+        header = next(
+            (r for r in _guarded(path, records, counter, compressed, encoding) if r), None
+        )
         if header is None:
             raise EmptyFileError(f"'{display_name(path)}' is empty (no header row)")
         yield RowStream(
-            path, records, reader, header, max_rows, delimiter, detected, compressed, encoding
+            path,
+            records,
+            counter,
+            header,
+            max_rows,
+            delimiter,
+            detected,
+            compressed,
+            encoding,
+            sep_line=declared is not None,
         )
 
 
@@ -416,4 +480,5 @@ def read_table(
             delimiter_detected=stream.delimiter_detected,
             compressed=stream.compressed,
             encoding=stream.encoding,
+            sep_line=stream.sep_line,
         )
