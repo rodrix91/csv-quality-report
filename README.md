@@ -42,7 +42,7 @@ You can also run the tool without installing it: `PYTHONPATH=src python3 -m csv_
 ## Usage
 
 ```text
-python -m csv_quality_report PATH [--format markdown|json] [--max-rows N] [--delimiter CHAR] [--decimal-comma] [--na TOKENS] [--top N] [--encoding NAME] [--max-field-size N] [--json-output FILE]
+python -m csv_quality_report PATH [--format markdown|json] [--max-rows N] [--delimiter CHAR] [--decimal-comma] [--thousands SEP] [--na TOKENS] [--top N] [--encoding NAME] [--max-field-size N] [--json-output FILE]
                              [--max-missing PCT] [--max-missing-column NAME=PCT ...] [--max-duplicates N] [--require-columns NAMES]
                              [--require-type NAME=TYPE ...]
 python -m csv_quality_report --version
@@ -53,11 +53,12 @@ python -m csv_quality_report --version
 - `--max-rows N` — analyze only the first `N` data rows (`N >= 1`). The output says when it stopped early (`truncated` in JSON).
 - `--delimiter CHAR` — field separator (default `,`). Accepts one character, the aliases `tab`, `comma`, `semicolon` and `pipe`, or `auto` (see below). Use `--delimiter ";"` for files exported from spreadsheets with a Spanish, Portuguese or other comma-decimal locale. Decimal commas (`10,5`) are only parsed as numbers with `--decimal-comma`.
 - `--delimiter auto` — detect the separator among `,` `;` tab and `|`. A candidate is accepted only if it gives the same number of fields (more than one) on every one of the first 100 lines (within 64 KiB); quoted fields are respected. If exactly one candidate fits, it is used; a file where every candidate gives one field is treated as a one-column file; otherwise the tool stops with exit code 7 instead of guessing. The chosen delimiter is shown in the report.
-- `--decimal-comma` — read floats written with a comma as decimal mark (`10,5`, `-0,25`). With the flag, values written with `.` are no longer floats, thousands separators (`1.234,5`) are not recognized, and `1,234` means 1.234. Top values keep the original text; min/max are reported as numbers.
+- `--decimal-comma` — read floats written with a comma as decimal mark (`10,5`, `-0,25`). With the flag, values written with `.` are no longer floats, thousands separators (`1.234,5`) are recognized only with `--thousands`, and `1,234` means 1.234. Top values keep the original text; min/max are reported as numbers.
 - `--encoding NAME` — text encoding of the file: any Python text codec, such as `cp1252`, `latin-1` or `utf-16` (default `utf-8`, with an optional BOM). Works with standard input, gzip and `--delimiter auto`. Unknown names and non-text codecs (`base64`) are usage errors; bytes that are invalid in the chosen encoding stop with exit code 4 and their offset. JSON reports the canonical name as `encoding`; Markdown adds an `Encoding:` line when it is not UTF-8.
 - `--max-field-size N` — allow fields of up to `N` characters. Python's `csv` module stops at 131,072 by default, which also protects against an unclosed quote swallowing the rest of a file into one field, so the default is kept; a file that hits it stops with exit code 6 and a message that names this option. The limit is restored after the run (it is process-wide in the `csv` module).
 - `--json-output FILE` — also write the JSON report (the same content as `--format json`, including `checks`) to `FILE`, while stdout keeps the chosen `--format`. The data is profiled once. The file is written even when a quality gate fails, so CI can keep it as an artifact; reading errors write no file, and a file that cannot be written stops with exit code 9.
 - `--top N` — how many most frequent values to list per column (default 3; `0` lists none). JSON reports the setting as `top_n`.
+- `--thousands SEP` — thousands separator in numbers: `dot` (`1.234,56`, needs `--decimal-comma`), `comma` (`1,234.56`) or `space` (`1 234,56`, also no-break spaces). A separator is removed only from a correctly grouped number (a first group of 1 to 3 digits, then groups of exactly 3), so `1.23` or `12.34.56` are not taken as thousands; such values then show up in the column's `type_hint`. Type, range and mean use the numbers without separators; top values and text lengths keep the text as written. A separator that is also the decimal mark is a usage error. JSON reports `thousands`; Markdown adds a `Thousands separator:` line.
 - `--na TOKENS` — comma-separated cell values to count as missing, in addition to empty cells, e.g. `--na NA,null,s/d`. Matching is exact and case-sensitive after stripping spaces. A token list that starts with `-` must be attached with `=`: `--na=-,NA`. Missing tokens are excluded from type inference, distinct counts and top values, so a quantity column with `NA` gaps is still reported as `int`. Duplicate-row detection keeps comparing the raw text.
 
 ### Pipes and compressed files
@@ -139,6 +140,7 @@ Output (captured from a real run, exit code 0):
   "top_n": 3,
   "compressed": false,
   "encoding": "utf-8",
+  "thousands": null,
   "duplicate_rows": 0,
   "untrimmed_columns": [],
   "columns": [
@@ -373,7 +375,7 @@ Tests (`tests/`) are behavior tests that call the CLI: happy path, missing value
 ## Limitations
 
 - **Memory grows with distinct values, not file size**: the file is streamed, but exact distinct counts and top values keep one counter entry per distinct value, plus a 16-byte fingerprint per unique row. A column of unique IDs therefore still needs memory proportional to the number of rows.
-- **Type inference is a heuristic**: it only recognizes the patterns listed above (e.g. no thousands separators, decimal commas only with `--decimal-comma`, no non-ISO timestamps, no `yes`/`no` booleans), and one stray value makes the whole column `string` (the `type_hint` then names the dominant type and the stray values, when 90% of the cells fit it).
+- **Type inference is a heuristic**: it only recognizes the patterns listed above (e.g. thousands separators only with `--thousands`, decimal commas only with `--decimal-comma`, no non-ISO timestamps, no `yes`/`no` booleans), and one stray value makes the whole column `string` (the `type_hint` then names the dominant type and the stray values, when 90% of the cells fit it).
 - UTF-8 unless `--encoding` names another codec; no automatic encoding detection (gzip compression is handled; other compressions such as zip or bz2 are not). Delimiter detection (`--delimiter auto`) only considers `,` `;` tab and `|`, and only the first 100 lines.
 - With `--max-rows`, rows after the limit are not read, so problems in them are not detected.
 - Min/max for floats use Python `float` parsing.

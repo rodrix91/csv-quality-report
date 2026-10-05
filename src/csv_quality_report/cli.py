@@ -10,6 +10,7 @@ from pathlib import Path
 from . import __version__
 from .checks import COLUMN_TYPES, evaluate
 from .errors import EXIT_CHECKS, CsvQualityError, OutputWriteError
+from .inference import check_thousands
 from .profile import TOP_N, profile_file
 from .reader import DEFAULT_ENCODING, DELIMITER_AUTO, display_name, normalize_encoding
 from .render import render_json, render_markdown
@@ -87,6 +88,18 @@ def _encoding(text: str) -> str:
         raise argparse.ArgumentTypeError(f"invalid --encoding value: {text!r} ({exc})") from None
 
 
+_THOUSANDS_ALIASES = {".": ".", "dot": ".", ",": ",", "comma": ",", " ": " ", "space": " "}
+
+
+def _thousands(text: str) -> str:
+    value = _THOUSANDS_ALIASES.get(text.lower())
+    if value is None:
+        raise argparse.ArgumentTypeError(
+            f"invalid --thousands value: {text!r} (use dot, comma or space)"
+        )
+    return value
+
+
 def _column_type(text: str) -> tuple[str, str]:
     """Parse ``NAME=TYPE``; the last ``=`` separates them, so names may contain ``=``."""
     name, sep, kind = text.rpartition("=")
@@ -143,6 +156,13 @@ def build_parser() -> argparse.ArgumentParser:
         "--decimal-comma",
         action="store_true",
         help="numbers use ',' as decimal mark (10,5); values written with '.' are not floats",
+    )
+    parser.add_argument(
+        "--thousands",
+        type=_thousands,
+        default=None,
+        metavar="SEP",
+        help="thousands separator in numbers: dot (needs --decimal-comma), comma or space",
     )
     parser.add_argument(
         "--na",
@@ -232,7 +252,12 @@ def _write_text(path: Path, text: str) -> None:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    args = build_parser().parse_args(argv)
+    parser = build_parser()
+    args = parser.parse_args(argv)
+    try:
+        check_thousands(args.thousands, args.decimal_comma)
+    except ValueError as exc:
+        parser.error(str(exc))
     try:
         report = profile_file(
             args.path,
@@ -243,6 +268,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             top_n=args.top,
             encoding=args.encoding,
             max_field_size=args.max_field_size,
+            thousands=args.thousands,
         )
     except CsvQualityError as exc:
         print(f"error: {exc.message}", file=sys.stderr)

@@ -87,6 +87,16 @@ def _type_hint_line(report: Report) -> list[str]:
     return ["- Mostly typed: " + "; ".join(parts)] if parts else []
 
 
+_THOUSANDS_NAMES = {".": "dot", ",": "comma", " ": "space"}
+
+
+def _thousands_line(report: Report) -> list[str]:
+    """Markdown line naming the thousands separator, when one was given."""
+    if report.thousands is None:
+        return []
+    return [f"- Thousands separator: {_THOUSANDS_NAMES[report.thousands]}"]
+
+
 def render_markdown(report: Report, source: str, checks: Sequence[CheckResult] = ()) -> str:
     lines = [
         f"# CSV quality report: {_md_escape(source)}",
@@ -98,6 +108,7 @@ def render_markdown(report: Report, source: str, checks: Sequence[CheckResult] =
         *_na_line(report),
         *(["- Compression: gzip"] if report.compressed else []),
         *([f"- Encoding: {report.encoding}"] if report.encoding != DEFAULT_ENCODING else []),
+        *_thousands_line(report),
         f"- Duplicate rows: {report.duplicate_rows}",
         *_untrimmed_line(report),
         *_untrimmed_columns_line(report),
@@ -127,6 +138,7 @@ def render_json(report: Report, source: str, checks: Sequence[CheckResult] = ())
         "top_n": report.top_n,
         "compressed": report.compressed,
         "encoding": report.encoding,
+        "thousands": report.thousands,
         "duplicate_rows": report.duplicate_rows,
         "untrimmed_columns": list(report.untrimmed_columns),
         "columns": [
