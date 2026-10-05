@@ -166,6 +166,13 @@ def build_parser() -> argparse.ArgumentParser:
         help="text encoding of the file, e.g. cp1252, latin-1, utf-16 (default: utf-8)",
     )
     parser.add_argument(
+        "--max-field-size",
+        type=_positive_int,
+        default=None,
+        metavar="N",
+        help="allow CSV fields up to N characters (Python's default limit is 131072)",
+    )
+    parser.add_argument(
         "--json-output",
         type=Path,
         default=None,
@@ -235,6 +242,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             na_tokens=args.na,
             top_n=args.top,
             encoding=args.encoding,
+            max_field_size=args.max_field_size,
         )
     except CsvQualityError as exc:
         print(f"error: {exc.message}", file=sys.stderr)

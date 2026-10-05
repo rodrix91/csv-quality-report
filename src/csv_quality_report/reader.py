@@ -251,7 +251,10 @@ def _guarded(
     except UnicodeDecodeError as exc:
         raise _encoding_error(path, compressed, encoding) from exc
     except csv.Error as exc:
-        raise RaggedRowError(f"malformed CSV near line {reader.line_num}: {exc}") from exc
+        message = f"malformed CSV near line {reader.line_num}: {exc}"
+        if "field larger than field limit" in str(exc):
+            message += "; if the file really has long fields, raise the limit with --max-field-size"
+        raise RaggedRowError(message) from exc
     except _STREAM_ERRORS as exc:  # I/O failure, or corrupt or truncated gzip data
         raise _read_error(path, exc) from exc
 
@@ -323,6 +326,7 @@ def open_rows(
     max_rows: int | None = None,
     delimiter: str = ",",
     encoding: str = DEFAULT_ENCODING,
+    max_field_size: int | None = None,
 ) -> Iterator[RowStream]:
     """Open ``path`` and yield a ``RowStream`` that reads it lazily.
 
@@ -338,7 +342,26 @@ def open_rows(
     empty file (raised here), and ragged or malformed rows (raised while
     iterating, in the order they appear in the file). Fully blank lines are
     skipped. Duplicate column names get ``_2``, ``_3`` suffixes.
+
+    ``max_field_size`` raises Python's ``csv`` field size limit (131,072
+    characters by default) while the file is read. The limit is process-wide
+    in the ``csv`` module, so the previous value is restored when the stream
+    closes, also after an error.
     """
+    previous_limit = None if max_field_size is None else csv.field_size_limit(max_field_size)
+    try:
+        with _open_rows(path, max_rows, delimiter, encoding) as stream:
+            yield stream
+    finally:
+        if previous_limit is not None:
+            csv.field_size_limit(previous_limit)
+
+
+@contextmanager
+def _open_rows(
+    path: Path, max_rows: int | None, delimiter: str, encoding: str
+) -> Iterator[RowStream]:
+    """``open_rows`` without the field size handling."""
     with _text_stream(path, encoding) as (handle, compressed):
         lines: Iterator[str] = handle
         detected = delimiter == DELIMITER_AUTO
@@ -370,13 +393,20 @@ def read_table(
     max_rows: int | None = None,
     delimiter: str = ",",
     encoding: str = DEFAULT_ENCODING,
+    max_field_size: int | None = None,
 ) -> Table:
     """Read the whole of ``path`` into a ``Table`` (see ``open_rows`` for the rules).
 
     Convenient for small files and tests; the CLI streams with ``open_rows``
     instead, so it does not hold all rows in memory.
     """
-    with open_rows(path, max_rows=max_rows, delimiter=delimiter, encoding=encoding) as stream:
+    with open_rows(
+        path,
+        max_rows=max_rows,
+        delimiter=delimiter,
+        encoding=encoding,
+        max_field_size=max_field_size,
+    ) as stream:
         rows = list(stream)
         return Table(
             header=stream.header,
