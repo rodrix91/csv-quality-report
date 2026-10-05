@@ -59,7 +59,7 @@ This is a simple pattern check, not a substitute for a dedicated scanner.
 
 ## Dependency updates (Dependabot)
 
-Dependabot opens weekly PRs for the pinned dev tools. It edits `requirements-dev.txt` but may not regenerate the hashed lock, so do not merge a Dependabot PR as is:
+Dependabot opens weekly PRs for the pinned dev tools. These rules were first recorded in `HANDOFF.md` (kept as a historical record) and are maintained here. It edits `requirements-dev.txt` but may not regenerate the hashed lock, so do not merge a Dependabot PR as is:
 
 1. In a clean clone of the PR branch, regenerate `requirements-dev.lock` with the `uv pip compile` command above and push it to the PR.
 2. CI must pass on Python 3.11, 3.12 and 3.13 with `pip install --require-hashes -r requirements-dev.lock` (tests with 100% coverage, Ruff, strict mypy).
