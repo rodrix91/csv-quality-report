@@ -9,6 +9,7 @@
   "compressed": true,
   "encoding": "utf-8",
   "thousands": null,
+  "date_order": null,
   "duplicate_rows": 0,
   "untrimmed_columns": [],
   "columns": [

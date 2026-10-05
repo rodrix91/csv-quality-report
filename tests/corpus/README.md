@@ -8,6 +8,7 @@ Small files that reproduce real-world CSV problems, each run through the command
 | `utf8_bom_events.csv` | UTF-8 with a byte order mark, ISO 8601 date-times with different offsets (the range compares instants), booleans in two cases, a header name with surrounding spaces. |
 | `tab_quoted.tsv` | Tab separated, with quoted fields that contain a newline, a comma and a tab, and an exact duplicate record. |
 | `ports_pipe.csv.gz` | Pipe separated and gzip-compressed; both are detected from the content. |
+| `erp_day_first.csv` | ERP export with day-first dates (`5/1/2026`, `02/01/2026 8:15`) read with `--date-order dmy`, ISO values in the same columns, grouped weights, and an impossible due date (`30/02/2026`) that keeps the column as text, is named in the type hint and fails `--require-type`. |
 | `mostly_typed.csv` | Stray values (`N/A`, `12a`, `pendiente`) that keep numeric and date columns as text; the type hints name them and `--require-type` fails. |
 
 When a change to the tool is meant to alter a report, run `python scripts/update_corpus.py` and review the diff of `expected/` before committing: the diff is the change in behavior. `--check` only reports stale files.

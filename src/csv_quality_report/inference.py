@@ -178,6 +178,48 @@ def strip_thousands(value: str, thousands: str, decimal_comma: bool = False) -> 
     return value.translate(table) if pattern.match(value) else value
 
 
+# Date orders for --date-order: the regex that reads one (with an optional time)
+# and the positions of year, month and day among its groups.
+DATE_ORDERS = ("dmy", "mdy", "ymd")
+# ASCII digits only: \d would also accept digits of other scripts.
+_TIME = r"(?:([ T])([0-9]{1,2}):([0-9]{2})(?::([0-9]{2}))?)?$"
+_SHORT_FIRST_RE = re.compile(r"^([0-9]{1,2})([/.-])([0-9]{1,2})\2([0-9]{4})" + _TIME)
+_YEAR_FIRST_RE = re.compile(r"^([0-9]{4})([/.-])([0-9]{1,2})\2([0-9]{1,2})" + _TIME)
+_DATE_LAYOUTS = {  # order: (regex, group of year, group of month, group of day)
+    "dmy": (_SHORT_FIRST_RE, 4, 3, 1),
+    "mdy": (_SHORT_FIRST_RE, 4, 1, 3),
+    "ymd": (_YEAR_FIRST_RE, 1, 3, 4),
+}
+
+
+def normalize_date(value: str, order: str) -> str:
+    """Rewrite a date written in ``order`` as ISO 8601; return other values unchanged.
+
+    ``05/10/2026`` becomes ``2026-10-05`` with ``order="dmy"`` and
+    ``2026-05-10`` with ``"mdy"``. Day and month take one or two digits, the
+    year four; the separator is ``/``, ``-`` or ``.``, the same one twice. An
+    optional time (``H:MM`` or ``HH:MM:SS``) after a space or ``T`` is kept,
+    with the hour padded to two digits. The calendar is not checked here:
+    ``31/02/2026`` becomes ``2026-02-31``, which inference then rejects.
+    """
+    regex, year, month, day = _DATE_LAYOUTS[order]
+    match = regex.match(value)
+    if match is None:
+        return value
+    g = match.groups()
+    iso = f"{g[year - 1]}-{g[month - 1]:0>2}-{g[day - 1]:0>2}"
+    if g[4] is None:
+        return iso
+    seconds = "" if g[7] is None else ":" + g[7]
+    return f"{iso}{g[4]}{g[5]:0>2}:{g[6]}{seconds}"
+
+
+def check_date_order(order: str | None) -> None:
+    """Raise ``ValueError`` for a date order other than ``None`` or one of ``DATE_ORDERS``."""
+    if order is not None and order not in _DATE_LAYOUTS:
+        raise ValueError(f"unsupported date order: {order!r} (use one of {', '.join(DATE_ORDERS)})")
+
+
 def check_thousands(thousands: str | None, decimal_comma: bool) -> None:
     """Raise ``ValueError`` when the thousands separator is also the decimal mark."""
     if thousands is None:

@@ -10,7 +10,7 @@ from pathlib import Path
 from . import __version__
 from .checks import COLUMN_TYPES, evaluate
 from .errors import EXIT_CHECKS, CsvQualityError, OutputWriteError
-from .inference import check_thousands
+from .inference import DATE_ORDERS, check_thousands
 from .profile import TOP_N, profile_file
 from .reader import DEFAULT_ENCODING, DELIMITER_AUTO, display_name, normalize_encoding
 from .render import render_json, render_markdown
@@ -165,6 +165,14 @@ def build_parser() -> argparse.ArgumentParser:
         help="thousands separator in numbers: dot (needs --decimal-comma), comma or space",
     )
     parser.add_argument(
+        "--date-order",
+        choices=DATE_ORDERS,
+        default=None,
+        help="read dates such as 05/10/2026 (/ - or . separators, 4-digit years, optional "
+        "time) as day/month/year (dmy), month/day/year (mdy) or year/month/day (ymd); "
+        "never guessed",
+    )
+    parser.add_argument(
         "--na",
         type=_na_tokens,
         default=(),
@@ -269,6 +277,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             encoding=args.encoding,
             max_field_size=args.max_field_size,
             thousands=args.thousands,
+            date_order=args.date_order,
         )
     except CsvQualityError as exc:
         print(f"error: {exc.message}", file=sys.stderr)

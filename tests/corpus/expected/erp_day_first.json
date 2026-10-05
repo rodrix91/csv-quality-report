@@ -1,0 +1,195 @@
+{
+  "source": "tests/corpus/erp_day_first.csv",
+  "rows": 12,
+  "truncated": false,
+  "delimiter": ";",
+  "delimiter_detected": true,
+  "na_tokens": [
+    "s/d"
+  ],
+  "top_n": 3,
+  "compressed": false,
+  "encoding": "utf-8",
+  "thousands": ".",
+  "date_order": "dmy",
+  "duplicate_rows": 0,
+  "untrimmed_columns": [],
+  "columns": [
+    {
+      "name": "Remito",
+      "type": "string",
+      "type_hint": null,
+      "missing": 0,
+      "missing_pct": 0.0,
+      "distinct": 12,
+      "min": null,
+      "max": null,
+      "mean": null,
+      "min_length": 6,
+      "max_length": 6,
+      "top_values": [
+        {
+          "value": "R-0001",
+          "count": 1
+        },
+        {
+          "value": "R-0002",
+          "count": 1
+        },
+        {
+          "value": "R-0003",
+          "count": 1
+        }
+      ],
+      "untrimmed": 0
+    },
+    {
+      "name": "Emisión",
+      "type": "date",
+      "type_hint": null,
+      "missing": 0,
+      "missing_pct": 0.0,
+      "distinct": 11,
+      "min": "2026-01-02",
+      "max": "2026-02-14",
+      "mean": null,
+      "min_length": 8,
+      "max_length": 10,
+      "top_values": [
+        {
+          "value": "02/01/2026",
+          "count": 2
+        },
+        {
+          "value": "5/1/2026",
+          "count": 1
+        },
+        {
+          "value": "12/01/2026",
+          "count": 1
+        }
+      ],
+      "untrimmed": 0
+    },
+    {
+      "name": "Despacho",
+      "type": "datetime",
+      "type_hint": null,
+      "missing": 1,
+      "missing_pct": 8.3,
+      "distinct": 11,
+      "min": "2026-01-02 08:15",
+      "max": "2026-02-14 15:55",
+      "mean": null,
+      "min_length": 15,
+      "max_length": 19,
+      "top_values": [
+        {
+          "value": "02/01/2026 8:15",
+          "count": 1
+        },
+        {
+          "value": "02/01/2026 16:40",
+          "count": 1
+        },
+        {
+          "value": "05/01/2026 9:05",
+          "count": 1
+        }
+      ],
+      "untrimmed": 0
+    },
+    {
+      "name": "Vencimiento",
+      "type": "string",
+      "type_hint": {
+        "type": "date",
+        "conforming_pct": 91.66,
+        "nonconforming": 1,
+        "examples": [
+          "30/02/2026"
+        ]
+      },
+      "missing": 0,
+      "missing_pct": 0.0,
+      "distinct": 11,
+      "min": null,
+      "max": null,
+      "mean": null,
+      "min_length": 10,
+      "max_length": 10,
+      "top_values": [
+        {
+          "value": "01/02/2026",
+          "count": 2
+        },
+        {
+          "value": "04/02/2026",
+          "count": 1
+        },
+        {
+          "value": "11/02/2026",
+          "count": 1
+        }
+      ],
+      "untrimmed": 0
+    },
+    {
+      "name": "Peso kg",
+      "type": "float",
+      "type_hint": null,
+      "missing": 1,
+      "missing_pct": 8.3,
+      "distinct": 11,
+      "min": 75.25,
+      "max": 3400.0,
+      "mean": 1202.45,
+      "min_length": 3,
+      "max_length": 8,
+      "top_values": [
+        {
+          "value": "1.250,5",
+          "count": 1
+        },
+        {
+          "value": "980",
+          "count": 1
+        },
+        {
+          "value": "2.100",
+          "count": 1
+        }
+      ],
+      "untrimmed": 0
+    }
+  ],
+  "checks": [
+    {
+      "check": "column_type",
+      "column": "Emisión",
+      "limit": 1,
+      "value": 1,
+      "passed": true,
+      "expected": "date",
+      "actual": "date"
+    },
+    {
+      "check": "column_type",
+      "column": "Despacho",
+      "limit": 1,
+      "value": 1,
+      "passed": true,
+      "expected": "datetime",
+      "actual": "datetime"
+    },
+    {
+      "check": "column_type",
+      "column": "Vencimiento",
+      "limit": 1,
+      "value": 0,
+      "passed": false,
+      "expected": "date",
+      "actual": "string"
+    }
+  ]
+}

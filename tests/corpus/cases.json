@@ -40,5 +40,12 @@
     "args": ["--require-type", "qty=int", "--require-type", "ship_date=date"],
     "exit_code": 8,
     "about": "Stray values (N/A, 12a, pendiente) keep qty and ship_date as text; type hints name them and --require-type fails."
+  },
+  {
+    "name": "erp_day_first",
+    "file": "erp_day_first.csv",
+    "args": ["--delimiter", "auto", "--decimal-comma", "--thousands", "dot", "--na", "s/d", "--date-order", "dmy", "--require-type", "Emisión=date", "--require-type", "Despacho=datetime", "--require-type", "Vencimiento=date"],
+    "exit_code": 8,
+    "about": "Day-first ERP export: dates and date-times read with --date-order dmy next to ISO values; an impossible due date (30/02/2026) blocks the date type and is named."
   }
 ]
