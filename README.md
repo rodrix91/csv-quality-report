@@ -13,7 +13,7 @@ Per column it reports:
 - inferred type (`int`, `float`, `bool`, `date`, `string`)
 - missing count and percentage
 - distinct count (non-missing values)
-- min / max (numeric columns only)
+- min / max (numeric and date columns)
 - top 3 most frequent values
 
 At dataset level it reports the row count and the number of duplicate rows.
@@ -72,7 +72,7 @@ Output (captured from a real run, exit code 0):
 |---|---|---|---|---|---|---|---|
 | id | int | 0 | 0.0 | 7 | 1 | 7 | 5 (2), 1 (1), 2 (1) |
 | name | string | 0 | 0.0 | 7 |  |  | Elena (2), Alice (1), Bob (1) |
-| signup_date | date | 1 | 12.5 | 6 |  |  | 2024-03-11 (2), 2024-01-15 (1), 2024-02-03 (1) |
+| signup_date | date | 1 | 12.5 | 6 | 2024-01-15 | 2024-04-18 | 2024-03-11 (2), 2024-01-15 (1), 2024-02-03 (1) |
 | age | int | 2 | 25.0 | 5 | 29 | 52 | 38 (2), 34 (1), 29 (1) |
 | score | float | 1 | 12.5 | 6 | 69.5 | 95.75 | 81.0 (2), 88.5 (1), 92.0 (1) |
 | active | bool | 1 | 12.5 | 2 |  |  | true (4), false (3) |
@@ -146,6 +146,7 @@ Output (captured from a real run, exit code 0):
 - **Delimiter in the output**: JSON always includes `delimiter` and `delimiter_detected`. Markdown adds a `Delimiter:` line only when the delimiter is not the default comma or was detected.
 - **Duplicate rows** = rows that exactly repeat an earlier row (total rows minus unique rows), comparing raw cell text. Rows are compared through a 128-bit BLAKE2b fingerprint instead of being stored, so the count is exact unless two different rows collide on 128 bits (probability below 1e-20 even for billions of rows).
 - **Order of errors**: the file is read once from start to end, and the first problem met is reported. With `--max-rows`, the part of the file after the limit is not read at all.
+- **Min / max**: numbers for `int` and `float` columns; ISO `YYYY-MM-DD` strings for `date` columns (earliest and latest date); empty for `bool` and `string`. In JSON they are numbers, strings or `null` accordingly.
 - **Top values**: ties are listed in order of first appearance.
 - **Duplicate column names** are made unique deterministically: later repeats get `_2`, `_3`, … suffixes (`a,a,a` → `a`, `a_2`, `a_3`; if a suffixed name already exists, the counter keeps increasing).
 - **Encoding**: files must be UTF-8. A leading UTF-8 BOM is accepted and removed. Anything else (e.g. Latin-1, UTF-16) fails with exit code 4 rather than guessing.

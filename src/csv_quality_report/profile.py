@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from itertools import islice
 from pathlib import Path
 
-from .inference import TYPE_FLOAT, TYPE_INT, infer_type, parse_float
+from .inference import TYPE_DATE, TYPE_FLOAT, TYPE_INT, infer_type, parse_float
 from .reader import Table, open_rows
 
 TOP_N = 3
@@ -23,8 +23,8 @@ class ColumnProfile:
     missing: int
     missing_pct: float
     distinct: int
-    min: int | float | None
-    max: int | float | None
+    min: int | float | str | None  # str (ISO 8601) for date columns
+    max: int | float | str | None
     top_values: list[tuple[str, int]]
 
 
@@ -66,13 +66,16 @@ class _ColumnAccumulator:
         # at distinct values gives the same answer as looking at every cell.
         distinct = self.counts.keys()
         col_type = infer_type(distinct, decimal_comma)
-        low: int | float | None = None
-        high: int | float | None = None
+        low: int | float | str | None = None
+        high: int | float | str | None = None
         if distinct and col_type in (TYPE_INT, TYPE_FLOAT):
             nums = [
                 int(v) if col_type == TYPE_INT else parse_float(v, decimal_comma) for v in distinct
             ]
             low, high = min(nums), max(nums)
+        elif distinct and col_type == TYPE_DATE:
+            # Inference guarantees strict YYYY-MM-DD, whose text order is date order.
+            low, high = min(distinct), max(distinct)
         return ColumnProfile(
             name=self.name,
             type=col_type,

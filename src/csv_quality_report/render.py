@@ -9,7 +9,7 @@ from .profile import ColumnProfile, Report
 from .reader import DELIMITER_NAMES, delimiter_name
 
 
-def _num(value: int | float | None) -> str:
+def _num(value: int | float | str | None) -> str:
     return "" if value is None else str(value)
 
 
