@@ -2,7 +2,10 @@
 
 Each case in ``tests/corpus/cases.json`` runs the command line on one file
 with its options; the JSON report it prints is stored in
-``tests/corpus/expected/<name>.json``. ``tests/test_corpus.py`` fails when
+``tests/corpus/expected/<name>.json``. Cases that stop with an error (any
+exit code other than 0, or 8 for failed quality gates, which still print
+the report) store the message written to stderr in
+``tests/corpus/expected/<name>.txt`` instead. ``tests/test_corpus.py`` fails when
 the output drifts, so run this after an intended change and review the diff:
 
     python scripts/update_corpus.py          # rewrite the expected files
@@ -25,6 +28,9 @@ CORPUS = ROOT / "tests" / "corpus"
 sys.path.insert(0, str(ROOT / "src"))
 
 from csv_quality_report.cli import main as cli_main  # noqa: E402
+from csv_quality_report.errors import EXIT_CHECKS  # noqa: E402
+
+REPORT_CODES = (0, EXIT_CHECKS)  # exit codes that come with a report on stdout
 
 
 def load_cases() -> list[dict[str, Any]]:
@@ -33,7 +39,11 @@ def load_cases() -> list[dict[str, Any]]:
 
 
 def run_case(case: dict[str, Any]) -> tuple[int, str]:
-    """Run one case from the repository root (stable relative paths); return code and JSON."""
+    """Run one case from the repository root (stable relative paths).
+
+    Returns the exit code and the JSON report, or the error message when the
+    exit code means that no report was produced.
+    """
     out, err = io.StringIO(), io.StringIO()
     previous = Path.cwd()
     os.chdir(ROOT)
@@ -43,11 +53,12 @@ def run_case(case: dict[str, Any]) -> tuple[int, str]:
             code = cli_main([path, "--format", "json", *case["args"]])
     finally:
         os.chdir(previous)
-    return code, out.getvalue()
+    return code, out.getvalue() if code in REPORT_CODES else err.getvalue()
 
 
 def expected_path(case: dict[str, Any]) -> Path:
-    return CORPUS / "expected" / f"{case['name']}.json"
+    suffix = ".json" if case["exit_code"] in REPORT_CODES else ".txt"
+    return CORPUS / "expected" / f"{case['name']}{suffix}"
 
 
 def main() -> int:

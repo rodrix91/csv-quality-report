@@ -1,0 +1,160 @@
+{
+  "source": "tests/corpus/excel_sep_hint.csv",
+  "rows": 6,
+  "truncated": false,
+  "delimiter": ";",
+  "delimiter_detected": false,
+  "sep_line": true,
+  "na_tokens": [],
+  "top_n": 3,
+  "compressed": false,
+  "encoding": "cp1252",
+  "thousands": ".",
+  "date_order": "dmy",
+  "bool_words": [],
+  "duplicate_rows": 0,
+  "untrimmed_columns": [],
+  "columns": [
+    {
+      "name": "Depósito",
+      "type": "string",
+      "type_hint": null,
+      "missing": 0,
+      "missing_pct": 0.0,
+      "distinct": 3,
+      "min": null,
+      "max": null,
+      "mean": null,
+      "min_length": 15,
+      "max_length": 17,
+      "top_values": [
+        {
+          "value": "Depósito Central",
+          "count": 2
+        },
+        {
+          "value": "Sucursal Tarija",
+          "count": 2
+        },
+        {
+          "value": "Sucursal Asunción",
+          "count": 2
+        }
+      ],
+      "untrimmed": 0
+    },
+    {
+      "name": "SKU",
+      "type": "string",
+      "type_hint": null,
+      "missing": 0,
+      "missing_pct": 0.0,
+      "distinct": 4,
+      "min": null,
+      "max": null,
+      "mean": null,
+      "min_length": 5,
+      "max_length": 5,
+      "top_values": [
+        {
+          "value": "A-100",
+          "count": 3
+        },
+        {
+          "value": "A-101",
+          "count": 1
+        },
+        {
+          "value": "B-200",
+          "count": 1
+        }
+      ],
+      "untrimmed": 0
+    },
+    {
+      "name": "Stock",
+      "type": "int",
+      "type_hint": null,
+      "missing": 0,
+      "missing_pct": 0.0,
+      "distinct": 6,
+      "min": 0,
+      "max": 2040,
+      "mean": 615.833,
+      "min_length": 1,
+      "max_length": 5,
+      "top_values": [
+        {
+          "value": "1.250",
+          "count": 1
+        },
+        {
+          "value": "80",
+          "count": 1
+        },
+        {
+          "value": "310",
+          "count": 1
+        }
+      ],
+      "untrimmed": 0
+    },
+    {
+      "name": "Costo unitario",
+      "type": "float",
+      "type_hint": null,
+      "missing": 0,
+      "missing_pct": 0.0,
+      "distinct": 5,
+      "min": 7.25,
+      "max": 1020.0,
+      "mean": 201.692,
+      "min_length": 4,
+      "max_length": 8,
+      "top_values": [
+        {
+          "value": "12,50",
+          "count": 2
+        },
+        {
+          "value": "7,25",
+          "count": 1
+        },
+        {
+          "value": "145,00",
+          "count": 1
+        }
+      ],
+      "untrimmed": 0
+    },
+    {
+      "name": "Última revisión",
+      "type": "date",
+      "type_hint": null,
+      "missing": 0,
+      "missing_pct": 0.0,
+      "distinct": 3,
+      "min": "2026-03-02",
+      "max": "2026-03-09",
+      "mean": null,
+      "min_length": 10,
+      "max_length": 10,
+      "top_values": [
+        {
+          "value": "02/03/2026",
+          "count": 2
+        },
+        {
+          "value": "05/03/2026",
+          "count": 2
+        },
+        {
+          "value": "09/03/2026",
+          "count": 2
+        }
+      ],
+      "untrimmed": 0
+    }
+  ],
+  "checks": []
+}

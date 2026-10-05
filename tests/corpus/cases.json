@@ -54,5 +54,19 @@
     "args": ["--delimiter", "auto", "--decimal-comma", "--thousands", "dot", "--date-order", "dmy", "--bool-words", "verdadero,falso", "--bool-words", "sí,no", "--require-type", "Pagado=bool", "--require-type", "Enviado=bool"],
     "exit_code": 8,
     "about": "Spanish Excel 'CSV UTF-8' export: BOM, CRLF, VERDADERO/FALSO and Sí/No flags read with --bool-words; one 'Pendiente' keeps Enviado as text, is named in the type hint and fails --require-type."
+  },
+  {
+    "name": "excel_sep_hint",
+    "file": "excel_sep_hint.csv",
+    "args": ["--encoding", "cp1252", "--delimiter", "auto", "--decimal-comma", "--thousands", "dot", "--date-order", "dmy"],
+    "exit_code": 0,
+    "about": "Excel export that starts with a sep=; line: the line is skipped, the declared semicolon is used instead of detection, and cp1252 names, grouped stock and day-first dates are read."
+  },
+  {
+    "name": "excel_sep_hint_wrong_delimiter",
+    "file": "excel_sep_hint.csv",
+    "args": ["--encoding", "cp1252"],
+    "exit_code": 7,
+    "about": "The same file with the default comma: the tool stops and names the declared delimiter instead of producing a one-column report."
   }
 ]

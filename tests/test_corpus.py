@@ -49,12 +49,22 @@ def test_every_corpus_file_is_used() -> None:
 
 
 def test_every_expected_report_belongs_to_a_case() -> None:
-    names = {c["name"] for c in CASES}
-    expected = {p.stem for p in (ROOT / "tests" / "corpus" / "expected").glob("*.json")}
-    assert expected == names
+    expected = {p.name for p in (ROOT / "tests" / "corpus" / "expected").iterdir()}
+    assert expected == {corpus.expected_path(c).name for c in CASES}
 
 
 def test_reports_are_valid_json_with_relative_sources() -> None:
     for case in CASES:
+        if case["exit_code"] not in corpus.REPORT_CODES:
+            continue
         report = json.loads(corpus.expected_path(case).read_text(encoding="utf-8"))
         assert report["source"] == f"tests/corpus/{case['file']}"
+
+
+def test_error_cases_store_one_relative_error_message() -> None:
+    errors = [c for c in CASES if c["exit_code"] not in corpus.REPORT_CODES]
+    assert errors, "the corpus should cover at least one error case"
+    for case in errors:
+        message = corpus.expected_path(case).read_text(encoding="utf-8")
+        assert message.startswith("error: ") and message.count("\n") == 1, message
+        assert f"'tests/corpus/{case['file']}'" in message

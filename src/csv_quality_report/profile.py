@@ -98,6 +98,7 @@ class Report:
     thousands: str | None = None  # thousands separator given (".", "," or " ")
     date_order: str | None = None  # order of non-ISO dates given ("dmy", "mdy" or "ymd")
     bool_words: BoolWords = ()  # extra (true, false) word pairs, as given
+    sep_line: bool = False  # the input started with an Excel "sep=" line, which was skipped
 
 
 def _untrimmed_names(header: list[str]) -> tuple[str, ...]:
@@ -421,6 +422,7 @@ def build_report(
         compressed=table.compressed,
         untrimmed_columns=_untrimmed_names(table.header),
         encoding=table.encoding,
+        sep_line=table.sep_line,
         thousands=thousands,
         date_order=date_order,
         bool_words=bool_words,
@@ -474,6 +476,7 @@ def profile_file(
             compressed=stream.compressed,
             untrimmed_columns=_untrimmed_names(stream.header),
             encoding=stream.encoding,
+            sep_line=stream.sep_line,
             thousands=thousands,
             date_order=date_order,
             bool_words=bool_words,

@@ -5,6 +5,7 @@ from __future__ import annotations
 import gzip
 import io
 import json
+import random
 import subprocess
 import sys
 from collections.abc import Callable
@@ -16,7 +17,14 @@ import pytest
 from csv_quality_report.cli import main
 from csv_quality_report.errors import EncodingError, FileReadError
 from csv_quality_report.profile import build_report, profile_file
-from csv_quality_report.reader import SNIFF_CHARS, STDIN_NAME, display_name, is_stdin, read_table
+from csv_quality_report.reader import (
+    SNIFF_CHARS,
+    STDIN_NAME,
+    display_name,
+    is_stdin,
+    open_rows,
+    read_table,
+)
 
 WriteCsv = Callable[..., Path]
 DATA = "sku;price;city\nA1;10,5;La Paz\nB2;7,25;Tarija\nA1;10,5;La Paz\n"
@@ -230,3 +238,18 @@ def test_corrupt_deflate_data_is_a_read_error(write_csv: WriteCsv) -> None:
 
 def test_example_files_report_not_compressed() -> None:
     assert not profile_file(ROOT / "examples" / "tiny.csv").compressed
+
+
+def test_truncated_gzip_found_while_rows_are_read(write_csv: WriteCsv) -> None:
+    # Incompressible rows, so the cut lands far after the first line: the
+    # error comes from reading rows, not from opening the file.
+    rng = random.Random(27)
+    body = "".join(f"{rng.getrandbits(64)},{rng.getrandbits(64)}\n" for _ in range(20_000))
+    packed = gzip.compress(("a,b\n" + body).encode())
+    path = write_csv(packed[: len(packed) // 2], "cut_late.csv.gz")
+    with open_rows(path) as stream:
+        assert stream.header == ["a", "b"]
+        with pytest.raises(FileReadError) as excinfo:
+            for _ in stream:
+                pass
+    assert excinfo.value.message.startswith(f"cannot read '{path}': ")

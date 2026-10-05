@@ -1,0 +1,8 @@
+sep=;
+Depósito;SKU;Stock;Costo unitario;Última revisión
+Depósito Central;A-100;1.250;12,50;02/03/2026
+Depósito Central;A-101;80;7,25;02/03/2026
+Sucursal Tarija;A-100;310;12,50;05/03/2026
+Sucursal Tarija;B-200;0;145,00;05/03/2026
+Sucursal Asunción;A-100;2.040;12,90;09/03/2026
+Sucursal Asunción;C-310;15;1.020,00;09/03/2026
