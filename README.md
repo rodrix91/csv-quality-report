@@ -42,12 +42,13 @@ You can also run the tool without installing it: `PYTHONPATH=src python3 -m csv_
 ## Usage
 
 ```text
-python -m csv_quality_report PATH [--format markdown|json] [--max-rows N] [--delimiter CHAR]
+python -m csv_quality_report PATH [--format markdown|json] [--max-rows N] [--delimiter CHAR] [--decimal-comma]
 ```
 
 - `--format` — `markdown` (default) or `json`.
 - `--max-rows N` — analyze only the first `N` data rows (`N >= 1`). The output says when it stopped early (`truncated` in JSON).
-- `--delimiter CHAR` — field separator (default `,`). Accepts one character or the aliases `tab`, `comma`, `semicolon` and `pipe`. Use `--delimiter ";"` for files exported from spreadsheets with a Spanish, Portuguese or other comma-decimal locale. Decimal commas (`10,5`) are not parsed as numbers, so such columns are reported as `string`.
+- `--delimiter CHAR` — field separator (default `,`). Accepts one character or the aliases `tab`, `comma`, `semicolon` and `pipe`. Use `--delimiter ";"` for files exported from spreadsheets with a Spanish, Portuguese or other comma-decimal locale. Decimal commas (`10,5`) are only parsed as numbers with `--decimal-comma`.
+- `--decimal-comma` — read floats written with a comma as decimal mark (`10,5`, `-0,25`). With the flag, values written with `.` are no longer floats, thousands separators (`1.234,5`) are not recognized, and `1,234` means 1.234. Top values keep the original text; min/max are reported as numbers.
 
 ### Example: Markdown (default)
 
@@ -193,13 +194,13 @@ python -m pytest
 
 This works after installing only the dev dependencies (`pip install -r requirements-dev.txt`) from the repository root: pytest is configured with `pythonpath = ["src"]`, and the tests that start a subprocess set `PYTHONPATH=src` themselves.
 
-Tests (`tests/`) are behavior tests that call the CLI: happy path, missing values, ragged rows, empty file, bad encoding (Latin-1, UTF-16), BOM, duplicate column names, JSON output, `--max-rows`, `--delimiter`, and exit codes. One test also checks that the sample output in this README matches a real run. See [CONTRIBUTING.md](https://github.com/rodrix91/csv-quality-report/blob/main/CONTRIBUTING.md) (in the [source repository](https://github.com/rodrix91/csv-quality-report); not included in the packages) for lint, type-check and build commands.
+Tests (`tests/`) are behavior tests that call the CLI: happy path, missing values, ragged rows, empty file, bad encoding (Latin-1, UTF-16), BOM, duplicate column names, JSON output, `--max-rows`, `--delimiter`, `--decimal-comma`, and exit codes. One test also checks that the sample output in this README matches a real run. See [CONTRIBUTING.md](https://github.com/rodrix91/csv-quality-report/blob/main/CONTRIBUTING.md) (in the [source repository](https://github.com/rodrix91/csv-quality-report); not included in the packages) for lint, type-check and build commands.
 
 ## Limitations
 
 - **No streaming**: the whole file is read and held in memory; not suited to files larger than available RAM.
-- **Type inference is a heuristic**: it only recognizes the patterns listed above (e.g. no thousands separators, no decimal commas, no timestamps, no `yes`/`no` booleans), and one stray value makes the whole column `string`.
-- UTF-8 only; no delimiter sniffing (comma only).
+- **Type inference is a heuristic**: it only recognizes the patterns listed above (e.g. no thousands separators, decimal commas only with `--decimal-comma`, no timestamps, no `yes`/`no` booleans), and one stray value makes the whole column `string`.
+- UTF-8 only. The delimiter must be given explicitly when it is not a comma.
 - With `--max-rows`, rows after the limit are not read, so problems in them are not detected.
 - Min/max for floats use Python `float` parsing.
 

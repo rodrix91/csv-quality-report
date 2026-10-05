@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections import Counter
 from dataclasses import dataclass
 
-from .inference import TYPE_FLOAT, TYPE_INT, infer_type
+from .inference import TYPE_FLOAT, TYPE_INT, infer_type, parse_float
 from .reader import Table
 
 TOP_N = 3
@@ -35,16 +35,16 @@ def _is_missing(cell: str) -> bool:
     return cell.strip() == ""
 
 
-def _profile_column(name: str, cells: list[str]) -> ColumnProfile:
+def _profile_column(name: str, cells: list[str], decimal_comma: bool = False) -> ColumnProfile:
     total = len(cells)
     values = [c.strip() for c in cells if not _is_missing(c)]
     missing = total - len(values)
-    col_type = infer_type(values)
+    col_type = infer_type(values, decimal_comma)
 
     low: int | float | None = None
     high: int | float | None = None
     if values and col_type in (TYPE_INT, TYPE_FLOAT):
-        nums = [int(v) if col_type == TYPE_INT else float(v) for v in values]
+        nums = [int(v) if col_type == TYPE_INT else parse_float(v, decimal_comma) for v in values]
         low, high = min(nums), max(nums)
 
     counts = Counter(values)  # most_common is stable: ties keep first-seen order
@@ -60,14 +60,17 @@ def _profile_column(name: str, cells: list[str]) -> ColumnProfile:
     )
 
 
-def build_report(table: Table) -> Report:
+def build_report(table: Table, decimal_comma: bool = False) -> Report:
     """Profile every column of ``table``.
+
+    ``decimal_comma`` makes float inference expect ``,`` as the decimal mark.
 
     ``duplicate_rows`` counts rows that exactly repeat an earlier row
     (total rows minus unique rows), comparing raw cell text.
     """
     columns = [
-        _profile_column(name, [row[i] for row in table.rows]) for i, name in enumerate(table.header)
+        _profile_column(name, [row[i] for row in table.rows], decimal_comma)
+        for i, name in enumerate(table.header)
     ]
     unique = len({tuple(row) for row in table.rows})
     return Report(
