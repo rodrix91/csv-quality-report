@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-05
+
 ### Added
 
 - `--top N` sets how many most frequent values each column lists (default 3, unchanged); JSON gains `top_n` (#20).
@@ -48,5 +50,6 @@ All notable changes to this project are documented here. The format follows [Kee
 
 - Initial version: per-column type inference, missing values, distinct counts, min/max and top values, duplicate rows, Markdown and JSON output.
 
-[Unreleased]: https://github.com/rodrix91/csv-quality-report/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/rodrix91/csv-quality-report/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/rodrix91/csv-quality-report/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/rodrix91/csv-quality-report/releases/tag/v0.2.0
