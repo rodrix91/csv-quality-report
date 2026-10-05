@@ -8,7 +8,7 @@ from collections.abc import Sequence
 from pathlib import Path
 
 from . import __version__
-from .checks import evaluate
+from .checks import COLUMN_TYPES, evaluate
 from .errors import EXIT_CHECKS, CsvQualityError, OutputWriteError
 from .profile import TOP_N, profile_file
 from .reader import DELIMITER_AUTO, display_name
@@ -78,6 +78,18 @@ def _column_limit(text: str) -> tuple[str, float]:
             f"invalid --max-missing-column value: {text!r} (use NAME=PCT)"
         )
     return name, _percentage(value)
+
+
+def _column_type(text: str) -> tuple[str, str]:
+    """Parse ``NAME=TYPE``; the last ``=`` separates them, so names may contain ``=``."""
+    name, sep, kind = text.rpartition("=")
+    if not sep or not name:
+        raise argparse.ArgumentTypeError(f"invalid --require-type value: {text!r} (use NAME=TYPE)")
+    if kind not in COLUMN_TYPES:
+        raise argparse.ArgumentTypeError(
+            f"invalid type in --require-type: {kind!r} (use one of {', '.join(COLUMN_TYPES)})"
+        )
+    return name, kind
 
 
 def _column_names(text: str) -> tuple[str, ...]:
@@ -172,6 +184,15 @@ def build_parser() -> argparse.ArgumentParser:
         help="fail if any of these comma-separated columns is missing (exact, case-sensitive)",
     )
     gates.add_argument(
+        "--require-type",
+        type=_column_type,
+        action="append",
+        default=[],
+        metavar="NAME=TYPE",
+        help="fail unless column NAME has TYPE (int, float, bool, date, datetime, string); "
+        "repeatable",
+    )
+    gates.add_argument(
         "--max-duplicates",
         type=_non_negative_int,
         default=None,
@@ -209,6 +230,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         max_duplicates=args.max_duplicates,
         required_columns=args.require_columns,
         column_max_missing=dict(args.max_missing_column),  # the last limit for a name wins
+        column_types=dict(args.require_type),  # the last type for a name wins
     )
     source = display_name(args.path)
     if args.json_output is not None:

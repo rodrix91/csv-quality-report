@@ -157,6 +157,7 @@ def render_json(report: Report, source: str, checks: Sequence[CheckResult] = ())
                 "limit": c.limit,
                 "value": c.value,
                 "passed": c.passed,
+                **({"expected": c.expected, "actual": c.actual} if c.expected else {}),
             }
             for c in checks
         ],
