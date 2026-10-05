@@ -65,6 +65,14 @@ def _untrimmed_line(report: Report) -> list[str]:
     return ["- Untrimmed values: " + ", ".join(found)] if found else []
 
 
+def _untrimmed_columns_line(report: Report) -> list[str]:
+    """Markdown line quoting header names with surrounding whitespace, when there are some."""
+    if not report.untrimmed_columns:
+        return []
+    names = ", ".join(f'"{_md_escape(name)}"' for name in report.untrimmed_columns)
+    return [f"- Column names with surrounding whitespace: {names}"]
+
+
 def render_markdown(report: Report, source: str, checks: Sequence[CheckResult] = ()) -> str:
     lines = [
         f"# CSV quality report: {_md_escape(source)}",
@@ -77,6 +85,7 @@ def render_markdown(report: Report, source: str, checks: Sequence[CheckResult] =
         *(["- Compression: gzip"] if report.compressed else []),
         f"- Duplicate rows: {report.duplicate_rows}",
         *_untrimmed_line(report),
+        *_untrimmed_columns_line(report),
         "",
         "| Column | Type | Missing | Missing % | Distinct | Min | Max "
         f"| Top {report.top_n} values |",
@@ -102,6 +111,7 @@ def render_json(report: Report, source: str, checks: Sequence[CheckResult] = ())
         "top_n": report.top_n,
         "compressed": report.compressed,
         "duplicate_rows": report.duplicate_rows,
+        "untrimmed_columns": list(report.untrimmed_columns),
         "columns": [
             {
                 "name": c.name,

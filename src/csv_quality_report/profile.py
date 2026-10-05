@@ -50,6 +50,12 @@ class Report:
     na_tokens: tuple[str, ...] = ()  # extra cell texts counted as missing
     top_n: int = TOP_N  # how many most frequent values each column lists
     compressed: bool = False  # the input was gzip-compressed
+    untrimmed_columns: tuple[str, ...] = ()  # header names with surrounding whitespace
+
+
+def _untrimmed_names(header: list[str]) -> tuple[str, ...]:
+    """Header names, as reported, that have leading or trailing whitespace."""
+    return tuple(name for name in header if name != name.strip())
 
 
 def _row_digest(row: list[str]) -> bytes:
@@ -238,6 +244,7 @@ def build_report(
         na_tokens=na_tokens,
         top_n=top_n,
         compressed=table.compressed,
+        untrimmed_columns=_untrimmed_names(table.header),
     )
 
 
@@ -266,4 +273,5 @@ def profile_file(
             na_tokens=na_tokens,
             top_n=top_n,
             compressed=stream.compressed,
+            untrimmed_columns=_untrimmed_names(stream.header),
         )
