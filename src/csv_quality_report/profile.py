@@ -9,7 +9,15 @@ from dataclasses import dataclass
 from itertools import islice
 from pathlib import Path
 
-from .inference import TYPE_DATE, TYPE_FLOAT, TYPE_INT, infer_type, parse_float
+from .inference import (
+    TYPE_DATE,
+    TYPE_DATETIME,
+    TYPE_FLOAT,
+    TYPE_INT,
+    infer_type,
+    parse_datetime,
+    parse_float,
+)
 from .reader import Table, open_rows
 
 TOP_N = 3
@@ -23,7 +31,7 @@ class ColumnProfile:
     missing: int
     missing_pct: float
     distinct: int
-    min: int | float | str | None  # str (ISO 8601) for date columns
+    min: int | float | str | None  # str (original ISO 8601 text) for date/datetime
     max: int | float | str | None
     top_values: list[tuple[str, int]]
 
@@ -47,6 +55,20 @@ def _row_digest(row: list[str]) -> bytes:
     """
     key = ",".join([str(len(cell)) for cell in row]) + ":" + "".join(row)
     return hashlib.blake2b(key.encode("utf-8", "surrogatepass"), digest_size=16).digest()
+
+
+def _datetime_range(values: Iterable[str]) -> tuple[str | None, str | None]:
+    """Earliest and latest of ``values``, returned as their original text.
+
+    Values with a UTC offset are compared as instants. If the column mixes
+    values with and without an offset there is no honest ordering (a naive
+    time could be in any zone), so no range is reported.
+    """
+    parsed = {v: parse_datetime(v) for v in values}
+    instants = {v: d for v, d in parsed.items() if d is not None}
+    if len({d.tzinfo is None for d in instants.values()}) != 1:
+        return None, None
+    return min(instants, key=instants.__getitem__), max(instants, key=instants.__getitem__)
 
 
 class _ColumnAccumulator:
@@ -77,6 +99,8 @@ class _ColumnAccumulator:
         elif distinct and col_type == TYPE_DATE:
             # Inference guarantees strict YYYY-MM-DD, whose text order is date order.
             low, high = min(distinct), max(distinct)
+        elif distinct and col_type == TYPE_DATETIME:
+            low, high = _datetime_range(distinct)
         return ColumnProfile(
             name=self.name,
             type=col_type,
