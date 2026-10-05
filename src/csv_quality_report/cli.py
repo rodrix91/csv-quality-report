@@ -8,8 +8,8 @@ from collections.abc import Sequence
 from pathlib import Path
 
 from .errors import CsvQualityError
-from .profile import build_report
-from .reader import DELIMITER_AUTO, read_table
+from .profile import profile_file
+from .reader import DELIMITER_AUTO
 from .render import render_json, render_markdown
 
 
@@ -78,11 +78,15 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     try:
-        table = read_table(args.path, max_rows=args.max_rows, delimiter=args.delimiter)
+        report = profile_file(
+            args.path,
+            max_rows=args.max_rows,
+            delimiter=args.delimiter,
+            decimal_comma=args.decimal_comma,
+        )
     except CsvQualityError as exc:
         print(f"error: {exc.message}", file=sys.stderr)
         return exc.exit_code
-    report = build_report(table, decimal_comma=args.decimal_comma)
     render = render_json if args.format == "json" else render_markdown
     sys.stdout.write(render(report, str(args.path)))
     return 0
