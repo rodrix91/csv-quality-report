@@ -144,6 +144,7 @@ Output (captured from a real run, exit code 0):
       "distinct": 2,
       "min": null,
       "max": null,
+      "mean": null,
       "top_values": [
         {
           "value": "apple",
@@ -164,6 +165,7 @@ Output (captured from a real run, exit code 0):
       "distinct": 2,
       "min": 3,
       "max": 5,
+      "mean": 4.0,
       "top_values": [
         {
           "value": "3",
@@ -191,6 +193,7 @@ Output (captured from a real run, exit code 0):
 - **Delimiter in the output**: JSON always includes `delimiter` and `delimiter_detected`. Markdown adds a `Delimiter:` line only when the delimiter is not the default comma or was detected.
 - **Duplicate rows** = rows that exactly repeat an earlier row (total rows minus unique rows), comparing raw cell text. Rows are compared through a 128-bit BLAKE2b fingerprint instead of being stored, so the count is exact unless two different rows collide on 128 bits (probability below 1e-20 even for billions of rows).
 - **Order of errors**: the file is read once from start to end, and the first problem met is reported. With `--max-rows`, the part of the file after the limit is not read at all.
+- **Mean** (JSON only, the Markdown table keeps its columns): for `int` and `float` columns, the mean of the non-missing values, weighted by how often each value occurs and rounded to 6 significant digits; `null` for other types. Integers are summed exactly and floats with `math.fsum`, so long columns do not drift; integers too large for a float give `null`.
 - **Min / max**: numbers for `int` and `float` columns; ISO `YYYY-MM-DD` strings for `date` columns (earliest and latest date); for `datetime` columns the original text of the earliest and latest value, comparing values with an offset as instants (a plain date counts as midnight). A `datetime` column that mixes values with and without an offset has no range, because a local time could be in any zone. Empty for `bool` and `string`. In JSON they are numbers, strings or `null` accordingly.
 - **Top values**: ties are listed in order of first appearance.
 - **Duplicate column names** are made unique deterministically: later repeats get `_2`, `_3`, … suffixes (`a,a,a` → `a`, `a_2`, `a_3`; if a suffixed name already exists, the counter keeps increasing).
