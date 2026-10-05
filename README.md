@@ -43,6 +43,7 @@ You can also run the tool without installing it: `PYTHONPATH=src python3 -m csv_
 
 ```text
 python -m csv_quality_report PATH [--format markdown|json] [--max-rows N] [--delimiter CHAR] [--decimal-comma] [--na TOKENS]
+python -m csv_quality_report --version
 ```
 
 - `--format` — `markdown` (default) or `json`.

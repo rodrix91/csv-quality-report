@@ -7,6 +7,7 @@ import sys
 from collections.abc import Sequence
 from pathlib import Path
 
+from . import __version__
 from .errors import CsvQualityError
 from .profile import profile_file
 from .reader import DELIMITER_AUTO
@@ -54,6 +55,7 @@ def build_parser() -> argparse.ArgumentParser:
         description="Quick data-quality report for a CSV file.",
     )
     parser.add_argument("path", type=Path, help="CSV file to analyze (UTF-8)")
+    parser.add_argument("--version", action="version", version=f"csv-quality-report {__version__}")
     parser.add_argument(
         "--format",
         choices=("markdown", "json"),
