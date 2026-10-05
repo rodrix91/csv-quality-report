@@ -10,6 +10,7 @@ All notable changes to this project are documented here. The format follows [Kee
 - `--require-type NAME=TYPE` quality gate (repeatable): fails with exit code 8 unless the column can be used as the type (int satisfies float, date satisfies datetime), and names the stray values when a type hint explains the failure; JSON items of this check add `expected` and `actual` (#45).
 - `--encoding NAME` reads files in any text encoding (`cp1252`, `latin-1`, `utf-16`...), with stdin, gzip and delimiter detection; the canonical name is reported (`encoding` in JSON, a Markdown line when not UTF-8). The UTF-8 error now points to the option. Encodings are still never guessed (#47).
 - `--max-field-size N` raises Python's CSV field size limit (131,072 characters) for files with long text fields; the default is unchanged, the limit is restored after the run, and the field-limit error now names the option (#48).
+- `min_length` and `max_length` per column in JSON, in characters over the non-missing stripped values, to spot truncated or malformed codes (#49).
 
 ### Changed
 
