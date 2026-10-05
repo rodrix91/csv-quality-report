@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-10-05
+
 ### Added
 
 - Excel's `sep=` first line (`sep=;`, also quoted or after a BOM) is skipped instead of being read as the header. `--delimiter auto` uses the declared separator; a different explicit delimiter, including the default comma, stops with exit code 7 and names the declared one. Error line numbers still count the skipped line. JSON gains `sep_line`, and the Markdown delimiter line says when it was declared (#66).
@@ -100,7 +102,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 - Initial version: per-column type inference, missing values, distinct counts, min/max and top values, duplicate rows, Markdown and JSON output.
 
-[Unreleased]: https://github.com/rodrix91/csv-quality-report/compare/v0.7.0...HEAD
+[Unreleased]: https://github.com/rodrix91/csv-quality-report/compare/v0.8.0...HEAD
+[0.8.0]: https://github.com/rodrix91/csv-quality-report/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/rodrix91/csv-quality-report/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/rodrix91/csv-quality-report/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/rodrix91/csv-quality-report/compare/v0.4.0...v0.5.0
