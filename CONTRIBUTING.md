@@ -28,6 +28,8 @@ python -m build                  # build sdist + wheel into dist/ (needs network
 
 **Always build from a clean clone** (`git clone <repo> /tmp/build-check && cd /tmp/build-check`), not from a working directory that has stray files: the sdist and wheel are assembled from whatever is on disk, and files that are ignored by git (old `build/`, `dist/`, `*.egg-info`, local notes) can leak into or distort the artifacts.
 
+The test suite must also pass from the unpacked sdist: CI builds it and runs the tests there (job `sdist`). When a test starts reading a new file outside `src/` and `tests/test_*.py` (data, a script), add it to `MANIFEST.in`.
+
 If a change alters the output, refresh the samples embedded in the README with `python scripts/update_readme_samples.py` (`--check` only reports); the test suite fails while they are stale.
 
 The end-to-end corpus in `tests/corpus` (realistic files with their options) has expected JSON reports too. After an intended change, run `python scripts/update_corpus.py` and review the diff of `tests/corpus/expected/`; that diff is the change in behavior. See `tests/corpus/README.md`.
