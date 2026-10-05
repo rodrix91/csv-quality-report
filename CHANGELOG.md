@@ -7,6 +7,7 @@ All notable changes to this project are documented here. The format follows [Kee
 ### Added
 
 - `--thousands SEP` (`dot`, `comma` or `space`) recognizes numbers such as `1.234,56`, `1,234.56` or `1 234,56`. Only correctly grouped numbers are normalized; top values keep the text as written; conflicts with the decimal mark are usage errors (#54).
+- End-to-end corpus in `tests/corpus`: realistic files run with their options and compared byte for byte with hand-checked JSON reports and exit codes; `scripts/update_corpus.py` regenerates them after an intended change. The corpus ships in the source distribution (#56).
 
 ## [0.5.0] - 2026-10-05
 

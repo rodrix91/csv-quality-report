@@ -1,0 +1,97 @@
+{
+  "source": "tests/corpus/tab_quoted.tsv",
+  "rows": 4,
+  "truncated": false,
+  "delimiter": "\t",
+  "delimiter_detected": true,
+  "na_tokens": [],
+  "top_n": 3,
+  "compressed": false,
+  "encoding": "utf-8",
+  "thousands": null,
+  "duplicate_rows": 1,
+  "untrimmed_columns": [],
+  "columns": [
+    {
+      "name": "sku",
+      "type": "string",
+      "type_hint": null,
+      "missing": 0,
+      "missing_pct": 0.0,
+      "distinct": 3,
+      "min": null,
+      "max": null,
+      "mean": null,
+      "min_length": 3,
+      "max_length": 3,
+      "top_values": [
+        {
+          "value": "A-1",
+          "count": 2
+        },
+        {
+          "value": "B-2",
+          "count": 1
+        },
+        {
+          "value": "C-3",
+          "count": 1
+        }
+      ],
+      "untrimmed": 0
+    },
+    {
+      "name": "description",
+      "type": "string",
+      "type_hint": null,
+      "missing": 0,
+      "missing_pct": 0.0,
+      "distinct": 3,
+      "min": null,
+      "max": null,
+      "mean": null,
+      "min_length": 6,
+      "max_length": 21,
+      "top_values": [
+        {
+          "value": "Box, large\nreinforced",
+          "count": 2
+        },
+        {
+          "value": "Envelope\twith tab",
+          "count": 1
+        },
+        {
+          "value": "Pallet",
+          "count": 1
+        }
+      ],
+      "untrimmed": 0
+    },
+    {
+      "name": "weight_kg",
+      "type": "float",
+      "type_hint": null,
+      "missing": 1,
+      "missing_pct": 25.0,
+      "distinct": 2,
+      "min": 0.2,
+      "max": 12.5,
+      "mean": 8.4,
+      "min_length": 3,
+      "max_length": 4,
+      "top_values": [
+        {
+          "value": "12.5",
+          "count": 2
+        },
+        {
+          "value": "0.2",
+          "count": 1
+        }
+      ],
+      "untrimmed": 0
+    }
+  ],
+  "checks": []
+}

@@ -2,3 +2,4 @@ include tests/conftest.py
 graft examples
 include requirements-dev.lock
 include CHANGELOG.md
+graft tests/corpus
