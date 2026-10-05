@@ -70,6 +70,16 @@ def _non_negative_int(text: str) -> int:
     return value
 
 
+def _column_limit(text: str) -> tuple[str, float]:
+    """Parse ``NAME=PCT``; the last ``=`` separates them, so names may contain ``=``."""
+    name, sep, value = text.rpartition("=")
+    if not sep or not name:
+        raise argparse.ArgumentTypeError(
+            f"invalid --max-missing-column value: {text!r} (use NAME=PCT)"
+        )
+    return name, _percentage(value)
+
+
 def _column_names(text: str) -> tuple[str, ...]:
     """Parse ``id,date,weight`` into unique, stripped, non-empty names (order kept)."""
     names = tuple(dict.fromkeys(n.strip() for n in text.split(",") if n.strip()))
@@ -147,6 +157,14 @@ def build_parser() -> argparse.ArgumentParser:
         help="fail if any column has more than PCT %% missing values (0-100)",
     )
     gates.add_argument(
+        "--max-missing-column",
+        type=_column_limit,
+        action="append",
+        default=[],
+        metavar="NAME=PCT",
+        help="per-column missing limit, overrides --max-missing for NAME (repeatable)",
+    )
+    gates.add_argument(
         "--require-columns",
         type=_column_names,
         default=(),
@@ -190,6 +208,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         max_missing=args.max_missing,
         max_duplicates=args.max_duplicates,
         required_columns=args.require_columns,
+        column_max_missing=dict(args.max_missing_column),  # the last limit for a name wins
     )
     source = display_name(args.path)
     if args.json_output is not None:
