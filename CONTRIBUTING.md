@@ -19,6 +19,7 @@ The tests do not need `pip install -e .` (pytest puts `src/` on the path and sub
 
 ```bash
 python -m pytest                 # tests
+coverage run -m pytest && coverage combine && coverage report   # tests + 100% line/branch coverage (CI enforces it)
 ruff check .                     # lint
 ruff format --check .            # formatting (run `ruff format .` to fix)
 mypy                             # strict type check (config in pyproject.toml)
