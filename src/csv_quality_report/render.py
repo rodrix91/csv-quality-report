@@ -6,6 +6,7 @@ import json
 from typing import Any
 
 from .profile import ColumnProfile, Report
+from .reader import DELIMITER_NAMES, delimiter_name
 
 
 def _num(value: int | float | None) -> str:
@@ -20,6 +21,18 @@ def _top(col: ColumnProfile) -> str:
     return ", ".join(f"{_md_escape(v)} ({n})" for v, n in col.top_values)
 
 
+def _delimiter_line(report: Report) -> list[str]:
+    """Markdown line naming the delimiter, only when it is not the default comma."""
+    if report.delimiter == "," and not report.delimiter_detected:
+        return []
+    name = (
+        delimiter_name(report.delimiter)
+        if report.delimiter in DELIMITER_NAMES
+        else f"`{_md_escape(report.delimiter)}`"
+    )
+    return [f"- Delimiter: {name}" + (" (detected)" if report.delimiter_detected else "")]
+
+
 def render_markdown(report: Report, source: str) -> str:
     lines = [
         f"# CSV quality report: {_md_escape(source)}",
@@ -27,6 +40,7 @@ def render_markdown(report: Report, source: str) -> str:
         f"- Rows analyzed: {report.rows}"
         + (" (stopped early by --max-rows)" if report.truncated else ""),
         f"- Columns: {len(report.columns)}",
+        *_delimiter_line(report),
         f"- Duplicate rows: {report.duplicate_rows}",
         "",
         "| Column | Type | Missing | Missing % | Distinct | Min | Max | Top 3 values |",
@@ -45,6 +59,8 @@ def render_json(report: Report, source: str) -> str:
         "source": source,
         "rows": report.rows,
         "truncated": report.truncated,
+        "delimiter": report.delimiter,
+        "delimiter_detected": report.delimiter_detected,
         "duplicate_rows": report.duplicate_rows,
         "columns": [
             {

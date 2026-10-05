@@ -89,6 +89,20 @@ def test_sample_markdown_matches_readme(cli_env: dict[str, str]) -> None:
     assert proc.stdout in readme
 
 
+def test_sample_json_matches_readme(cli_env: dict[str, str]) -> None:
+    """The README also embeds the JSON sample; keep it in sync with the real output."""
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    proc = subprocess.run(
+        [sys.executable, "-m", "csv_quality_report", "examples/tiny.csv", "--format", "json"],
+        cwd=ROOT,
+        env=cli_env,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    assert "```json\n" + proc.stdout + "```" in readme
+
+
 # --- missing values -------------------------------------------------------
 
 

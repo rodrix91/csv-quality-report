@@ -29,6 +29,8 @@ class Report:
     duplicate_rows: int
     truncated: bool
     columns: list[ColumnProfile]
+    delimiter: str = ","
+    delimiter_detected: bool = False
 
 
 def _is_missing(cell: str) -> bool:
@@ -78,4 +80,6 @@ def build_report(table: Table, decimal_comma: bool = False) -> Report:
         duplicate_rows=len(table.rows) - unique,
         truncated=table.truncated,
         columns=columns,
+        delimiter=table.delimiter,
+        delimiter_detected=table.delimiter_detected,
     )

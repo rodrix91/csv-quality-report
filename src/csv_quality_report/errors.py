@@ -8,6 +8,7 @@ EXIT_IO = 3
 EXIT_ENCODING = 4
 EXIT_EMPTY = 5
 EXIT_RAGGED = 6
+EXIT_DELIMITER = 7
 
 
 class CsvQualityError(Exception):
@@ -34,3 +35,7 @@ class EmptyFileError(CsvQualityError):
 
 class RaggedRowError(CsvQualityError):
     exit_code = EXIT_RAGGED
+
+
+class DelimiterDetectionError(CsvQualityError):
+    exit_code = EXIT_DELIMITER
