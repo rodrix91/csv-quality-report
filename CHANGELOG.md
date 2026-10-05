@@ -13,6 +13,7 @@ All notable changes to this project are documented here. The format follows [Kee
 - `reader.open_rows()` and `profile.profile_file()` for streaming use from Python.
 - ADR 0002 documenting the streaming design.
 - `min`/`max` for `date` columns, as ISO strings (#11).
+- `datetime` type for strict ISO 8601 date-times, with a range that compares offsets as instants and is omitted when offset-aware and local values are mixed (#10).
 - `--na TOKENS` to count values such as `NA`, `null` or `s/d` as missing, at no per-row cost; JSON gains `na_tokens` (#9).
 - `scripts/update_readme_samples.py` regenerates the README samples from real runs.
 - CI measures line and branch coverage (subprocess CLI runs included) and requires 100%; new tests cover malformed CSV (field over the `csv` size limit) and encoding errors with `--delimiter auto`.

@@ -1,9 +1,9 @@
-id,name,signup_date,age,score,active,city
-1,Alice,2024-01-15,34,88.5,true,La Paz
-2,Bob,2024-02-03,,92.0,false,Santa Cruz
-3,Carla,2024-02-20,29,75.25,true,La Paz
-4,Diego,,41,,true,Cochabamba
-5,Elena,2024-03-11,38,81.0,false,La Paz
-5,Elena,2024-03-11,38,81.0,false,La Paz
-6,Fabio,2024-04-02,52,69.5,,Santa Cruz
-7,Gina,2024-04-18,,95.75,true,
+id,name,signup_date,age,score,active,city,last_seen
+1,Alice,2024-01-15,34,88.5,true,La Paz,2024-05-02T09:15
+2,Bob,2024-02-03,,92.0,false,Santa Cruz,2024-05-03 18:40
+3,Carla,2024-02-20,29,75.25,true,La Paz,2024-05-01T07:05
+4,Diego,,41,,true,Cochabamba,
+5,Elena,2024-03-11,38,81.0,false,La Paz,2024-05-03T21:30
+5,Elena,2024-03-11,38,81.0,false,La Paz,2024-05-03T21:30
+6,Fabio,2024-04-02,52,69.5,,Santa Cruz,2024-04-28T12:00
+7,Gina,2024-04-18,,95.75,true,,2024-05-04T08:45
