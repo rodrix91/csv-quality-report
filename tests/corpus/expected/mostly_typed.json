@@ -12,6 +12,7 @@
   "thousands": null,
   "date_order": null,
   "bool_words": [],
+  "number_affixes": [],
   "duplicate_rows": 0,
   "untrimmed_columns": [],
   "columns": [
@@ -41,7 +42,8 @@
           "count": 1
         }
       ],
-      "untrimmed": 0
+      "untrimmed": 0,
+      "affixes": {}
     },
     {
       "name": "qty",
@@ -77,7 +79,8 @@
           "count": 4
         }
       ],
-      "untrimmed": 0
+      "untrimmed": 0,
+      "affixes": {}
     },
     {
       "name": "ship_date",
@@ -112,7 +115,8 @@
           "count": 2
         }
       ],
-      "untrimmed": 0
+      "untrimmed": 0,
+      "affixes": {}
     },
     {
       "name": "note",
@@ -136,7 +140,8 @@
           "count": 2
         }
       ],
-      "untrimmed": 0
+      "untrimmed": 0,
+      "affixes": {}
     }
   ],
   "checks": [

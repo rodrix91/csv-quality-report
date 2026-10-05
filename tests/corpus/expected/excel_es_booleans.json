@@ -21,6 +21,7 @@
       "no"
     ]
   ],
+  "number_affixes": [],
   "duplicate_rows": 0,
   "untrimmed_columns": [],
   "columns": [
@@ -50,7 +51,8 @@
           "count": 1
         }
       ],
-      "untrimmed": 0
+      "untrimmed": 0,
+      "affixes": {}
     },
     {
       "name": "Pagado",
@@ -74,7 +76,8 @@
           "count": 5
         }
       ],
-      "untrimmed": 0
+      "untrimmed": 0,
+      "affixes": {}
     },
     {
       "name": "Enviado",
@@ -109,7 +112,8 @@
           "count": 1
         }
       ],
-      "untrimmed": 0
+      "untrimmed": 0,
+      "affixes": {}
     },
     {
       "name": "Fecha",
@@ -137,7 +141,8 @@
           "count": 1
         }
       ],
-      "untrimmed": 0
+      "untrimmed": 0,
+      "affixes": {}
     },
     {
       "name": "Total",
@@ -165,7 +170,8 @@
           "count": 1
         }
       ],
-      "untrimmed": 0
+      "untrimmed": 0,
+      "affixes": {}
     }
   ],
   "checks": [

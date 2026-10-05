@@ -12,6 +12,7 @@
   "thousands": null,
   "date_order": null,
   "bool_words": [],
+  "number_affixes": [],
   "duplicate_rows": 1,
   "untrimmed_columns": [],
   "columns": [
@@ -41,7 +42,8 @@
           "count": 1
         }
       ],
-      "untrimmed": 0
+      "untrimmed": 0,
+      "affixes": {}
     },
     {
       "name": "description",
@@ -69,7 +71,8 @@
           "count": 1
         }
       ],
-      "untrimmed": 0
+      "untrimmed": 0,
+      "affixes": {}
     },
     {
       "name": "weight_kg",
@@ -93,7 +96,8 @@
           "count": 1
         }
       ],
-      "untrimmed": 0
+      "untrimmed": 0,
+      "affixes": {}
     }
   ],
   "checks": []

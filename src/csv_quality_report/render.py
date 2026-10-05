@@ -100,6 +100,16 @@ def _thousands_line(report: Report) -> list[str]:
     return [f"- Thousands separator: {_THOUSANDS_NAMES[report.thousands]}"]
 
 
+def _affixes_line(report: Report) -> list[str]:
+    """Markdown line with the number affixes found per column, when there are any."""
+    parts = []
+    for c in report.columns:
+        if c.affixes:
+            found = ", ".join(f"`{_md_escape(a)}` {n}" for a, n in c.affixes)
+            parts.append(f"{_md_escape(c.name)} ({found})")
+    return ["- Number affixes: " + "; ".join(parts)] if parts else []
+
+
 def _bool_words_line(report: Report) -> list[str]:
     """Markdown line listing the extra boolean words, when some were given."""
     if not report.bool_words:
@@ -129,6 +139,7 @@ def render_markdown(report: Report, source: str, checks: Sequence[CheckResult] =
         *_untrimmed_line(report),
         *_untrimmed_columns_line(report),
         *_type_hint_line(report),
+        *_affixes_line(report),
         "",
         "| Column | Type | Missing | Missing % | Distinct | Min | Max | Mean "
         f"| Top {report.top_n} values |",
@@ -158,6 +169,7 @@ def render_json(report: Report, source: str, checks: Sequence[CheckResult] = ())
         "thousands": report.thousands,
         "date_order": report.date_order,
         "bool_words": [list(pair) for pair in report.bool_words],
+        "number_affixes": list(report.number_affixes),
         "duplicate_rows": report.duplicate_rows,
         "untrimmed_columns": list(report.untrimmed_columns),
         "columns": [
@@ -182,6 +194,7 @@ def render_json(report: Report, source: str, checks: Sequence[CheckResult] = ())
                 "max_length": c.max_length,
                 "top_values": [{"value": v, "count": n} for v, n in c.top_values],
                 "untrimmed": c.untrimmed,
+                "affixes": dict(c.affixes),
             }
             for c in report.columns
         ],

@@ -1,0 +1,153 @@
+{
+  "source": "tests/corpus/py_invoices_affixes.csv",
+  "rows": 8,
+  "truncated": false,
+  "delimiter": ";",
+  "delimiter_detected": true,
+  "sep_line": false,
+  "na_tokens": [
+    "s/d"
+  ],
+  "top_n": 3,
+  "compressed": false,
+  "encoding": "utf-8",
+  "thousands": ".",
+  "date_order": null,
+  "bool_words": [],
+  "number_affixes": [
+    "Gs.",
+    "US$",
+    "kg",
+    "lb",
+    "%"
+  ],
+  "duplicate_rows": 0,
+  "untrimmed_columns": [],
+  "columns": [
+    {
+      "name": "Factura",
+      "type": "string",
+      "type_hint": null,
+      "missing": 0,
+      "missing_pct": 0.0,
+      "distinct": 8,
+      "min": null,
+      "max": null,
+      "mean": null,
+      "min_length": 8,
+      "max_length": 8,
+      "top_values": [
+        {
+          "value": "001-0001",
+          "count": 1
+        },
+        {
+          "value": "001-0002",
+          "count": 1
+        },
+        {
+          "value": "001-0003",
+          "count": 1
+        }
+      ],
+      "untrimmed": 0,
+      "affixes": {}
+    },
+    {
+      "name": "Monto",
+      "type": "float",
+      "type_hint": null,
+      "missing": 0,
+      "missing_pct": 0.0,
+      "distinct": 8,
+      "min": 25.5,
+      "max": 2400000.0,
+      "mean": 534443.0,
+      "min_length": 9,
+      "max_length": 13,
+      "top_values": [
+        {
+          "value": "Gs. 150.000",
+          "count": 1
+        },
+        {
+          "value": "Gs. 1.250.000",
+          "count": 1
+        },
+        {
+          "value": "US$ 25,50",
+          "count": 1
+        }
+      ],
+      "untrimmed": 0,
+      "affixes": {
+        "Gs.": 6,
+        "US$": 2
+      }
+    },
+    {
+      "name": "Peso",
+      "type": "float",
+      "type_hint": null,
+      "missing": 1,
+      "missing_pct": 12.5,
+      "distinct": 7,
+      "min": 3.0,
+      "max": 1200.0,
+      "mean": 304.179,
+      "min_length": 4,
+      "max_length": 8,
+      "top_values": [
+        {
+          "value": "12,5 kg",
+          "count": 1
+        },
+        {
+          "value": "800 kg",
+          "count": 1
+        },
+        {
+          "value": "3 lb",
+          "count": 1
+        }
+      ],
+      "untrimmed": 0,
+      "affixes": {
+        "kg": 6,
+        "lb": 1
+      }
+    },
+    {
+      "name": "Descuento",
+      "type": "string",
+      "type_hint": null,
+      "missing": 0,
+      "missing_pct": 0.0,
+      "distinct": 5,
+      "min": null,
+      "max": null,
+      "mean": null,
+      "min_length": 3,
+      "max_length": 10,
+      "top_values": [
+        {
+          "value": "10 %",
+          "count": 2
+        },
+        {
+          "value": "0 %",
+          "count": 2
+        },
+        {
+          "value": "5 %",
+          "count": 2
+        }
+      ],
+      "untrimmed": 0,
+      "affixes": {
+        "%": 7
+      }
+    }
+  ],
+  "checks": []
+}
