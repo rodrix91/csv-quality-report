@@ -20,7 +20,7 @@ from .inference import (
 )
 from .reader import Table, open_rows
 
-TOP_N = 3
+TOP_N = 3  # default number of most frequent values per column (--top)
 _BATCH_ROWS = 10_000  # rows profiled together; bounds the extra memory per batch
 
 
@@ -45,6 +45,7 @@ class Report:
     delimiter: str = ","
     delimiter_detected: bool = False
     na_tokens: tuple[str, ...] = ()  # extra cell texts counted as missing
+    top_n: int = TOP_N  # how many most frequent values each column lists
 
 
 def _row_digest(row: list[str]) -> bytes:
@@ -84,7 +85,7 @@ class _ColumnAccumulator:
         self.missing = 0
         self.counts: Counter[str] = Counter()
 
-    def finish(self, total: int, decimal_comma: bool) -> ColumnProfile:
+    def finish(self, total: int, decimal_comma: bool, top_n: int = TOP_N) -> ColumnProfile:
         # Inference, min and max only depend on which values occur, so looking
         # at distinct values gives the same answer as looking at every cell.
         distinct = self.counts.keys()
@@ -110,7 +111,7 @@ class _ColumnAccumulator:
             min=low,
             max=high,
             # most_common is stable: ties keep first-seen order.
-            top_values=self.counts.most_common(TOP_N),
+            top_values=self.counts.most_common(top_n),
         )
 
 
@@ -126,6 +127,7 @@ def profile_rows(
     rows: Iterable[list[str]],
     decimal_comma: bool = False,
     na_tokens: Iterable[str] = (),
+    top_n: int = TOP_N,
 ) -> _Profiled:
     """Profile ``rows`` in a single pass; each row must have ``len(header)`` cells.
 
@@ -156,21 +158,25 @@ def profile_rows(
     for acc in columns:
         acc.missing = sum(acc.counts.pop(token, 0) for token in na)
     return _Profiled(
-        columns=[acc.finish(total, decimal_comma) for acc in columns],
+        columns=[acc.finish(total, decimal_comma, top_n) for acc in columns],
         rows=total,
         duplicate_rows=total - len(seen),
     )
 
 
 def build_report(
-    table: Table, decimal_comma: bool = False, na_tokens: tuple[str, ...] = ()
+    table: Table,
+    decimal_comma: bool = False,
+    na_tokens: tuple[str, ...] = (),
+    top_n: int = TOP_N,
 ) -> Report:
     """Profile every column of an in-memory ``table``.
 
     ``decimal_comma`` makes float inference expect ``,`` as the decimal mark;
-    ``na_tokens`` are extra cell texts counted as missing.
+    ``na_tokens`` are extra cell texts counted as missing; ``top_n`` is how
+    many most frequent values each column lists.
     """
-    result = profile_rows(table.header, table.rows, decimal_comma, na_tokens)
+    result = profile_rows(table.header, table.rows, decimal_comma, na_tokens, top_n)
     return Report(
         rows=result.rows,
         duplicate_rows=result.duplicate_rows,
@@ -179,6 +185,7 @@ def build_report(
         delimiter=table.delimiter,
         delimiter_detected=table.delimiter_detected,
         na_tokens=na_tokens,
+        top_n=top_n,
     )
 
 
@@ -188,6 +195,7 @@ def profile_file(
     delimiter: str = ",",
     decimal_comma: bool = False,
     na_tokens: tuple[str, ...] = (),
+    top_n: int = TOP_N,
 ) -> Report:
     """Stream ``path`` and profile it without loading the whole file into memory.
 
@@ -195,7 +203,7 @@ def profile_file(
     ``build_report(read_table(...))``.
     """
     with open_rows(path, max_rows=max_rows, delimiter=delimiter) as stream:
-        result = profile_rows(stream.header, stream, decimal_comma, na_tokens)
+        result = profile_rows(stream.header, stream, decimal_comma, na_tokens, top_n)
         return Report(
             rows=result.rows,
             duplicate_rows=result.duplicate_rows,
@@ -204,4 +212,5 @@ def profile_file(
             delimiter=stream.delimiter,
             delimiter_detected=stream.delimiter_detected,
             na_tokens=na_tokens,
+            top_n=top_n,
         )
