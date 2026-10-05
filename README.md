@@ -135,6 +135,7 @@ Output (captured from a real run, exit code 0):
   "top_n": 3,
   "compressed": false,
   "duplicate_rows": 0,
+  "untrimmed_columns": [],
   "columns": [
     {
       "name": "item",
@@ -185,6 +186,7 @@ Output (captured from a real run, exit code 0):
 
 ### Behavior details
 
+- **Column names with surrounding whitespace** (`" date"`, common in files exported with `, ` separators) are kept exactly as read, so nothing is renamed behind your back, but they are reported: `untrimmed_columns` in JSON and a `- Column names with surrounding whitespace:` line in Markdown when present. When `--require-columns` or `--max-missing-column` names a column that only matches after stripping, the failure message suggests the real name (`did you mean ' date'?`).
 - **Untrimmed values**: cells with leading or trailing whitespace (`"AR "`) are compared after stripping, so they count as the same value as `"AR"`, but they are a data-quality problem of their own (joins and lookups fail on them). Each column reports how many non-missing cells had surrounding whitespace: `untrimmed` in JSON, and a `- Untrimmed values: code (3), city (1)` line in Markdown only when some column has them. Whitespace-only cells are missing, not untrimmed.
 - **Missing value** = an empty cell or a cell with only whitespace. Other tokens such as `NA` or `null` are treated as missing only when listed with `--na`; the tokens used are reported (`na_tokens` in JSON, an `Also counted as missing` line in Markdown).
 - Values are whitespace-stripped before type inference and counting.

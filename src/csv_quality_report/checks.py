@@ -28,6 +28,7 @@ class CheckResult:
     value: float
     passed: bool
     detail: str = ""  # extra context for messages (not part of the JSON output)
+    hint: str = ""  # a present column that matches after stripping whitespace
 
     def describe(self) -> str:
         """One-line, human-readable explanation used on stderr and in Markdown."""
@@ -39,7 +40,8 @@ class CheckResult:
         if self.check == CHECK_REQUIRED_COLUMN:
             if self.passed:
                 return f"required column '{self.column}' is present"
-            return f"required column '{self.column}' is missing (columns: {self.detail})"
+            message = f"required column '{self.column}' is missing (columns: {self.detail})"
+            return message + (f"; did you mean '{self.hint}'?" if self.hint else "")
         return f"{_fmt(self.value)} duplicate rows (limit {_fmt(self.limit)})"
 
 
@@ -103,6 +105,7 @@ def evaluate(
     unknown_limited = (name for name in column_limits if name not in present)
     for name in dict.fromkeys([*required_columns, *unknown_limited]):
         found = name in present
+        near = [] if found else [h for h in header if h.strip() == name.strip()]
         results.append(
             CheckResult(
                 check=CHECK_REQUIRED_COLUMN,
@@ -111,6 +114,7 @@ def evaluate(
                 value=1 if found else 0,
                 passed=found,
                 detail="" if found else listed,
+                hint=near[0] if near else "",
             )
         )
     return results
