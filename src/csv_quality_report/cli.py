@@ -64,6 +64,11 @@ def build_parser() -> argparse.ArgumentParser:
         metavar="CHAR",
         help="field separator: one character, or tab/comma/semicolon/pipe (default: ,)",
     )
+    parser.add_argument(
+        "--decimal-comma",
+        action="store_true",
+        help="numbers use ',' as decimal mark (10,5); values written with '.' are not floats",
+    )
     return parser
 
 
@@ -74,7 +79,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     except CsvQualityError as exc:
         print(f"error: {exc.message}", file=sys.stderr)
         return exc.exit_code
-    report = build_report(table)
+    report = build_report(table, decimal_comma=args.decimal_comma)
     render = render_json if args.format == "json" else render_markdown
     sys.stdout.write(render(report, str(args.path)))
     return 0
