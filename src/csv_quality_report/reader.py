@@ -26,6 +26,7 @@ from .errors import (
 _CHUNK = 1 << 20  # bytes per read when locating an invalid UTF-8 byte
 DELIMITER_AUTO = "auto"
 STDIN = "-"  # path that means "read standard input"
+DEFAULT_ENCODING = "utf-8"  # read as utf-8-sig, so a leading BOM is accepted
 STDIN_NAME = "<stdin>"  # how standard input is named in messages and reports
 _GZIP_MAGIC = b"\x1f\x8b"  # first bytes of every gzip stream; CSV text never starts so
 # Errors a (possibly compressed) byte stream can raise while it is being read.
@@ -46,6 +47,7 @@ class Table:
     delimiter: str = ","
     delimiter_detected: bool = False  # True when chosen by ``detect_delimiter``
     compressed: bool = False  # True when the input was gzip-compressed
+    encoding: str = DEFAULT_ENCODING  # normalized codec name used to decode the input
 
 
 def dedupe_header(header: list[str]) -> list[str]:
@@ -149,9 +151,11 @@ class RowStream:
         delimiter: str,
         delimiter_detected: bool,
         compressed: bool = False,
+        encoding: str = DEFAULT_ENCODING,
     ) -> None:
         self.path = path
         self.compressed = compressed
+        self.encoding = encoding
         self.header = dedupe_header(raw_header)
         self.delimiter = delimiter
         self.delimiter_detected = delimiter_detected
@@ -163,7 +167,9 @@ class RowStream:
 
     def __iter__(self) -> Iterator[list[str]]:
         count = 0
-        for record in _guarded(self.path, self._records, self._reader, self.compressed):
+        for record in _guarded(
+            self.path, self._records, self._reader, self.compressed, self.encoding
+        ):
             if not record:  # blank line
                 continue
             if self._max_rows is not None and count >= self._max_rows:
@@ -193,14 +199,31 @@ def display_name(path: Path) -> str:
     return STDIN_NAME if is_stdin(path) else str(path)
 
 
-def _invalid_utf8_offset(path: Path, compressed: bool = False) -> int:
-    """Byte offset (from the start of the file) of the first invalid UTF-8 byte.
+def normalize_encoding(name: str) -> str:
+    """Canonical name of a text codec (``latin-1`` gives ``iso8859-1``).
 
-    Decodes in chunks so it works on files of any size. For a gzip file the
-    offset is counted in the decompressed data. Only called after a decoding
-    error was seen, so a valid file returning 0 does not happen in practice.
+    Raises ``LookupError`` for unknown names and for codecs that do not decode
+    bytes to text, such as ``base64`` or ``rot13``.
     """
-    decoder = codecs.getincrementaldecoder("utf-8")()
+    canonical = codecs.lookup(name).name
+    # Check it the way it is used: TextIOWrapper rejects non-text codecs with
+    # LookupError ("... is not a text encoding"). bytes.decode does not, for
+    # empty input.
+    io.TextIOWrapper(io.BytesIO(), encoding=canonical)
+    return canonical
+
+
+def _invalid_utf8_offset(
+    path: Path, compressed: bool = False, encoding: str = DEFAULT_ENCODING
+) -> int:
+    """Byte offset (from the start of the file) of the first byte ``encoding`` rejects.
+
+    Named for UTF-8, the default, but works for any text codec. Decodes in
+    chunks so it works on files of any size. For a gzip file the offset is
+    counted in the decompressed data. Only called after a decoding error was
+    seen, so a valid file returning 0 does not happen in practice.
+    """
+    decoder = codecs.getincrementaldecoder(encoding)()
     consumed = 0
     with gzip.open(path, "rb") if compressed else path.open("rb") as handle:
         while True:
@@ -216,13 +239,17 @@ def _invalid_utf8_offset(path: Path, compressed: bool = False) -> int:
 
 
 def _guarded(
-    path: Path, records: Iterator[list[str]], reader: _CsvReader, compressed: bool = False
+    path: Path,
+    records: Iterator[list[str]],
+    reader: _CsvReader,
+    compressed: bool = False,
+    encoding: str = DEFAULT_ENCODING,
 ) -> Iterator[list[str]]:
     """Re-raise low-level errors from ``records`` as ``CsvQualityError`` subclasses."""
     try:
         yield from records
     except UnicodeDecodeError as exc:
-        raise _encoding_error(path, compressed) from exc
+        raise _encoding_error(path, compressed, encoding) from exc
     except csv.Error as exc:
         raise RaggedRowError(f"malformed CSV near line {reader.line_num}: {exc}") from exc
     except _STREAM_ERRORS as exc:  # I/O failure, or corrupt or truncated gzip data
@@ -234,22 +261,35 @@ def _read_error(path: Path, exc: BaseException) -> FileReadError:
     return FileReadError(f"cannot read '{display_name(path)}': {reason}")
 
 
-def _encoding_error(path: Path, compressed: bool = False) -> EncodingError:
+def _encoding_error(
+    path: Path, compressed: bool = False, encoding: str = DEFAULT_ENCODING
+) -> EncodingError:
     if is_stdin(path):
         where = "the offset of the invalid byte is not available on standard input"
     else:
-        offset = _invalid_utf8_offset(path, compressed)
+        offset = _invalid_utf8_offset(path, compressed, encoding)
         where = f"invalid byte at offset {offset}"
         if compressed:
             where += " of the decompressed data"
-    return EncodingError(
-        f"'{display_name(path)}' is not valid UTF-8 ({where}); re-save the file as UTF-8"
-    )
+    if encoding == DEFAULT_ENCODING:
+        advice = (
+            "re-save the file as UTF-8, or name its encoding with --encoding "
+            "(spreadsheet exports are often cp1252)"
+        )
+        label = "UTF-8"
+    else:
+        advice = "check the encoding given with --encoding"
+        label = encoding
+    return EncodingError(f"'{display_name(path)}' is not valid {label} ({where}); {advice}")
 
 
 @contextmanager
-def _text_stream(path: Path) -> Iterator[tuple[io.TextIOWrapper, bool]]:
-    """Open ``path`` (or standard input for ``-``) as UTF-8 text.
+def _text_stream(
+    path: Path, encoding: str = DEFAULT_ENCODING
+) -> Iterator[tuple[io.TextIOWrapper, bool]]:
+    """Open ``path`` (or standard input for ``-``) as text in ``encoding``.
+
+    UTF-8 is read as ``utf-8-sig``, so a leading byte order mark is accepted.
 
     Yields the text stream and whether the input was gzip-compressed, which is
     detected from the first two bytes, so ``.csv.gz`` files and compressed
@@ -263,7 +303,8 @@ def _text_stream(path: Path) -> Iterator[tuple[io.TextIOWrapper, bool]]:
         raise _read_error(path, exc) from exc
     try:
         source = gzip.GzipFile(fileobj=binary, mode="rb") if compressed else binary
-        text = io.TextIOWrapper(cast(io.BufferedReader, source), encoding="utf-8-sig", newline="")
+        codec = "utf-8-sig" if encoding == DEFAULT_ENCODING else encoding
+        text = io.TextIOWrapper(cast(io.BufferedReader, source), encoding=codec, newline="")
         try:
             yield text, compressed
         finally:
@@ -277,10 +318,16 @@ def _text_stream(path: Path) -> Iterator[tuple[io.TextIOWrapper, bool]]:
 
 
 @contextmanager
-def open_rows(path: Path, max_rows: int | None = None, delimiter: str = ",") -> Iterator[RowStream]:
+def open_rows(
+    path: Path,
+    max_rows: int | None = None,
+    delimiter: str = ",",
+    encoding: str = DEFAULT_ENCODING,
+) -> Iterator[RowStream]:
     """Open ``path`` and yield a ``RowStream`` that reads it lazily.
 
-    The file is read as UTF-8 (a leading BOM is accepted) without loading it
+    The file is read as UTF-8 (a leading BOM is accepted), or in ``encoding``
+    (a canonical codec name, see ``normalize_encoding``), without loading it
     into memory. ``-`` reads standard input, and gzip-compressed input is
     decompressed on the fly (detected from its first bytes). ``delimiter`` is
     one character, or ``"auto"`` to choose it with ``detect_delimiter`` from
@@ -292,7 +339,7 @@ def open_rows(path: Path, max_rows: int | None = None, delimiter: str = ",") -> 
     iterating, in the order they appear in the file). Fully blank lines are
     skipped. Duplicate column names get ``_2``, ``_3`` suffixes.
     """
-    with _text_stream(path) as (handle, compressed):
+    with _text_stream(path, encoding) as (handle, compressed):
         lines: Iterator[str] = handle
         detected = delimiter == DELIMITER_AUTO
         if detected:
@@ -301,7 +348,7 @@ def open_rows(path: Path, max_rows: int | None = None, delimiter: str = ",") -> 
                 if len(sample) > SNIFF_CHARS:
                     sample += handle.readline()  # end the sample on a line boundary
             except UnicodeDecodeError as exc:
-                raise _encoding_error(path, compressed) from exc
+                raise _encoding_error(path, compressed, encoding) from exc
             except _STREAM_ERRORS as exc:
                 raise _read_error(path, exc) from exc
             delimiter = detect_delimiter(sample)
@@ -310,19 +357,26 @@ def open_rows(path: Path, max_rows: int | None = None, delimiter: str = ",") -> 
 
         reader = csv.reader(lines, delimiter=delimiter)
         records = iter(reader)
-        header = next((r for r in _guarded(path, records, reader, compressed) if r), None)
+        header = next((r for r in _guarded(path, records, reader, compressed, encoding) if r), None)
         if header is None:
             raise EmptyFileError(f"'{display_name(path)}' is empty (no header row)")
-        yield RowStream(path, records, reader, header, max_rows, delimiter, detected, compressed)
+        yield RowStream(
+            path, records, reader, header, max_rows, delimiter, detected, compressed, encoding
+        )
 
 
-def read_table(path: Path, max_rows: int | None = None, delimiter: str = ",") -> Table:
+def read_table(
+    path: Path,
+    max_rows: int | None = None,
+    delimiter: str = ",",
+    encoding: str = DEFAULT_ENCODING,
+) -> Table:
     """Read the whole of ``path`` into a ``Table`` (see ``open_rows`` for the rules).
 
     Convenient for small files and tests; the CLI streams with ``open_rows``
     instead, so it does not hold all rows in memory.
     """
-    with open_rows(path, max_rows=max_rows, delimiter=delimiter) as stream:
+    with open_rows(path, max_rows=max_rows, delimiter=delimiter, encoding=encoding) as stream:
         rows = list(stream)
         return Table(
             header=stream.header,
@@ -331,4 +385,5 @@ def read_table(path: Path, max_rows: int | None = None, delimiter: str = ",") ->
             delimiter=stream.delimiter,
             delimiter_detected=stream.delimiter_detected,
             compressed=stream.compressed,
+            encoding=stream.encoding,
         )

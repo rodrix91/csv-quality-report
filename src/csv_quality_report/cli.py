@@ -11,7 +11,7 @@ from . import __version__
 from .checks import COLUMN_TYPES, evaluate
 from .errors import EXIT_CHECKS, CsvQualityError, OutputWriteError
 from .profile import TOP_N, profile_file
-from .reader import DELIMITER_AUTO, display_name
+from .reader import DEFAULT_ENCODING, DELIMITER_AUTO, display_name, normalize_encoding
 from .render import render_json, render_markdown
 
 
@@ -80,6 +80,13 @@ def _column_limit(text: str) -> tuple[str, float]:
     return name, _percentage(value)
 
 
+def _encoding(text: str) -> str:
+    try:
+        return normalize_encoding(text)
+    except LookupError as exc:
+        raise argparse.ArgumentTypeError(f"invalid --encoding value: {text!r} ({exc})") from None
+
+
 def _column_type(text: str) -> tuple[str, str]:
     """Parse ``NAME=TYPE``; the last ``=`` separates them, so names may contain ``=``."""
     name, sep, kind = text.rpartition("=")
@@ -108,7 +115,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "path",
         type=Path,
-        help="CSV file to analyze (UTF-8; gzip-compressed is detected); - reads standard input",
+        help="CSV file to analyze (UTF-8 unless --encoding; gzip is detected); - reads stdin",
     )
     parser.add_argument("--version", action="version", version=f"csv-quality-report {__version__}")
     parser.add_argument(
@@ -150,6 +157,13 @@ def build_parser() -> argparse.ArgumentParser:
         default=TOP_N,
         metavar="N",
         help=f"how many most frequent values to list per column (default: {TOP_N}; 0: none)",
+    )
+    parser.add_argument(
+        "--encoding",
+        type=_encoding,
+        default=DEFAULT_ENCODING,
+        metavar="NAME",
+        help="text encoding of the file, e.g. cp1252, latin-1, utf-16 (default: utf-8)",
     )
     parser.add_argument(
         "--json-output",
@@ -220,6 +234,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             decimal_comma=args.decimal_comma,
             na_tokens=args.na,
             top_n=args.top,
+            encoding=args.encoding,
         )
     except CsvQualityError as exc:
         print(f"error: {exc.message}", file=sys.stderr)
