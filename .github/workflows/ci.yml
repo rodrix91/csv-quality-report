@@ -45,6 +45,35 @@ jobs:
       - name: Type check
         run: mypy
 
+  sdist:
+    # Builds the source distribution and runs the test suite from the unpacked
+    # archive, outside the checkout, so a file the tests need but MANIFEST.in
+    # leaves out fails here instead of for whoever packages a release.
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install development dependencies
+        run: python -m pip install --require-hashes -r requirements-dev.lock
+
+      - name: Build the source distribution
+        run: python -m build --sdist --outdir "$RUNNER_TEMP/dist" .
+
+      - name: Run the tests from the unpacked source distribution
+        run: |
+          mkdir "$RUNNER_TEMP/sdist"
+          tar xzf "$RUNNER_TEMP"/dist/*.tar.gz -C "$RUNNER_TEMP/sdist"
+          cd "$RUNNER_TEMP"/sdist/*/
+          python -m pip install --no-deps .
+          python -m pytest -p no:cacheprovider
+
   action:
     # Runs the repository's own GitHub Action (action.yml) end to end.
     runs-on: ubuntu-latest
