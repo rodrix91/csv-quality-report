@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-10-05
+
 ### Added
 
 - `--thousands SEP` (`dot`, `comma` or `space`) recognizes numbers such as `1.234,56`, `1,234.56` or `1 234,56`. Only correctly grouped numbers are normalized; top values keep the text as written; conflicts with the decimal mark are usage errors (#54).
@@ -84,7 +86,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 - Initial version: per-column type inference, missing values, distinct counts, min/max and top values, duplicate rows, Markdown and JSON output.
 
-[Unreleased]: https://github.com/rodrix91/csv-quality-report/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/rodrix91/csv-quality-report/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/rodrix91/csv-quality-report/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/rodrix91/csv-quality-report/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/rodrix91/csv-quality-report/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/rodrix91/csv-quality-report/compare/v0.2.0...v0.3.0
