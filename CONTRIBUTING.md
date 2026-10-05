@@ -53,9 +53,17 @@ This is a simple pattern check, not a substitute for a dedicated scanner.
 - Runtime code must stay standard-library only. Dev tools go in `requirements-dev.txt`. After changing them, regenerate the hashed lock with [uv](https://docs.astral.sh/uv/) (the lock was generated with uv 0.12.22): `uv pip compile requirements-dev.txt --generate-hashes --universal --python-version 3.11 -o requirements-dev.lock`.
 - The build backend is pinned exactly in `pyproject.toml` (`setuptools==84.0.0`); `python -m build` downloads it in an isolated environment, and that download is not covered by `requirements-dev.lock` hashes.
 - Add or update behavior tests in `tests/` for every behavior change.
-- If you change the CLI output, regenerate the sample output in `README.md`; `tests/test_cli.py::test_sample_markdown_matches_readme` fails when they drift.
+- If you change the CLI output, regenerate the samples in `README.md` with `python scripts/update_readme_samples.py`; the README tests in `tests/test_cli.py` fail when they drift.
 - Keep type hints on all functions; keep modules small.
 - Use small commits with honest messages.
+
+## Dependency updates (Dependabot)
+
+Dependabot opens weekly PRs for the pinned dev tools. It edits `requirements-dev.txt` but may not regenerate the hashed lock, so do not merge a Dependabot PR as is:
+
+1. In a clean clone of the PR branch, regenerate `requirements-dev.lock` with the `uv pip compile` command above and push it to the PR.
+2. CI must pass on Python 3.11, 3.12 and 3.13 with `pip install --require-hashes -r requirements-dev.lock` (tests with 100% coverage, Ruff, strict mypy).
+3. If the PR changes the `setuptools` pin in `pyproject.toml`, rebuild from a clean clone and check that the wheel and the sdist still contain `LICENSE`.
 
 ## License
 
