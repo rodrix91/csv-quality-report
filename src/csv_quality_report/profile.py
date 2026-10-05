@@ -17,9 +17,11 @@ from .inference import (
     TYPE_FLOAT,
     TYPE_INT,
     TYPE_STRING,
+    check_thousands,
     infer_type,
     parse_datetime,
     parse_float,
+    strip_thousands,
     value_type,
 )
 from .reader import DEFAULT_ENCODING, Table, open_rows
@@ -86,6 +88,7 @@ class Report:
     compressed: bool = False  # the input was gzip-compressed
     untrimmed_columns: tuple[str, ...] = ()  # header names with surrounding whitespace
     encoding: str = DEFAULT_ENCODING  # codec used to decode the input
+    thousands: str | None = None  # thousands separator given (".", "," or " ")
 
 
 def _untrimmed_names(header: list[str]) -> tuple[str, ...]:
@@ -137,7 +140,9 @@ def _mean(values: list[int] | list[float], counts: list[int]) -> float | None:
     return float(f"{mean:.6g}") if math.isfinite(mean) else None
 
 
-def _type_hint(counts: Counter[str], decimal_comma: bool) -> TypeHint | None:
+def _type_hint(
+    counts: Counter[str], decimal_comma: bool, thousands: str | None = None
+) -> TypeHint | None:
     """Dominant non-string type of a ``string`` column, if one covers 90% of its cells.
 
     Each distinct value is classified once and weighted by its count. The
@@ -149,10 +154,15 @@ def _type_hint(counts: Counter[str], decimal_comma: bool) -> TypeHint | None:
     """
     keys = list(counts)
     weights = list(counts.values())
+    # Classify numbers without their thousands separators, but report the
+    # stray values as written.
+    plain = (
+        keys if thousands is None else [strip_thousands(k, thousands, decimal_comma) for k in keys]
+    )
     total = sum(weights)
     kinds: list[str] = []
     text_cells = 0
-    for value, count in zip(keys[:_HINT_PROBE], weights, strict=False):
+    for value, count in zip(plain[:_HINT_PROBE], weights, strict=False):
         kind = value_type(value, decimal_comma)
         if kind == TYPE_STRING:
             text_cells += count
@@ -160,7 +170,7 @@ def _type_hint(counts: Counter[str], decimal_comma: bool) -> TypeHint | None:
             if text_cells * _HINT_SHARE_DEN > total * (_HINT_SHARE_DEN - _HINT_SHARE_NUM):
                 return None
         kinds.append(kind)
-    kinds.extend(map(value_type, keys[_HINT_PROBE:], repeat(decimal_comma)))
+    kinds.extend(map(value_type, plain[_HINT_PROBE:], repeat(decimal_comma)))
     cells = {kind: sum(compress(weights, map(kind.__eq__, kinds))) for kind in set(kinds)}
     best, members, covered = "", frozenset[str](), 0
     for candidate, covers in _HINT_CANDIDATES:
@@ -217,17 +227,30 @@ class _ColumnAccumulator:
             self.counts = merged
         self.missing = sum(self.counts.pop(token, 0) for token in na)
 
-    def finish(self, total: int, decimal_comma: bool, top_n: int = TOP_N) -> ColumnProfile:
+    def finish(
+        self,
+        total: int,
+        decimal_comma: bool,
+        top_n: int = TOP_N,
+        thousands: str | None = None,
+    ) -> ColumnProfile:
         # Inference, min and max only depend on which values occur, so looking
         # at distinct values gives the same answer as looking at every cell.
         distinct = self.counts.keys()
-        col_type = infer_type(distinct, decimal_comma)
+        # With a thousands separator, numbers are inferred and measured without
+        # it; top values and lengths keep the text as written.
+        values: Iterable[str] = (
+            distinct
+            if thousands is None
+            else [strip_thousands(v, thousands, decimal_comma) for v in distinct]
+        )
+        col_type = infer_type(values, decimal_comma)
         low: int | float | str | None = None
         high: int | float | str | None = None
         mean: float | None = None
         if distinct and col_type in (TYPE_INT, TYPE_FLOAT):
             nums = [
-                int(v) if col_type == TYPE_INT else parse_float(v, decimal_comma) for v in distinct
+                int(v) if col_type == TYPE_INT else parse_float(v, decimal_comma) for v in values
             ]
             low, high = min(nums), max(nums)
             mean = _mean(nums, list(self.counts.values()))
@@ -248,7 +271,9 @@ class _ColumnAccumulator:
             top_values=self.counts.most_common(top_n),
             untrimmed=self.untrimmed,
             mean=mean,
-            type_hint=_type_hint(self.counts, decimal_comma) if col_type == TYPE_STRING else None,
+            type_hint=_type_hint(self.counts, decimal_comma, thousands)
+            if col_type == TYPE_STRING
+            else None,
             min_length=min(map(len, distinct)) if distinct else None,
             max_length=max(map(len, distinct)) if distinct else None,
         )
@@ -267,6 +292,7 @@ def profile_rows(
     decimal_comma: bool = False,
     na_tokens: Iterable[str] = (),
     top_n: int = TOP_N,
+    thousands: str | None = None,
 ) -> _Profiled:
     """Profile ``rows`` in a single pass; each row must have ``len(header)`` cells.
 
@@ -279,6 +305,7 @@ def profile_rows(
     being stored, so a false match would need a hash collision (probability
     below 1e-20 even for billions of rows).
     """
+    check_thousands(thousands, decimal_comma)
     columns = [_ColumnAccumulator(name) for name in header]
     counters = [acc.counts for acc in columns]
     seen: set[bytes] = set()
@@ -298,7 +325,7 @@ def profile_rows(
     for acc in columns:
         acc.strip_counts(na)
     return _Profiled(
-        columns=[acc.finish(total, decimal_comma, top_n) for acc in columns],
+        columns=[acc.finish(total, decimal_comma, top_n, thousands) for acc in columns],
         rows=total,
         duplicate_rows=total - len(seen),
     )
@@ -309,6 +336,7 @@ def build_report(
     decimal_comma: bool = False,
     na_tokens: tuple[str, ...] = (),
     top_n: int = TOP_N,
+    thousands: str | None = None,
 ) -> Report:
     """Profile every column of an in-memory ``table``.
 
@@ -316,7 +344,7 @@ def build_report(
     ``na_tokens`` are extra cell texts counted as missing; ``top_n`` is how
     many most frequent values each column lists.
     """
-    result = profile_rows(table.header, table.rows, decimal_comma, na_tokens, top_n)
+    result = profile_rows(table.header, table.rows, decimal_comma, na_tokens, top_n, thousands)
     return Report(
         rows=result.rows,
         duplicate_rows=result.duplicate_rows,
@@ -329,6 +357,7 @@ def build_report(
         compressed=table.compressed,
         untrimmed_columns=_untrimmed_names(table.header),
         encoding=table.encoding,
+        thousands=thousands,
     )
 
 
@@ -341,6 +370,7 @@ def profile_file(
     top_n: int = TOP_N,
     encoding: str = DEFAULT_ENCODING,
     max_field_size: int | None = None,
+    thousands: str | None = None,
 ) -> Report:
     """Stream ``path`` and profile it without loading the whole file into memory.
 
@@ -354,7 +384,7 @@ def profile_file(
         encoding=encoding,
         max_field_size=max_field_size,
     ) as stream:
-        result = profile_rows(stream.header, stream, decimal_comma, na_tokens, top_n)
+        result = profile_rows(stream.header, stream, decimal_comma, na_tokens, top_n, thousands)
         return Report(
             rows=result.rows,
             duplicate_rows=result.duplicate_rows,
@@ -367,4 +397,5 @@ def profile_file(
             compressed=stream.compressed,
             untrimmed_columns=_untrimmed_names(stream.header),
             encoding=stream.encoding,
+            thousands=thousands,
         )

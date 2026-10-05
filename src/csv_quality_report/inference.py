@@ -6,6 +6,7 @@ import math
 import re
 from collections.abc import Iterable
 from datetime import date, datetime
+from functools import lru_cache
 
 _INT_RE = re.compile(r"^[+-]?\d+$")
 _FLOAT_RE = re.compile(r"^[+-]?(\d+\.\d*|\.\d+|\d+)([eE][+-]?\d+)?$")
@@ -146,3 +147,44 @@ def value_type(value: str, decimal_comma: bool = False) -> str:
     if parse_datetime(value) is not None:
         return TYPE_DATETIME
     return TYPE_STRING
+
+
+# Thousands separators: the option value and the characters it accepts. "space"
+# also accepts the no-break spaces that spreadsheets insert (U+00A0, U+202F).
+THOUSANDS_SEPARATORS = {".": ".", ",": ",", " ": " \u00a0\u202f"}
+
+
+@lru_cache(maxsize=8)
+def _grouped_number(
+    thousands: str, decimal_comma: bool
+) -> tuple[re.Pattern[str], dict[int, int | None]]:
+    """Regex for a number with thousands groups, and a table that removes them."""
+    chars = THOUSANDS_SEPARATORS[thousands]
+    sep = "[" + "".join(re.escape(c) for c in chars) + "]"
+    mark = "," if decimal_comma else r"\."
+    pattern = re.compile(rf"^[+-]?\d{{1,3}}(?:{sep}\d{{3}})+(?:{mark}\d*)?$")
+    return pattern, str.maketrans("", "", chars)
+
+
+def strip_thousands(value: str, thousands: str, decimal_comma: bool = False) -> str:
+    """Remove the thousands separators of a correctly grouped number.
+
+    ``1.234.567,5`` becomes ``1234567,5`` with ``thousands="."`` and a decimal
+    comma. Groups must have exactly three digits after a first group of one to
+    three, so ``1.23`` or ``12.34.56`` are left unchanged (and stay text if
+    they are not numbers otherwise). Any other value is returned as is.
+    """
+    pattern, table = _grouped_number(thousands, decimal_comma)
+    return value.translate(table) if pattern.match(value) else value
+
+
+def check_thousands(thousands: str | None, decimal_comma: bool) -> None:
+    """Raise ``ValueError`` when the thousands separator is also the decimal mark."""
+    if thousands is None:
+        return
+    if thousands not in THOUSANDS_SEPARATORS:
+        raise ValueError(f"unsupported thousands separator: {thousands!r}")
+    if thousands == "." and not decimal_comma:
+        raise ValueError("'.' as thousands separator needs a decimal comma (--decimal-comma)")
+    if thousands == "," and decimal_comma:
+        raise ValueError("',' cannot be the thousands separator with a decimal comma")
