@@ -1,11 +1,15 @@
-"""Read a CSV file into memory, failing with clear errors."""
+"""Read a CSV file, lazily or into memory, failing with clear errors."""
 
 from __future__ import annotations
 
+import codecs
 import csv
 import io
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Protocol
 
 from .errors import (
     DelimiterDetectionError,
@@ -15,6 +19,7 @@ from .errors import (
     RaggedRowError,
 )
 
+_CHUNK = 1 << 20  # bytes per read when locating an invalid UTF-8 byte
 DELIMITER_AUTO = "auto"
 DELIMITER_CANDIDATES = (",", ";", "\t", "|")
 SNIFF_CHARS = 64 * 1024  # how much text detection looks at
@@ -116,63 +121,145 @@ def detect_delimiter(text: str) -> str:
     )
 
 
-def read_table(path: Path, max_rows: int | None = None, delimiter: str = ",") -> Table:
-    """Read ``path`` as UTF-8 (a leading BOM is accepted).
+class RowStream:
+    """Validated data rows of an open CSV file, produced one at a time.
 
-    ``delimiter`` is the single character that separates fields (default ``,``),
-    or ``"auto"`` to choose it with ``detect_delimiter``.
-
-    Raises a ``CsvQualityError`` subclass for unreadable files, invalid UTF-8,
-    empty files and rows whose cell count differs from the header's.
-    Fully blank lines are skipped. Duplicate column names are made unique
-    with ``_2``, ``_3`` suffixes (see ``dedupe_header``). At most ``max_rows`` data rows are read.
+    Iterate it once. Each row has exactly ``len(header)`` cells. ``truncated``
+    becomes ``True`` when ``max_rows`` stopped reading before the end of the
+    file; it is only meaningful after iteration has finished.
     """
+
+    def __init__(
+        self,
+        path: Path,
+        records: Iterator[list[str]],
+        reader: _CsvReader,
+        raw_header: list[str],
+        max_rows: int | None,
+        delimiter: str,
+        delimiter_detected: bool,
+    ) -> None:
+        self.path = path
+        self.header = dedupe_header(raw_header)
+        self.delimiter = delimiter
+        self.delimiter_detected = delimiter_detected
+        self.truncated = False
+        self._records = records
+        self._reader = reader
+        self._width = len(raw_header)
+        self._max_rows = max_rows
+
+    def __iter__(self) -> Iterator[list[str]]:
+        count = 0
+        for record in _guarded(self.path, self._records, self._reader):
+            if not record:  # blank line
+                continue
+            if self._max_rows is not None and count >= self._max_rows:
+                self.truncated = True
+                return
+            if len(record) != self._width:
+                raise RaggedRowError(
+                    f"row at line {self._reader.line_num} has {len(record)} fields, "
+                    f"expected {self._width} (from the header)"
+                )
+            count += 1
+            yield record
+
+
+class _CsvReader(Protocol):
+    @property
+    def line_num(self) -> int: ...
+
+
+def _invalid_utf8_offset(path: Path) -> int:
+    """Byte offset (from the start of the file) of the first invalid UTF-8 byte.
+
+    Decodes in chunks so it works on files of any size. Only called after a
+    decoding error was seen, so a valid file returning 0 does not happen in practice.
+    """
+    decoder = codecs.getincrementaldecoder("utf-8")()
+    consumed = 0
+    with path.open("rb") as handle:
+        while True:
+            chunk = handle.read(_CHUNK)
+            pending = len(decoder.getstate()[0])
+            try:
+                decoder.decode(chunk, final=not chunk)
+            except UnicodeDecodeError as exc:
+                return consumed - pending + exc.start
+            if not chunk:
+                return 0
+            consumed += len(chunk)
+
+
+def _guarded(path: Path, records: Iterator[list[str]], reader: _CsvReader) -> Iterator[list[str]]:
+    """Re-raise low-level errors from ``records`` as ``CsvQualityError`` subclasses."""
     try:
-        raw = path.read_bytes()
+        yield from records
+    except UnicodeDecodeError as exc:
+        raise _encoding_error(path) from exc
+    except csv.Error as exc:
+        raise RaggedRowError(f"malformed CSV near line {reader.line_num}: {exc}") from exc
     except OSError as exc:
         raise FileReadError(f"cannot read '{path}': {exc.strerror or exc}") from exc
 
-    try:
-        text = raw.decode("utf-8-sig")
-    except UnicodeDecodeError as exc:
-        raise EncodingError(
-            f"'{path}' is not valid UTF-8 (invalid byte at offset {exc.start}); "
-            "re-save the file as UTF-8"
-        ) from exc
 
-    detected = delimiter == DELIMITER_AUTO
-    if detected:
-        delimiter = detect_delimiter(text)
-
-    reader = csv.reader(io.StringIO(text, newline=""), delimiter=delimiter)
-    header: list[str] | None = None
-    rows: list[list[str]] = []
-    truncated = False
-    try:
-        for record in reader:
-            if not record:  # blank line
-                continue
-            if header is None:
-                header = record
-                continue
-            if max_rows is not None and len(rows) >= max_rows:
-                truncated = True
-                break
-            if len(record) != len(header):
-                raise RaggedRowError(
-                    f"row at line {reader.line_num} has {len(record)} fields, "
-                    f"expected {len(header)} (from the header)"
-                )
-            rows.append(record)
-    except csv.Error as exc:
-        raise RaggedRowError(f"malformed CSV near line {reader.line_num}: {exc}") from exc
-
-    if header is None:
-        raise EmptyFileError(f"'{path}' is empty (no header row)")
-    return Table(
-        header=dedupe_header(header),
-        rows=rows,
-        truncated=truncated,
-        delimiter=delimiter,
-        delimiter_detected=detected,
+def _encoding_error(path: Path) -> EncodingError:
+    return EncodingError(
+        f"'{path}' is not valid UTF-8 (invalid byte at offset {_invalid_utf8_offset(path)}); "
+        "re-save the file as UTF-8"
     )
+
+
+@contextmanager
+def open_rows(path: Path, max_rows: int | None = None, delimiter: str = ",") -> Iterator[RowStream]:
+    """Open ``path`` and yield a ``RowStream`` that reads it lazily.
+
+    The file is read as UTF-8 (a leading BOM is accepted) without loading it
+    into memory. ``delimiter`` is one character, or ``"auto"`` to choose it
+    with ``detect_delimiter`` from the first ``SNIFF_CHARS`` characters.
+
+    Errors are ``CsvQualityError`` subclasses: unreadable file, invalid UTF-8,
+    empty file (raised here), and ragged or malformed rows (raised while
+    iterating, in the order they appear in the file). Fully blank lines are
+    skipped. Duplicate column names get ``_2``, ``_3`` suffixes.
+    """
+    try:
+        handle = path.open("r", encoding="utf-8-sig", newline="")
+    except OSError as exc:
+        raise FileReadError(f"cannot read '{path}': {exc.strerror or exc}") from exc
+    with handle:
+        detected = delimiter == DELIMITER_AUTO
+        if detected:
+            try:
+                sample = handle.read(SNIFF_CHARS + 1)
+                handle.seek(0)
+            except UnicodeDecodeError as exc:
+                raise _encoding_error(path) from exc
+            except OSError as exc:
+                raise FileReadError(f"cannot read '{path}': {exc.strerror or exc}") from exc
+            delimiter = detect_delimiter(sample)
+
+        reader = csv.reader(handle, delimiter=delimiter)
+        records = iter(reader)
+        header = next((r for r in _guarded(path, records, reader) if r), None)
+        if header is None:
+            raise EmptyFileError(f"'{path}' is empty (no header row)")
+        yield RowStream(path, records, reader, header, max_rows, delimiter, detected)
+
+
+def read_table(path: Path, max_rows: int | None = None, delimiter: str = ",") -> Table:
+    """Read the whole of ``path`` into a ``Table`` (see ``open_rows`` for the rules).
+
+    Convenient for small files and tests; the CLI streams with ``open_rows``
+    instead, so it does not hold all rows in memory.
+    """
+    with open_rows(path, max_rows=max_rows, delimiter=delimiter) as stream:
+        rows = list(stream)
+        return Table(
+            header=stream.header,
+            rows=rows,
+            truncated=stream.truncated,
+            delimiter=stream.delimiter,
+            delimiter_detected=stream.delimiter_detected,
+        )

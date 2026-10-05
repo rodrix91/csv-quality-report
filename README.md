@@ -18,7 +18,7 @@ Per column it reports:
 
 At dataset level it reports the row count and the number of duplicate rows.
 
-Out of scope: data cleaning, schema validation, large-file/streaming processing, non-UTF-8 encodings, network sources.
+Out of scope: data cleaning, schema validation, non-UTF-8 encodings, network sources.
 
 ## Requirements
 
@@ -144,7 +144,8 @@ Output (captured from a real run, exit code 0):
 - Values are whitespace-stripped before type inference and counting.
 - **Type inference** looks at all non-missing values of a column, in this order: `bool` (`true`/`false`, any case) → `int` → `float` → `date` (strict `YYYY-MM-DD`) → `string`. `0`/`1` columns are `int`. A column with no non-missing values is reported as `string`. Numbers that cannot be represented also make the column `string`: integers with more digits than Python's integer-conversion limit (4300 by default) and floats that overflow to infinity such as `1e999`. As a result the JSON output never contains `NaN` or `Infinity` (it is always standard JSON).
 - **Delimiter in the output**: JSON always includes `delimiter` and `delimiter_detected`. Markdown adds a `Delimiter:` line only when the delimiter is not the default comma or was detected.
-- **Duplicate rows** = rows that exactly repeat an earlier row (total rows minus unique rows), comparing raw cell text.
+- **Duplicate rows** = rows that exactly repeat an earlier row (total rows minus unique rows), comparing raw cell text. Rows are compared through a 128-bit BLAKE2b fingerprint instead of being stored, so the count is exact unless two different rows collide on 128 bits (probability below 1e-20 even for billions of rows).
+- **Order of errors**: the file is read once from start to end, and the first problem met is reported. With `--max-rows`, the part of the file after the limit is not read at all.
 - **Top values**: ties are listed in order of first appearance.
 - **Duplicate column names** are made unique deterministically: later repeats get `_2`, `_3`, … suffixes (`a,a,a` → `a`, `a_2`, `a_3`; if a suffixed name already exists, the counter keeps increasing).
 - **Encoding**: files must be UTF-8. A leading UTF-8 BOM is accepted and removed. Anything else (e.g. Latin-1, UTF-16) fails with exit code 4 rather than guessing.
@@ -163,6 +164,17 @@ Errors are printed to stderr as `error: ...`; nothing is written to stdout.
 | 5 | Empty file (no header row) | `error: '/tmp/empty.csv' is empty (no header row)` |
 | 6 | Ragged row (cell count differs from header) or malformed CSV | `error: row at line 3 has 2 fields, expected 3 (from the header)` |
 | 7 | `--delimiter auto` cannot pick one separator | `error: cannot detect the delimiter: several separators fit every line (comma, semicolon); pass it explicitly with --delimiter` |
+
+## Performance
+
+The file is profiled in a single streaming pass (see [ADR 0002](https://github.com/rodrix91/csv-quality-report/blob/main/docs/decisions/0002-streaming-profile.md)). On a synthetic 1,000,000-row, 8-column logistics file (55 MB, one column of unique IDs), JSON output, CPython 3.13:
+
+| Version | Time | Peak memory |
+|---|---|---|
+| 0.1 (whole file in memory) | 6.85 s | 873 MB |
+| current (streaming) | 4.92 s | 234 MB |
+
+Both versions produce identical reports. Numbers depend on the machine and on the data, mostly on how many distinct values each column has.
 
 ## Architecture
 
@@ -184,13 +196,13 @@ flowchart TD
 |---|---|
 | `__main__.py` | `python -m` entry; calls `cli.main` |
 | `cli.py` | argument parsing, error → exit code mapping, output |
-| `reader.py` | read file, decode UTF-8, detect the delimiter, parse rows, validate shape, de-duplicate header names |
+| `reader.py` | open the file lazily, decode UTF-8, detect the delimiter, yield validated rows, de-duplicate header names |
 | `inference.py` | heuristic type inference for one column |
-| `profile.py` | per-column statistics and duplicate-row count |
+| `profile.py` | single-pass per-column statistics and duplicate-row count |
 | `render.py` | Markdown and JSON output |
 | `errors.py` | error classes and exit codes |
 
-Design rationale and alternatives: [docs/decisions/0001-architecture.md](https://github.com/rodrix91/csv-quality-report/blob/main/docs/decisions/0001-architecture.md) (in the [source repository](https://github.com/rodrix91/csv-quality-report); not included in the packages).
+Design rationale and alternatives: [docs/decisions/0001-architecture.md](https://github.com/rodrix91/csv-quality-report/blob/main/docs/decisions/0001-architecture.md) and, for streaming, [docs/decisions/0002-streaming-profile.md](https://github.com/rodrix91/csv-quality-report/blob/main/docs/decisions/0002-streaming-profile.md) (in the [source repository](https://github.com/rodrix91/csv-quality-report); not included in the packages).
 
 ## Testing
 
@@ -204,7 +216,7 @@ Tests (`tests/`) are behavior tests that call the CLI: happy path, missing value
 
 ## Limitations
 
-- **No streaming**: the whole file is read and held in memory; not suited to files larger than available RAM.
+- **Memory grows with distinct values, not file size**: the file is streamed, but exact distinct counts and top values keep one counter entry per distinct value, plus a 16-byte fingerprint per unique row. A column of unique IDs therefore still needs memory proportional to the number of rows.
 - **Type inference is a heuristic**: it only recognizes the patterns listed above (e.g. no thousands separators, decimal commas only with `--decimal-comma`, no timestamps, no `yes`/`no` booleans), and one stray value makes the whole column `string`.
 - UTF-8 only. Delimiter detection (`--delimiter auto`) only considers `,` `;` tab and `|`, and only the first 100 lines.
 - With `--max-rows`, rows after the limit are not read, so problems in them are not detected.

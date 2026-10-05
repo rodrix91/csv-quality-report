@@ -10,7 +10,7 @@ Analysts want a one-command data-quality summary of a local CSV. The tool should
 ## Decision
 
 - A standard-library-only Python package (`src/` layout) with small single-purpose modules: `reader` → `profile` (using `inference`) → `render`, wired together by `cli`. The data flows one way; `reader` returns a plain `Table`, `profile` returns a plain `Report`, and renderers only format a `Report`.
-- Read the whole file into memory with `csv` from the standard library.
+- Read the whole file into memory with `csv` from the standard library. *(Superseded by [0002](0002-streaming-profile.md): the file is now profiled in a single streaming pass.)*
 - Strict UTF-8 (BOM tolerated); anything else is a clear error, not a guess.
 - Errors are exceptions carrying an exit code; only `cli.main` turns them into stderr messages and exit codes.
 - Type inference is a small ordered set of regex/`date` checks over all non-missing values of a column.
