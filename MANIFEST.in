@@ -4,3 +4,5 @@ include requirements-dev.lock
 include CHANGELOG.md
 graft tests/corpus
 include scripts/update_corpus.py
+include scripts/update_guide.py
+graft docs

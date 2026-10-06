@@ -246,6 +246,8 @@ Errors are printed to stderr as `error: ...`; nothing is written to stdout.
 | 8 | A quality gate failed (`--max-missing`, `--max-missing-column`, `--max-duplicates`, `--require-columns`, `--require-type`); the report is still printed | `check failed: column 'weight_kg' has 12.5% missing values (limit 5%)` |
 | 9 | The `--json-output` file cannot be written | `error: cannot write 'out/report.json': No such file or directory` |
 
+For Spanish and Latin American exports (cp1252, `;`, `1.234,56`, `05/10/2026`, `VERDADERO`, `Gs. 50.000`, `(1.234,56)`), the [guide to reading Spanish and Latin American exports](docs/guides/spanish-exports.md) has a table of which option fixes which problem and worked examples on real-looking files; its commands and outputs are checked by the test suite.
+
 ## Use as a GitHub Action
 
 The repository is also a GitHub Action, so any workflow can check its CSV files. It installs the tool from the action's own checkout, profiles the file once, writes the Markdown report to the job summary, saves the JSON report, and fails the step when a quality gate fails.
