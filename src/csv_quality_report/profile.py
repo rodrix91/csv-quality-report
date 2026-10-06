@@ -18,6 +18,7 @@ from .inference import (
     TYPE_INT,
     TYPE_STRING,
     BoolWords,
+    accounting_negative,
     bool_word_map,
     check_date_order,
     check_number_affixes,
@@ -105,6 +106,7 @@ class Report:
     bool_words: BoolWords = ()  # extra (true, false) word pairs, as given
     sep_line: bool = False  # the input started with an Excel "sep=" line, which was skipped
     number_affixes: tuple[str, ...] = ()  # --number-affix texts, as validated
+    accounting_negatives: bool = False  # (1.234,56) and 1.234,56- were read as negative
 
 
 def _untrimmed_names(header: list[str]) -> tuple[str, ...]:
@@ -163,17 +165,21 @@ def _plain_values(
     date_order: str | None = None,
     bool_map: dict[str, str] | None = None,
     affixes: tuple[str, ...] = (),
+    accounting: bool = False,
 ) -> list[str]:
     """``values`` as inference reads them: numbers without their affixes and
     thousands separators, dates rewritten as ISO 8601 and boolean words as
     true/false, when those options are given.
 
-    Affixes are removed first, and only from values that are then numbers.
+    Accounting negatives (``(5)``, ``5-``) are rewritten with a leading minus
+    first; then affixes are removed, only from values that are then numbers.
     The other rewrites never apply to the same value (a grouped number has
     three-digit groups, a date a one- or two-digit middle part, and boolean
     words cannot be numbers or dates), so their order does not matter.
     """
     plain = list(values)
+    if accounting:
+        plain = [accounting_negative(v, affixes, decimal_comma, thousands) for v in plain]
     if affixes:
         plain = [split_number_affix(v, affixes, decimal_comma, thousands)[0] for v in plain]
     if thousands is not None:
@@ -192,6 +198,7 @@ def _type_hint(
     date_order: str | None = None,
     bool_map: dict[str, str] | None = None,
     affixes: tuple[str, ...] = (),
+    accounting: bool = False,
 ) -> TypeHint | None:
     """Dominant non-string type of a ``string`` column, if one covers 90% of its cells.
 
@@ -206,7 +213,7 @@ def _type_hint(
     weights = list(counts.values())
     # Classify numbers without their thousands separators and dates in ISO
     # form, but report the stray values as written.
-    plain = _plain_values(keys, decimal_comma, thousands, date_order, bool_map, affixes)
+    plain = _plain_values(keys, decimal_comma, thousands, date_order, bool_map, affixes, accounting)
     total = sum(weights)
     kinds: list[str] = []
     text_cells = 0
@@ -241,17 +248,22 @@ def _type_hint(
 
 
 def _split_affixes(
-    counts: Counter[str], affixes: tuple[str, ...], decimal_comma: bool, thousands: str | None
+    values: Iterable[str],
+    counts: Iterable[int],
+    affixes: tuple[str, ...],
+    decimal_comma: bool,
+    thousands: str | None,
 ) -> tuple[list[str], tuple[tuple[str, int], ...]]:
-    """Distinct values without their affixes, and the cells per removed affix.
+    """Distinct ``values`` without their affixes, and the cells per removed affix.
 
-    The values keep the order of ``counts``; the affixes are listed most
-    frequent first (first seen on ties). One pass, without an intermediate
-    list of pairs, so the extra memory is one string per distinct value.
+    ``counts`` are the cells of each value, in the same order. The values
+    keep their order; the affixes are listed most frequent first (first seen
+    on ties). One pass, without an intermediate list of pairs, so the extra
+    memory is one string per distinct value.
     """
     numbers: list[str] = []
     found: Counter[str] = Counter()
-    for value, count in counts.items():
+    for value, count in zip(values, counts, strict=True):
         number, affix = split_number_affix(value, affixes, decimal_comma, thousands)
         numbers.append(number)
         if affix is not None:
@@ -303,6 +315,7 @@ class _ColumnAccumulator:
         date_order: str | None = None,
         bool_map: dict[str, str] | None = None,
         affixes: tuple[str, ...] = (),
+        accounting: bool = False,
     ) -> ColumnProfile:
         # Inference, min and max only depend on which values occur, so looking
         # at distinct values gives the same answer as looking at every cell.
@@ -310,17 +323,24 @@ class _ColumnAccumulator:
         # With a thousands separator, a date order or boolean words, values
         # are inferred and measured in their plain form (1234,5, 2026-10-05,
         # true); top values and lengths keep the text as written.
-        # Affixes are split once, in one pass that also counts them.
+        # Accounting negatives get a leading minus first, so their affixes
+        # are found too; affixes are split once, in one pass that counts them.
+        signed: Iterable[str] = (
+            [accounting_negative(v, affixes, decimal_comma, thousands) for v in distinct]
+            if accounting
+            else distinct
+        )
         numbers, affix_counts = (
-            _split_affixes(self.counts, affixes, decimal_comma, thousands)
+            _split_affixes(signed, self.counts.values(), affixes, decimal_comma, thousands)
             if affixes
             else (None, ())
         )
+        rewritten = accounting or numbers is not None
         values: Iterable[str] = (
             distinct
-            if thousands is None and date_order is None and bool_map is None and numbers is None
+            if thousands is None and date_order is None and bool_map is None and not rewritten
             else _plain_values(
-                distinct if numbers is None else numbers,
+                signed if numbers is None else numbers,
                 decimal_comma,
                 thousands,
                 date_order,
@@ -355,7 +375,7 @@ class _ColumnAccumulator:
             untrimmed=self.untrimmed,
             mean=mean,
             type_hint=_type_hint(
-                self.counts, decimal_comma, thousands, date_order, bool_map, affixes
+                self.counts, decimal_comma, thousands, date_order, bool_map, affixes, accounting
             )
             if col_type == TYPE_STRING
             else None,
@@ -382,6 +402,7 @@ def profile_rows(
     date_order: str | None = None,
     bool_words: BoolWords = (),
     number_affixes: tuple[str, ...] = (),
+    accounting_negatives: bool = False,
 ) -> _Profiled:
     """Profile ``rows`` in a single pass; each row must have ``len(header)`` cells.
 
@@ -423,7 +444,16 @@ def profile_rows(
         acc.strip_counts(na)
     return _Profiled(
         columns=[
-            acc.finish(total, decimal_comma, top_n, thousands, date_order, bool_map, affixes)
+            acc.finish(
+                total,
+                decimal_comma,
+                top_n,
+                thousands,
+                date_order,
+                bool_map,
+                affixes,
+                accounting_negatives,
+            )
             for acc in columns
         ],
         rows=total,
@@ -440,6 +470,7 @@ def build_report(
     date_order: str | None = None,
     bool_words: BoolWords = (),
     number_affixes: tuple[str, ...] = (),
+    accounting_negatives: bool = False,
 ) -> Report:
     """Profile every column of an in-memory ``table``.
 
@@ -450,7 +481,8 @@ def build_report(
     ``"ymd"``) reads dates such as ``05/10/2026`` in that order;
     ``bool_words`` are extra ``(true, false)`` word pairs such as
     ``("sí", "no")``; ``number_affixes`` are texts such as ``"$"`` or ``"kg"``
-    removed from around numbers.
+    removed from around numbers; ``accounting_negatives`` reads ``(1.234,56)``
+    and ``1.234,56-`` as negative numbers.
     """
     result = profile_rows(
         table.header,
@@ -462,6 +494,7 @@ def build_report(
         date_order,
         bool_words,
         number_affixes,
+        accounting_negatives,
     )
     return Report(
         rows=result.rows,
@@ -480,6 +513,7 @@ def build_report(
         date_order=date_order,
         bool_words=bool_words,
         number_affixes=check_number_affixes(number_affixes),
+        accounting_negatives=accounting_negatives,
     )
 
 
@@ -496,6 +530,7 @@ def profile_file(
     date_order: str | None = None,
     bool_words: BoolWords = (),
     number_affixes: tuple[str, ...] = (),
+    accounting_negatives: bool = False,
 ) -> Report:
     """Stream ``path`` and profile it without loading the whole file into memory.
 
@@ -519,6 +554,7 @@ def profile_file(
             date_order,
             bool_words,
             number_affixes,
+            accounting_negatives,
         )
         return Report(
             rows=result.rows,
@@ -537,4 +573,5 @@ def profile_file(
             date_order=date_order,
             bool_words=bool_words,
             number_affixes=check_number_affixes(number_affixes),
+            accounting_negatives=accounting_negatives,
         )

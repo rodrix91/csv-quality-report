@@ -135,6 +135,7 @@ def render_markdown(report: Report, source: str, checks: Sequence[CheckResult] =
         *_thousands_line(report),
         *([f"- Date order: {_DATE_ORDER_NAMES[report.date_order]}"] if report.date_order else []),
         *_bool_words_line(report),
+        *(["- Accounting negatives: (5) and 5- read as -5"] if report.accounting_negatives else []),
         f"- Duplicate rows: {report.duplicate_rows}",
         *_untrimmed_line(report),
         *_untrimmed_columns_line(report),
@@ -170,6 +171,7 @@ def render_json(report: Report, source: str, checks: Sequence[CheckResult] = ())
         "date_order": report.date_order,
         "bool_words": [list(pair) for pair in report.bool_words],
         "number_affixes": list(report.number_affixes),
+        "accounting_negatives": report.accounting_negatives,
         "duplicate_rows": report.duplicate_rows,
         "untrimmed_columns": list(report.untrimmed_columns),
         "columns": [
