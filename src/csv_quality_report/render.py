@@ -128,7 +128,8 @@ def render_markdown(report: Report, source: str, checks: Sequence[CheckResult] =
         "",
         f"- Rows analyzed: {report.rows}"
         + (" (stopped early by --max-rows)" if report.truncated else ""),
-        f"- Columns: {len(report.columns)}",
+        f"- Columns: {len(report.columns)}"
+        + (f" of {len(report.header)} (selected)" if report.selected_columns is not None else ""),
         *_delimiter_line(report),
         *_na_line(report),
         *(["- Compression: gzip"] if report.compressed else []),
@@ -186,6 +187,10 @@ def render_json(report: Report, source: str, checks: Sequence[CheckResult] = ())
         "bool_words": [list(pair) for pair in report.bool_words],
         "number_affixes": list(report.number_affixes),
         "accounting_negatives": report.accounting_negatives,
+        "selected_columns": None
+        if report.selected_columns is None
+        else list(report.selected_columns),
+        "header_columns": len(report.header),
         "duplicate_rows": report.duplicate_rows,
         "untrimmed_columns": list(report.untrimmed_columns),
         "columns": [
