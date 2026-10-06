@@ -23,6 +23,8 @@
   ],
   "number_affixes": [],
   "accounting_negatives": false,
+  "selected_columns": null,
+  "header_columns": 5,
   "duplicate_rows": 0,
   "untrimmed_columns": [],
   "columns": [

@@ -4,6 +4,10 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Added
+
+- `--columns NAMES` profiles only the given columns, in that order, for wide exports; rows are still read whole (duplicates compare full rows) and `--require-columns` checks the full header. An unknown name is a usage error that suggests a padded match; a per-column gate on a column left out is a usage error. JSON gains `selected_columns` and `header_columns`, Markdown `Columns: N of M (selected)`; `Report` gains `header` and `selected_columns`, and the API a `columns` argument (#89).
+
 ## [0.10.0] - 2026-10-05
 
 ### Added

@@ -22,6 +22,8 @@
     "%"
   ],
   "accounting_negatives": false,
+  "selected_columns": null,
+  "header_columns": 4,
   "duplicate_rows": 0,
   "untrimmed_columns": [],
   "columns": [

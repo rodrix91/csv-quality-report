@@ -5,11 +5,13 @@ from __future__ import annotations
 import hashlib
 import math
 from collections import Counter
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass
 from itertools import compress, islice, repeat
+from operator import itemgetter
 from pathlib import Path
 
+from .errors import ColumnSelectionError
 from .inference import (
     TYPE_BOOL,
     TYPE_DATE,
@@ -107,6 +109,10 @@ class Report:
     sep_line: bool = False  # the input started with an Excel "sep=" line, which was skipped
     number_affixes: tuple[str, ...] = ()  # --number-affix texts, as validated
     accounting_negatives: bool = False  # (1.234,56) and 1.234,56- were read as negative
+    # All column names of the file, after duplicate-name suffixes; ``columns``
+    # holds only the selected ones when ``selected_columns`` is set.
+    header: tuple[str, ...] = ()
+    selected_columns: tuple[str, ...] | None = None  # --columns, in the order given
 
 
 def _untrimmed_names(header: list[str]) -> tuple[str, ...]:
@@ -415,6 +421,47 @@ class _Profiled:
     duplicate_rows: int
 
 
+def _columns(
+    batch: list[list[str]],
+    selected: list[int] | None,
+    pick: Callable[[list[str]], tuple[str, ...]] | None,
+) -> Iterable[Sequence[str]]:
+    """The cells of ``batch`` column by column: every column, or the ``selected`` ones."""
+    if selected is None:
+        return zip(*batch, strict=True)
+    if pick is None:  # a single selected column: itemgetter would return bare values
+        return [[row[selected[0]] for row in batch]]
+    return zip(*map(pick, batch), strict=True)
+
+
+_MAX_LISTED = 10  # header names listed in a column selection error
+
+
+def _selection(header: list[str], columns: Sequence[str] | None) -> list[int] | None:
+    """Positions of the selected ``columns`` in ``header``, in the order given.
+
+    ``None`` selects every column. Repeated names count once. A name that is
+    not in the header raises ``ColumnSelectionError``, which names the header
+    columns and a column that only differs by surrounding whitespace.
+    """
+    if columns is None:
+        return None
+    names = list(dict.fromkeys(columns))
+    if not names:
+        raise ColumnSelectionError("no columns selected")
+    position = {name: i for i, name in enumerate(header)}
+    missing = [name for name in names if name not in position]
+    if missing:
+        quoted = ", ".join(f"'{name}'" for name in missing)
+        noun = "column" if len(missing) == 1 else "columns"
+        verb = "is" if len(missing) == 1 else "are"
+        listed = ", ".join(header[:_MAX_LISTED]) + (", ..." if len(header) > _MAX_LISTED else "")
+        message = f"selected {noun} {quoted} {verb} not in the header (columns: {listed})"
+        near = [h for h in header if h.strip() in {name.strip() for name in missing}]
+        raise ColumnSelectionError(message + (f"; did you mean '{near[0]}'?" if near else ""))
+    return [position[name] for name in names]
+
+
 def profile_rows(
     header: list[str],
     rows: Iterable[list[str]],
@@ -426,6 +473,7 @@ def profile_rows(
     bool_words: BoolWords = (),
     number_affixes: tuple[str, ...] = (),
     accounting_negatives: bool = False,
+    columns: Sequence[str] | None = None,
 ) -> _Profiled:
     """Profile ``rows`` in a single pass; each row must have ``len(header)`` cells.
 
@@ -441,12 +489,23 @@ def profile_rows(
     ``thousands``, ``date_order``, ``bool_words`` and ``number_affixes`` are
     validated before any row is read and raise ``ValueError`` when unsupported
     or contradictory.
+
+    ``columns`` limits the profile to those header names, in that order; a
+    name that is not in the header raises ``ColumnSelectionError`` before any
+    row is read. Duplicate rows still compare whole rows.
     """
     rules = _reading_rules(
         decimal_comma, thousands, date_order, bool_words, number_affixes, accounting_negatives
     )
-    columns = [_ColumnAccumulator(name) for name in header]
-    counters = [acc.counts for acc in columns]
+    selected = _selection(header, columns)
+    accumulators = [
+        _ColumnAccumulator(name)
+        for name in (header if selected is None else [header[i] for i in selected])
+    ]
+    counters = [acc.counts for acc in accumulators]
+    # Selected cells of each row, as a tuple (itemgetter returns a bare value
+    # for one position, hence the one-element case).
+    pick = None if selected is None or len(selected) < 2 else itemgetter(*selected)
     seen: set[bytes] = set()
     total = 0
     # Work on batches of rows transposed into columns, so counting runs inside
@@ -458,13 +517,15 @@ def profile_rows(
     while batch := list(islice(it, _BATCH_ROWS)):
         total += len(batch)
         seen.update(map(_row_digest, batch))
-        for counter, column in zip(counters, zip(*batch, strict=True), strict=True):
+        # The transposed batch is built inside the loop header, so nothing keeps
+        # it alive while the next batch is read (one batch in memory at a time).
+        for counter, column in zip(counters, _columns(batch, selected, pick), strict=True):
             counter.update(column)
     na = {token.strip() for token in na_tokens} | {""}
-    for acc in columns:
+    for acc in accumulators:
         acc.strip_counts(na)
     return _Profiled(
-        columns=[acc.finish(total, top_n, rules) for acc in columns],
+        columns=[acc.finish(total, top_n, rules) for acc in accumulators],
         rows=total,
         duplicate_rows=total - len(seen),
     )
@@ -480,6 +541,7 @@ def _report(
     bool_words: BoolWords,
     number_affixes: tuple[str, ...],
     accounting_negatives: bool,
+    columns: Sequence[str] | None,
 ) -> Report:
     """The ``Report`` of a profiled ``Table`` or ``RowStream`` and the options used."""
     return Report(
@@ -500,6 +562,8 @@ def _report(
         bool_words=bool_words,
         number_affixes=check_number_affixes(number_affixes),
         accounting_negatives=accounting_negatives,
+        header=tuple(source.header),
+        selected_columns=None if columns is None else tuple(dict.fromkeys(columns)),
     )
 
 
@@ -513,6 +577,7 @@ def build_report(
     bool_words: BoolWords = (),
     number_affixes: tuple[str, ...] = (),
     accounting_negatives: bool = False,
+    columns: Sequence[str] | None = None,
 ) -> Report:
     """Profile every column of an in-memory ``table``.
 
@@ -524,7 +589,8 @@ def build_report(
     ``bool_words`` are extra ``(true, false)`` word pairs such as
     ``("sí", "no")``; ``number_affixes`` are texts such as ``"$"`` or ``"kg"``
     removed from around numbers; ``accounting_negatives`` reads ``(1.234,56)``
-    and ``1.234,56-`` as negative numbers.
+    and ``1.234,56-`` as negative numbers; ``columns`` profiles only those
+    header names, in that order.
     """
     result = profile_rows(
         table.header,
@@ -537,6 +603,7 @@ def build_report(
         bool_words,
         number_affixes,
         accounting_negatives,
+        columns,
     )
     return _report(
         result,
@@ -548,6 +615,7 @@ def build_report(
         bool_words,
         number_affixes,
         accounting_negatives,
+        columns,
     )
 
 
@@ -565,6 +633,7 @@ def profile_file(
     bool_words: BoolWords = (),
     number_affixes: tuple[str, ...] = (),
     accounting_negatives: bool = False,
+    columns: Sequence[str] | None = None,
 ) -> Report:
     """Stream ``path`` and profile it without loading the whole file into memory.
 
@@ -589,6 +658,7 @@ def profile_file(
             bool_words,
             number_affixes,
             accounting_negatives,
+            columns,
         )
         return _report(
             result,
@@ -600,4 +670,5 @@ def profile_file(
             bool_words,
             number_affixes,
             accounting_negatives,
+            columns,
         )

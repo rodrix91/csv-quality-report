@@ -198,8 +198,11 @@ def evaluate(
     hint fits). Unknown names fail as ``required_column``.
 
     ``required_columns`` are matched exactly (case-sensitive) against the
-    reported header, after duplicate-name suffixes; each one gives a check
-    with ``value`` 1 when present and 0 when missing (``limit`` is 1).
+    file's whole header (``Report.header``, after duplicate-name suffixes),
+    also when only some columns were profiled; each one gives a check with
+    ``value`` 1 when present and 0 when missing (``limit`` is 1). A
+    per-column check on a column that exists but was not profiled raises
+    ``ValueError``.
 
     The missing percentage is computed exactly from the counts, not from the
     one-decimal ``missing_pct`` shown in the report, so rounding can never
@@ -231,10 +234,19 @@ def evaluate(
                 passed=report.duplicate_rows <= max_duplicates,
             )
         )
-    header = [col.name for col in report.columns]
+    # Required columns are looked up in the whole header, also when only some
+    # columns were profiled (``Report.selected_columns``).
+    header = list(report.header) or [col.name for col in report.columns]
     present = set(header)
     listed = ", ".join(header[:_MAX_LISTED]) + (", ..." if len(header) > _MAX_LISTED else "")
     by_name = {col.name: col for col in report.columns}
+    gated = [*(column_max_missing or {}), *(column_types or {}), *(column_max_affixes or {})]
+    unprofiled = [name for name in [*gated, *(column_ranges or {})] if name in present]
+    unprofiled = [name for name in unprofiled if name not in by_name]
+    if unprofiled:
+        raise ValueError(
+            f"column '{unprofiled[0]}' has a per-column check but was not selected for profiling"
+        )
     required_types = dict(column_types or {})
     for name, expected in required_types.items():
         column = by_name.get(name)

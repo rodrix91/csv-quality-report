@@ -45,3 +45,9 @@ class DelimiterDetectionError(CsvQualityError):
 
 class OutputWriteError(CsvQualityError):
     exit_code = EXIT_WRITE
+
+
+class ColumnSelectionError(CsvQualityError):
+    """A column selected with ``--columns`` is not in the header."""
+
+    exit_code = EXIT_USAGE

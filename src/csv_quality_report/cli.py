@@ -194,11 +194,11 @@ def _column_type(text: str) -> tuple[str, str]:
     return name, kind
 
 
-def _column_names(text: str) -> tuple[str, ...]:
+def _column_names(text: str, option: str = "--require-columns") -> tuple[str, ...]:
     """Parse ``id,date,weight`` into unique, stripped, non-empty names (order kept)."""
     names = tuple(dict.fromkeys(n.strip() for n in text.split(",") if n.strip()))
     if not names:
-        raise argparse.ArgumentTypeError(f"invalid --require-columns value: {text!r} (no names)")
+        raise argparse.ArgumentTypeError(f"invalid {option} value: {text!r} (no names)")
     return names
 
 
@@ -329,6 +329,14 @@ def build_parser() -> argparse.ArgumentParser:
         metavar="NAME=PCT",
         help="per-column missing limit, overrides --max-missing for NAME (repeatable)",
     )
+    parser.add_argument(
+        "--columns",
+        type=lambda text: _column_names(text, "--columns"),
+        default=None,
+        metavar="NAMES",
+        help="profile only these comma-separated columns, in this order (rows are still read "
+        "whole: duplicates compare full rows, --require-columns checks the full header)",
+    )
     gates.add_argument(
         "--require-columns",
         type=_column_names,
@@ -381,6 +389,22 @@ def _write_text(path: Path, text: str) -> None:
         raise OutputWriteError(f"cannot write '{path}': {exc.strerror or exc}") from exc
 
 
+def _check_selected(args: argparse.Namespace) -> None:
+    """Raise ``ValueError`` when a per-column gate names a column left out by --columns."""
+    if args.columns is None:
+        return
+    gates = (
+        ("--max-missing-column", [name for name, _ in args.max_missing_column]),
+        ("--require-type", [name for name, _ in args.require_type]),
+        ("--max-affixes", [name for name, _ in args.max_affixes]),
+        ("--range", [name for name, _ in args.range]),
+    )
+    for option, names in gates:
+        for name in names:
+            if name not in args.columns:
+                raise ValueError(f"{option} checks column '{name}', which --columns leaves out")
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
@@ -393,6 +417,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             raise ValueError(
                 "--max-affixes needs --number-affix (otherwise no affix is ever found)"
             )
+        _check_selected(args)
     except ValueError as exc:
         parser.error(str(exc))
     try:
@@ -410,6 +435,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             bool_words=bool_words,
             number_affixes=tuple(args.number_affix),
             accounting_negatives=args.accounting_negatives,
+            columns=args.columns,
         )
     except CsvQualityError as exc:
         print(f"error: {exc.message}", file=sys.stderr)
