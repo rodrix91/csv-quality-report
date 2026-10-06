@@ -110,6 +110,17 @@ def _bool_words(text: str) -> tuple[str, str]:
     return words[0], words[1]
 
 
+def _column_affixes(text: str) -> tuple[str, int]:
+    """Parse ``NAME=N``; the last ``=`` separates them, so names may contain ``=``."""
+    name, sep, value = text.rpartition("=")
+    if not sep or not name:
+        raise argparse.ArgumentTypeError(f"invalid --max-affixes value: {text!r} (use NAME=N)")
+    try:
+        return name, _non_negative_int(value)
+    except argparse.ArgumentTypeError as exc:
+        raise argparse.ArgumentTypeError(f"invalid --max-affixes value: {text!r} ({exc})") from None
+
+
 def _column_type(text: str) -> tuple[str, str]:
     """Parse ``NAME=TYPE``; the last ``=`` separates them, so names may contain ``=``."""
     name, sep, kind = text.rpartition("=")
@@ -269,6 +280,15 @@ def build_parser() -> argparse.ArgumentParser:
         "repeatable",
     )
     gates.add_argument(
+        "--max-affixes",
+        type=_column_affixes,
+        action="append",
+        default=[],
+        metavar="NAME=N",
+        help="fail if column NAME mixes more than N distinct --number-affix texts, such as "
+        "two currencies or units; NAME=1 allows one (repeatable)",
+    )
+    gates.add_argument(
         "--max-duplicates",
         type=_non_negative_int,
         default=None,
@@ -294,6 +314,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         check_thousands(args.thousands, args.decimal_comma)
         bool_word_map(bool_words)
         check_number_affixes(args.number_affix)
+        if args.max_affixes and not args.number_affix:
+            raise ValueError(
+                "--max-affixes needs --number-affix (otherwise no affix is ever found)"
+            )
     except ValueError as exc:
         parser.error(str(exc))
     try:
@@ -321,6 +345,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         required_columns=args.require_columns,
         column_max_missing=dict(args.max_missing_column),  # the last limit for a name wins
         column_types=dict(args.require_type),  # the last type for a name wins
+        column_max_affixes=dict(args.max_affixes),  # the last limit for a name wins
     )
     source = display_name(args.path)
     if args.json_output is not None:

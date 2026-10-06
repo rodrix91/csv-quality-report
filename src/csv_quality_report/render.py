@@ -6,7 +6,7 @@ import json
 from collections.abc import Sequence
 from typing import Any
 
-from .checks import CheckResult
+from .checks import CHECK_MAX_AFFIXES, CheckResult
 from .profile import ColumnProfile, Report
 from .reader import DEFAULT_ENCODING, DELIMITER_NAMES, delimiter_name
 
@@ -206,6 +206,7 @@ def render_json(report: Report, source: str, checks: Sequence[CheckResult] = ())
                 "value": c.value,
                 "passed": c.passed,
                 **({"expected": c.expected, "actual": c.actual} if c.expected else {}),
+                **({"found": dict(c.found)} if c.check == CHECK_MAX_AFFIXES else {}),
             }
             for c in checks
         ],
