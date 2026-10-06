@@ -30,7 +30,7 @@ python -m build                  # build sdist + wheel into dist/ (needs network
 
 The test suite must also pass from the unpacked sdist: CI builds it and runs the tests there (job `sdist`). When a test starts reading a new file outside `src/` and `tests/test_*.py` (data, a script), add it to `MANIFEST.in`.
 
-If a change alters the output, refresh the samples embedded in the README with `python scripts/update_readme_samples.py` (`--check` only reports); the test suite fails while they are stale.
+If a change alters the output, refresh the samples embedded in the README with `python scripts/update_readme_samples.py` and the outputs in `docs/guides/spanish-exports.md` with `python scripts/update_guide.py` (`--check` only reports, for both); the test suite fails while they are stale.
 
 The end-to-end corpus in `tests/corpus` (realistic files with their options) has expected JSON reports too. After an intended change, run `python scripts/update_corpus.py` and review the diff of `tests/corpus/expected/`; that diff is the change in behavior. See `tests/corpus/README.md`.
 
