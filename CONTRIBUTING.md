@@ -69,6 +69,12 @@ Dependabot opens weekly PRs for the pinned dev tools. These rules were first rec
 2. CI must pass on Python 3.11, 3.12 and 3.13 with `pip install --require-hashes -r requirements-dev.lock` (tests with 100% coverage, Ruff, strict mypy).
 3. If the PR changes the `setuptools` pin in `pyproject.toml`, rebuild from a clean clone and check that the wheel and the sdist still contain `LICENSE`.
 
+## Releases
+
+1. In a PR, bump the version in `pyproject.toml` and `src/csv_quality_report/__init__.py`, and turn the `[Unreleased]` section of `CHANGELOG.md` into `## [X.Y.Z] - YYYY-MM-DD` (with its compare link at the bottom). `tests/test_release_notes.py` fails if the version in `pyproject.toml` has no CHANGELOG section.
+2. After it is merged, create the tag `vX.Y.Z` on `main`, either with `git tag vX.Y.Z && git push origin vX.Y.Z` or by publishing a release with that new tag from the GitHub releases page.
+3. The `Release` workflow (`.github/workflows/release.yml`) then checks that the tag matches the package version, builds the sdist and the wheel, runs the test suite from them, and attaches both to the GitHub release, creating it with the CHANGELOG section as notes (`python scripts/release_notes.py X.Y.Z`) if it does not exist. Nothing is published to PyPI.
+
 ## License
 
 By contributing you agree that your contribution is licensed under the MIT License (see `LICENSE`).

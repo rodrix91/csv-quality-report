@@ -5,4 +5,5 @@ include CHANGELOG.md
 graft tests/corpus
 include scripts/update_corpus.py
 include scripts/update_guide.py
+include scripts/release_notes.py
 graft docs
