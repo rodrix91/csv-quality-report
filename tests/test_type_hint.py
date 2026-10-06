@@ -14,7 +14,13 @@ import pytest
 from csv_quality_report import profile
 from csv_quality_report.cli import main
 from csv_quality_report.inference import infer_type, value_type
-from csv_quality_report.profile import _HINT_PROBE, _type_hint, build_report, profile_file
+from csv_quality_report.profile import (
+    _HINT_PROBE,
+    _Rules,
+    _type_hint,
+    build_report,
+    profile_file,
+)
 from csv_quality_report.reader import read_table
 
 WriteCsv = Callable[..., Path]
@@ -188,7 +194,7 @@ def test_probe_boundary_and_bulk_phase_agree() -> None:
     for position in (0, _HINT_PROBE - 1, _HINT_PROBE, 5 * _HINT_PROBE):
         keys = [str(i) for i in range(20 * _HINT_PROBE)]
         keys.insert(position, "N/A")
-        hint = _type_hint(Counter(dict.fromkeys(keys, 1)), False)
+        hint = _type_hint(Counter(dict.fromkeys(keys, 1)), _Rules())
         assert hint is not None and hint.examples == ("N/A",), position
 
 
@@ -205,7 +211,7 @@ def test_text_column_is_rejected_during_the_probe(monkeypatch: pytest.MonkeyPatc
     monkeypatch.setattr(profile, "value_type", counting_value_type)
     counts = Counter({f"name {i}": 200 for i in range(10)})
     counts.update({str(i): 1 for i in range(10 * _HINT_PROBE)})
-    assert _type_hint(counts, False) is None
+    assert _type_hint(counts, _Rules()) is None
     assert calls <= 10
 
 
