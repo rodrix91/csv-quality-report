@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-10-05
+
 ### Added
 
 - `--number-affix TEXT` (repeatable) reads numbers written with a currency symbol, a unit or a percent sign (`$ 1.234,56`, `Gs. 50.000`, `12,5 kg`, `15 %`). The affix is removed only when a number remains; each column reports how many cells had each affix (`affixes` in JSON, a `Number affixes` Markdown line), which exposes mixed currencies or units. JSON also gains `number_affixes`; the corpus gains an invoice export (#73).
@@ -108,7 +110,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 - Initial version: per-column type inference, missing values, distinct counts, min/max and top values, duplicate rows, Markdown and JSON output.
 
-[Unreleased]: https://github.com/rodrix91/csv-quality-report/compare/v0.8.0...HEAD
+[Unreleased]: https://github.com/rodrix91/csv-quality-report/compare/v0.9.0...HEAD
+[0.9.0]: https://github.com/rodrix91/csv-quality-report/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/rodrix91/csv-quality-report/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/rodrix91/csv-quality-report/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/rodrix91/csv-quality-report/compare/v0.5.0...v0.6.0
