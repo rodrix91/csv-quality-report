@@ -32,7 +32,7 @@ from .inference import (
     strip_thousands,
     value_type,
 )
-from .reader import DEFAULT_ENCODING, Table, open_rows
+from .reader import DEFAULT_ENCODING, RowStream, Table, open_rows
 
 TOP_N = 3  # default number of most frequent values per column (--top)
 # A type hint needs at least 9/10 of the non-missing cells. Kept as integers:
@@ -158,48 +158,100 @@ def _mean(values: list[int] | list[float], counts: list[int]) -> float | None:
     return float(f"{mean:.6g}") if math.isfinite(mean) else None
 
 
-def _plain_values(
-    values: Iterable[str],
-    decimal_comma: bool,
-    thousands: str | None = None,
-    date_order: str | None = None,
-    bool_map: dict[str, str] | None = None,
-    affixes: tuple[str, ...] = (),
-    accounting: bool = False,
-) -> list[str]:
-    """``values`` as inference reads them: numbers without their affixes and
-    thousands separators, dates rewritten as ISO 8601 and boolean words as
-    true/false, when those options are given.
+@dataclass(frozen=True)
+class _Rules:
+    """The validated reading rules that rewrite values before inference.
 
-    Accounting negatives (``(5)``, ``5-``) are rewritten with a leading minus
-    first; then affixes are removed, only from values that are then numbers.
-    The other rewrites never apply to the same value (a grouped number has
+    Built once per run by ``_reading_rules``; every rewrite is applied once per
+    distinct value, never per cell.
+    """
+
+    decimal_comma: bool = False
+    thousands: str | None = None
+    date_order: str | None = None
+    bool_map: dict[str, str] | None = None
+    affixes: tuple[str, ...] = ()  # longest first
+    accounting: bool = False
+
+    @property
+    def rewrites(self) -> bool:
+        """True when some rule changes values before inference."""
+        return (
+            self.thousands is not None
+            or self.date_order is not None
+            or self.bool_map is not None
+            or bool(self.affixes)
+            or self.accounting
+        )
+
+
+_NO_RULES = _Rules()  # plain reading: no rewrites before inference
+
+
+def _reading_rules(
+    decimal_comma: bool,
+    thousands: str | None,
+    date_order: str | None,
+    bool_words: BoolWords,
+    number_affixes: tuple[str, ...],
+    accounting_negatives: bool,
+) -> _Rules:
+    """Validate the reading options; ``ValueError`` when unsupported or contradictory."""
+    check_thousands(thousands, decimal_comma)
+    check_date_order(date_order)
+    return _Rules(
+        decimal_comma=decimal_comma,
+        thousands=thousands,
+        date_order=date_order,
+        bool_map=bool_word_map(bool_words) if bool_words else None,
+        # Longer affixes first: when two would both leave a number, the longer wins.
+        affixes=tuple(sorted(check_number_affixes(number_affixes), key=len, reverse=True)),
+        accounting=accounting_negatives,
+    )
+
+
+def _signed(values: Iterable[str], rules: _Rules) -> list[str]:
+    """``values`` with accounting negatives (``(5)``, ``5-``) given a leading minus."""
+    return [
+        accounting_negative(v, rules.affixes, rules.decimal_comma, rules.thousands) for v in values
+    ]
+
+
+def _normalized(values: Iterable[str], rules: _Rules) -> list[str]:
+    """``values``, already without affixes, with thousands, dates and booleans rewritten.
+
+    These rewrites never apply to the same value (a grouped number has
     three-digit groups, a date a one- or two-digit middle part, and boolean
     words cannot be numbers or dates), so their order does not matter.
     """
     plain = list(values)
-    if accounting:
-        plain = [accounting_negative(v, affixes, decimal_comma, thousands) for v in plain]
-    if affixes:
-        plain = [split_number_affix(v, affixes, decimal_comma, thousands)[0] for v in plain]
-    if thousands is not None:
-        plain = [strip_thousands(v, thousands, decimal_comma) for v in plain]
-    if date_order is not None:
-        plain = [normalize_date(v, date_order) for v in plain]
-    if bool_map is not None:
-        plain = [normalize_bool(v, bool_map) for v in plain]
+    if rules.thousands is not None:
+        plain = [strip_thousands(v, rules.thousands, rules.decimal_comma) for v in plain]
+    if rules.date_order is not None:
+        plain = [normalize_date(v, rules.date_order) for v in plain]
+    if rules.bool_map is not None:
+        plain = [normalize_bool(v, rules.bool_map) for v in plain]
     return plain
 
 
-def _type_hint(
-    counts: Counter[str],
-    decimal_comma: bool,
-    thousands: str | None = None,
-    date_order: str | None = None,
-    bool_map: dict[str, str] | None = None,
-    affixes: tuple[str, ...] = (),
-    accounting: bool = False,
-) -> TypeHint | None:
+def _plain_values(values: Iterable[str], rules: _Rules) -> list[str]:
+    """``values`` as inference reads them: numbers without their affixes and
+    thousands separators, dates rewritten as ISO 8601 and boolean words as
+    true/false, when those options are given.
+
+    Accounting negatives are rewritten with a leading minus first; then
+    affixes are removed, only from values that are then numbers.
+    """
+    plain = _signed(values, rules) if rules.accounting else list(values)
+    if rules.affixes:
+        plain = [
+            split_number_affix(v, rules.affixes, rules.decimal_comma, rules.thousands)[0]
+            for v in plain
+        ]
+    return _normalized(plain, rules)
+
+
+def _type_hint(counts: Counter[str], rules: _Rules) -> TypeHint | None:
     """Dominant non-string type of a ``string`` column, if one covers 90% of its cells.
 
     Each distinct value is classified once and weighted by its count. The
@@ -211,9 +263,10 @@ def _type_hint(
     """
     keys = list(counts)
     weights = list(counts.values())
-    # Classify numbers without their thousands separators and dates in ISO
-    # form, but report the stray values as written.
-    plain = _plain_values(keys, decimal_comma, thousands, date_order, bool_map, affixes, accounting)
+    # Classify values in their plain form (numbers without affixes or
+    # thousands separators, dates in ISO form), but report strays as written.
+    plain = _plain_values(keys, rules)
+    decimal_comma = rules.decimal_comma
     total = sum(weights)
     kinds: list[str] = []
     text_cells = 0
@@ -248,11 +301,7 @@ def _type_hint(
 
 
 def _split_affixes(
-    values: Iterable[str],
-    counts: Iterable[int],
-    affixes: tuple[str, ...],
-    decimal_comma: bool,
-    thousands: str | None,
+    values: Iterable[str], counts: Iterable[int], rules: _Rules
 ) -> tuple[list[str], tuple[tuple[str, int], ...]]:
     """Distinct ``values`` without their affixes, and the cells per removed affix.
 
@@ -264,7 +313,9 @@ def _split_affixes(
     numbers: list[str] = []
     found: Counter[str] = Counter()
     for value, count in zip(values, counts, strict=True):
-        number, affix = split_number_affix(value, affixes, decimal_comma, thousands)
+        number, affix = split_number_affix(
+            value, rules.affixes, rules.decimal_comma, rules.thousands
+        )
         numbers.append(number)
         if affix is not None:
             found[affix] += count
@@ -306,47 +357,23 @@ class _ColumnAccumulator:
             self.counts = merged
         self.missing = sum(self.counts.pop(token, 0) for token in na)
 
-    def finish(
-        self,
-        total: int,
-        decimal_comma: bool,
-        top_n: int = TOP_N,
-        thousands: str | None = None,
-        date_order: str | None = None,
-        bool_map: dict[str, str] | None = None,
-        affixes: tuple[str, ...] = (),
-        accounting: bool = False,
-    ) -> ColumnProfile:
+    def finish(self, total: int, top_n: int = TOP_N, rules: _Rules = _NO_RULES) -> ColumnProfile:
+        decimal_comma = rules.decimal_comma
         # Inference, min and max only depend on which values occur, so looking
         # at distinct values gives the same answer as looking at every cell.
         distinct = self.counts.keys()
-        # With a thousands separator, a date order or boolean words, values
-        # are inferred and measured in their plain form (1234,5, 2026-10-05,
-        # true); top values and lengths keep the text as written.
-        # Accounting negatives get a leading minus first, so their affixes
-        # are found too; affixes are split once, in one pass that counts them.
-        signed: Iterable[str] = (
-            [accounting_negative(v, affixes, decimal_comma, thousands) for v in distinct]
-            if accounting
-            else distinct
-        )
-        numbers, affix_counts = (
-            _split_affixes(signed, self.counts.values(), affixes, decimal_comma, thousands)
-            if affixes
-            else (None, ())
-        )
-        rewritten = accounting or numbers is not None
-        values: Iterable[str] = (
-            distinct
-            if thousands is None and date_order is None and bool_map is None and not rewritten
-            else _plain_values(
-                signed if numbers is None else numbers,
-                decimal_comma,
-                thousands,
-                date_order,
-                bool_map,
-            )
-        )
+        # With reading rules, values are inferred and measured in their plain
+        # form (1234,5, 2026-10-05, true); top values and lengths keep the
+        # text as written. Accounting negatives get a leading minus first, so
+        # their affixes are found too; affixes are split once, in one pass
+        # that also counts them.
+        values: Iterable[str] = distinct
+        affix_counts: tuple[tuple[str, int], ...] = ()
+        if rules.rewrites:
+            signed = _signed(distinct, rules) if rules.accounting else distinct
+            if rules.affixes:
+                signed, affix_counts = _split_affixes(signed, self.counts.values(), rules)
+            values = _normalized(signed, rules)
         col_type = infer_type(values, decimal_comma)
         low: int | float | str | None = None
         high: int | float | str | None = None
@@ -374,11 +401,7 @@ class _ColumnAccumulator:
             top_values=self.counts.most_common(top_n),
             untrimmed=self.untrimmed,
             mean=mean,
-            type_hint=_type_hint(
-                self.counts, decimal_comma, thousands, date_order, bool_map, affixes, accounting
-            )
-            if col_type == TYPE_STRING
-            else None,
+            type_hint=_type_hint(self.counts, rules) if col_type == TYPE_STRING else None,
             min_length=min(map(len, distinct)) if distinct else None,
             max_length=max(map(len, distinct)) if distinct else None,
             affixes=affix_counts,
@@ -419,11 +442,9 @@ def profile_rows(
     validated before any row is read and raise ``ValueError`` when unsupported
     or contradictory.
     """
-    check_thousands(thousands, decimal_comma)
-    check_date_order(date_order)
-    bool_map = bool_word_map(bool_words) if bool_words else None
-    # Longer affixes first: when two would both leave a number, the longer wins.
-    affixes = tuple(sorted(check_number_affixes(number_affixes), key=len, reverse=True))
+    rules = _reading_rules(
+        decimal_comma, thousands, date_order, bool_words, number_affixes, accounting_negatives
+    )
     columns = [_ColumnAccumulator(name) for name in header]
     counters = [acc.counts for acc in columns]
     seen: set[bytes] = set()
@@ -443,21 +464,42 @@ def profile_rows(
     for acc in columns:
         acc.strip_counts(na)
     return _Profiled(
-        columns=[
-            acc.finish(
-                total,
-                decimal_comma,
-                top_n,
-                thousands,
-                date_order,
-                bool_map,
-                affixes,
-                accounting_negatives,
-            )
-            for acc in columns
-        ],
+        columns=[acc.finish(total, top_n, rules) for acc in columns],
         rows=total,
         duplicate_rows=total - len(seen),
+    )
+
+
+def _report(
+    result: _Profiled,
+    source: Table | RowStream,
+    na_tokens: tuple[str, ...],
+    top_n: int,
+    thousands: str | None,
+    date_order: str | None,
+    bool_words: BoolWords,
+    number_affixes: tuple[str, ...],
+    accounting_negatives: bool,
+) -> Report:
+    """The ``Report`` of a profiled ``Table`` or ``RowStream`` and the options used."""
+    return Report(
+        rows=result.rows,
+        duplicate_rows=result.duplicate_rows,
+        truncated=source.truncated,
+        columns=result.columns,
+        delimiter=source.delimiter,
+        delimiter_detected=source.delimiter_detected,
+        na_tokens=na_tokens,
+        top_n=top_n,
+        compressed=source.compressed,
+        untrimmed_columns=_untrimmed_names(source.header),
+        encoding=source.encoding,
+        sep_line=source.sep_line,
+        thousands=thousands,
+        date_order=date_order,
+        bool_words=bool_words,
+        number_affixes=check_number_affixes(number_affixes),
+        accounting_negatives=accounting_negatives,
     )
 
 
@@ -496,24 +538,16 @@ def build_report(
         number_affixes,
         accounting_negatives,
     )
-    return Report(
-        rows=result.rows,
-        duplicate_rows=result.duplicate_rows,
-        truncated=table.truncated,
-        columns=result.columns,
-        delimiter=table.delimiter,
-        delimiter_detected=table.delimiter_detected,
-        na_tokens=na_tokens,
-        top_n=top_n,
-        compressed=table.compressed,
-        untrimmed_columns=_untrimmed_names(table.header),
-        encoding=table.encoding,
-        sep_line=table.sep_line,
-        thousands=thousands,
-        date_order=date_order,
-        bool_words=bool_words,
-        number_affixes=check_number_affixes(number_affixes),
-        accounting_negatives=accounting_negatives,
+    return _report(
+        result,
+        table,
+        na_tokens,
+        top_n,
+        thousands,
+        date_order,
+        bool_words,
+        number_affixes,
+        accounting_negatives,
     )
 
 
@@ -556,22 +590,14 @@ def profile_file(
             number_affixes,
             accounting_negatives,
         )
-        return Report(
-            rows=result.rows,
-            duplicate_rows=result.duplicate_rows,
-            truncated=stream.truncated,
-            columns=result.columns,
-            delimiter=stream.delimiter,
-            delimiter_detected=stream.delimiter_detected,
-            na_tokens=na_tokens,
-            top_n=top_n,
-            compressed=stream.compressed,
-            untrimmed_columns=_untrimmed_names(stream.header),
-            encoding=stream.encoding,
-            sep_line=stream.sep_line,
-            thousands=thousands,
-            date_order=date_order,
-            bool_words=bool_words,
-            number_affixes=check_number_affixes(number_affixes),
-            accounting_negatives=accounting_negatives,
+        return _report(
+            result,
+            stream,
+            na_tokens,
+            top_n,
+            thousands,
+            date_order,
+            bool_words,
+            number_affixes,
+            accounting_negatives,
         )
