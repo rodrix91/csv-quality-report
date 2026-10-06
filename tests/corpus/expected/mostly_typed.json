@@ -13,6 +13,7 @@
   "date_order": null,
   "bool_words": [],
   "number_affixes": [],
+  "accounting_negatives": false,
   "duplicate_rows": 0,
   "untrimmed_columns": [],
   "columns": [

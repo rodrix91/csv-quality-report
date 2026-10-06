@@ -211,6 +211,11 @@ def build_parser() -> argparse.ArgumentParser:
         "removed only when the rest is a number; each column reports which it had)",
     )
     parser.add_argument(
+        "--accounting-negatives",
+        action="store_true",
+        help="read (1.234,56) and 1.234,56- (trailing minus, as SAP writes it) as negative numbers",
+    )
+    parser.add_argument(
         "--na",
         type=_na_tokens,
         default=(),
@@ -334,6 +339,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             date_order=args.date_order,
             bool_words=bool_words,
             number_affixes=tuple(args.number_affix),
+            accounting_negatives=args.accounting_negatives,
         )
     except CsvQualityError as exc:
         print(f"error: {exc.message}", file=sys.stderr)

@@ -82,5 +82,12 @@
     "args": ["--delimiter", "auto", "--decimal-comma", "--thousands", "dot", "--na", "s/d", "--number-affix", "Gs.", "--number-affix", "US$", "--number-affix", "kg", "--number-affix", "lb", "--number-affix", "%", "--max-affixes", "Monto=1", "--max-affixes", "Peso=1", "--max-affixes", "Descuento=1"],
     "exit_code": 8,
     "about": "The same invoices through --max-affixes: amounts in two currencies and weights in two units fail, discounts with one affix pass."
+  },
+  {
+    "name": "erp_balances_sap",
+    "file": "erp_balances_sap.csv",
+    "args": ["--delimiter", "auto", "--decimal-comma", "--thousands", "dot", "--accounting-negatives", "--require-type", "Saldo=float"],
+    "exit_code": 0,
+    "about": "Trial balance from an ERP: negative balances written with a trailing minus (84.300,50-) and in parentheses ((9.870,00)) are read as negative numbers with --accounting-negatives."
   }
 ]

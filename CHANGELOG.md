@@ -8,6 +8,7 @@ All notable changes to this project are documented here. The format follows [Kee
 
 - `--number-affix TEXT` (repeatable) reads numbers written with a currency symbol, a unit or a percent sign (`$ 1.234,56`, `Gs. 50.000`, `12,5 kg`, `15 %`). The affix is removed only when a number remains; each column reports how many cells had each affix (`affixes` in JSON, a `Number affixes` Markdown line), which exposes mixed currencies or units. JSON also gains `number_affixes`; the corpus gains an invoice export (#73).
 - `--max-affixes NAME=N` quality gate (repeatable): fails with exit code 8 when a column contains more than N distinct number affixes, such as two currencies or two units, and names the affixes with their cell counts; JSON items of this check carry `found`. It requires `--number-affix`; `evaluate()` gains `column_max_affixes` (#75).
+- `--accounting-negatives` reads `(1.234,56)` and `1.234,56-` (trailing minus, as SAP writes it) as negative numbers, also with affixes (`($ 5)`, `$ (5)`); values that would not be numbers stay as written. JSON gains `accounting_negatives`, Markdown an `Accounting negatives` line; the corpus gains an ERP trial balance (#77).
 
 ## [0.8.0] - 2026-10-05
 

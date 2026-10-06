@@ -323,6 +323,47 @@ def split_number_affix(
     return value, None
 
 
+def _is_number(
+    value: str, affixes: tuple[str, ...], decimal_comma: bool, thousands: str | None
+) -> bool:
+    """True when ``value`` is an int or float once its affix and thousands are removed."""
+    number = split_number_affix(value, affixes, decimal_comma, thousands)[0] if affixes else value
+    plain = number if thousands is None else strip_thousands(number, thousands, decimal_comma)
+    return value_type(plain, decimal_comma) in (TYPE_INT, TYPE_FLOAT)
+
+
+def accounting_negative(
+    value: str,
+    affixes: tuple[str, ...] = (),
+    decimal_comma: bool = False,
+    thousands: str | None = None,
+) -> str:
+    """Rewrite an accounting negative with a leading minus; return other values unchanged.
+
+    ``(1.234,56)`` and ``1.234,56-`` (the trailing minus of SAP and other
+    ERPs) become ``-1.234,56``. A prefix affix may stand outside the
+    parentheses (``$ (5)`` becomes ``-$5``), and affixes inside stay for the
+    affix step (``($ 5)`` becomes ``-$ 5``). The rewrite happens only when
+    the result is a number under ``affixes``, ``decimal_comma`` and
+    ``thousands``. That check also leaves values that already have a sign
+    (``(-5)`` would give ``--5``) and empty parentheses alone.
+    """
+    if value.endswith("-") and value[:1] not in "+-(":
+        inner = value[:-1].rstrip(_AFFIX_SPACES)
+    else:
+        prefix, body = "", value
+        for affix in affixes:
+            rest = value[len(affix) :].lstrip(_AFFIX_SPACES)
+            if value.startswith(affix) and rest.startswith("("):
+                prefix, body = affix, rest
+                break
+        if not (body.startswith("(") and body.endswith(")")):
+            return value
+        inner = prefix + body[1:-1].strip(_AFFIX_SPACES)
+    negative = "-" + inner
+    return negative if _is_number(negative, affixes, decimal_comma, thousands) else value
+
+
 def check_thousands(thousands: str | None, decimal_comma: bool) -> None:
     """Raise ``ValueError`` when the thousands separator is also the decimal mark."""
     if thousands is None:

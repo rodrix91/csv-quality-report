@@ -22,6 +22,7 @@
     ]
   ],
   "number_affixes": [],
+  "accounting_negatives": false,
   "duplicate_rows": 0,
   "untrimmed_columns": [],
   "columns": [
