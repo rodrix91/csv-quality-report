@@ -8,6 +8,7 @@ All notable changes to this project are documented here. The format follows [Kee
 
 - Guide to reading Spanish and Latin American exports (`docs/guides/spanish-exports.md`): a table of which option fixes which export problem, and six worked examples on corpus files. A test runs every command in the guide and compares the output, and `scripts/update_guide.py` regenerates them; the guide ships in the source distribution (#80).
 - `--range NAME=MIN:MAX` quality gate (repeatable, either side optional): fails with exit code 8 when a numeric or date column has values outside the inclusive range, showing the observed min and max; a column of another type fails with the reason. JSON items of this check carry `range` and `observed`; `evaluate()` gains `column_ranges` (#84).
+- Release workflow: pushing a `vX.Y.Z` tag, or publishing a release from the web page, checks that the tag matches the package version, builds the sdist and the wheel, runs the test suite from them and attaches both files to the GitHub release, creating it with the CHANGELOG section as notes (`scripts/release_notes.py`) when needed (#86).
 
 ## [0.9.0] - 2026-10-05
 
