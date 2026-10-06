@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-10-05
+
 ### Added
 
 - Guide to reading Spanish and Latin American exports (`docs/guides/spanish-exports.md`): a table of which option fixes which export problem, and six worked examples on corpus files. A test runs every command in the guide and compares the output, and `scripts/update_guide.py` regenerates them; the guide ships in the source distribution (#80).
@@ -116,7 +118,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 - Initial version: per-column type inference, missing values, distinct counts, min/max and top values, duplicate rows, Markdown and JSON output.
 
-[Unreleased]: https://github.com/rodrix91/csv-quality-report/compare/v0.9.0...HEAD
+[Unreleased]: https://github.com/rodrix91/csv-quality-report/compare/v0.10.0...HEAD
+[0.10.0]: https://github.com/rodrix91/csv-quality-report/compare/v0.9.0...v0.10.0
 [0.9.0]: https://github.com/rodrix91/csv-quality-report/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/rodrix91/csv-quality-report/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/rodrix91/csv-quality-report/compare/v0.6.0...v0.7.0
