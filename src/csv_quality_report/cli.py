@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 import argparse
+import math
+import re
 import sys
 from collections.abc import Sequence
+from datetime import date
 from pathlib import Path
 
 from . import __version__
-from .checks import COLUMN_TYPES, evaluate
+from .checks import COLUMN_TYPES, Bound, ValueRange, evaluate
 from .errors import EXIT_CHECKS, CsvQualityError, OutputWriteError
 from .inference import DATE_ORDERS, bool_word_map, check_number_affixes, check_thousands
 from .profile import TOP_N, profile_file
@@ -119,6 +122,64 @@ def _column_affixes(text: str) -> tuple[str, int]:
         return name, _non_negative_int(value)
     except argparse.ArgumentTypeError as exc:
         raise argparse.ArgumentTypeError(f"invalid --max-affixes value: {text!r} ({exc})") from None
+
+
+_ISO_DATE_RE = re.compile(r"[0-9]{4}-[0-9]{2}-[0-9]{2}")
+
+
+def _bound(text: str, option: str) -> Bound:
+    """One side of a ``--range``: empty (open), an ISO date, or a finite number."""
+    if not text:
+        return None
+    if _ISO_DATE_RE.fullmatch(text):
+        try:
+            return date.fromisoformat(text)
+        except ValueError:
+            raise argparse.ArgumentTypeError(
+                f"invalid --range value: {option!r} ({text!r} is not a valid date)"
+            ) from None
+    try:
+        return int(text)
+    except ValueError:
+        pass
+    try:
+        number = float(text)
+    except ValueError:
+        raise argparse.ArgumentTypeError(
+            f"invalid --range value: {option!r} ({text!r} is not a number or a YYYY-MM-DD date)"
+        ) from None
+    if not math.isfinite(number):
+        raise argparse.ArgumentTypeError(
+            f"invalid --range value: {option!r} ({text!r} is not a finite number)"
+        )
+    return number
+
+
+def _column_range(text: str) -> tuple[str, ValueRange]:
+    """Parse ``NAME=MIN:MAX``; either bound may be empty, names may contain ``=``."""
+    name, sep, spec = text.rpartition("=")
+    if not sep or not name or spec.count(":") != 1:
+        raise argparse.ArgumentTypeError(
+            f"invalid --range value: {text!r} (use NAME=MIN:MAX; one side may be empty)"
+        )
+    low_text, high_text = spec.split(":")
+    low, high = _bound(low_text.strip(), text), _bound(high_text.strip(), text)
+    if low is None and high is None:
+        raise argparse.ArgumentTypeError(f"invalid --range value: {text!r} (give MIN, MAX or both)")
+    if low is not None and high is not None:
+        if isinstance(low, date) and isinstance(high, date):
+            reversed_bounds = low > high
+        elif not isinstance(low, date) and not isinstance(high, date):
+            reversed_bounds = low > high
+        else:
+            raise argparse.ArgumentTypeError(
+                f"invalid --range value: {text!r} (both bounds must be numbers, or both dates)"
+            )
+        if reversed_bounds:
+            raise argparse.ArgumentTypeError(
+                f"invalid --range value: {text!r} (MIN is greater than MAX)"
+            )
+    return name, (low, high)
 
 
 def _column_type(text: str) -> tuple[str, str]:
@@ -294,6 +355,15 @@ def build_parser() -> argparse.ArgumentParser:
         "two currencies or units; NAME=1 allows one (repeatable)",
     )
     gates.add_argument(
+        "--range",
+        type=_column_range,
+        action="append",
+        default=[],
+        metavar="NAME=MIN:MAX",
+        help="fail if column NAME has values outside MIN..MAX (inclusive; numbers, or "
+        "YYYY-MM-DD dates for date columns; one side may be empty); repeatable",
+    )
+    gates.add_argument(
         "--max-duplicates",
         type=_non_negative_int,
         default=None,
@@ -352,6 +422,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         column_max_missing=dict(args.max_missing_column),  # the last limit for a name wins
         column_types=dict(args.require_type),  # the last type for a name wins
         column_max_affixes=dict(args.max_affixes),  # the last limit for a name wins
+        column_ranges=dict(args.range),  # the last range for a name wins
     )
     source = display_name(args.path)
     if args.json_output is not None:

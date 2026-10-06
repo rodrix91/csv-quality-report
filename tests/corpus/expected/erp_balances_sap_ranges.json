@@ -1,0 +1,236 @@
+{
+  "source": "tests/corpus/erp_balances_sap.csv",
+  "rows": 8,
+  "truncated": false,
+  "delimiter": ";",
+  "delimiter_detected": true,
+  "sep_line": false,
+  "na_tokens": [],
+  "top_n": 3,
+  "compressed": false,
+  "encoding": "utf-8",
+  "thousands": ".",
+  "date_order": null,
+  "bool_words": [],
+  "number_affixes": [],
+  "accounting_negatives": true,
+  "duplicate_rows": 0,
+  "untrimmed_columns": [],
+  "columns": [
+    {
+      "name": "Cuenta",
+      "type": "int",
+      "type_hint": null,
+      "missing": 0,
+      "missing_pct": 0.0,
+      "distinct": 8,
+      "min": 1101,
+      "max": 5301,
+      "mean": 3263.75,
+      "min_length": 4,
+      "max_length": 4,
+      "top_values": [
+        {
+          "value": "1101",
+          "count": 1
+        },
+        {
+          "value": "1102",
+          "count": 1
+        },
+        {
+          "value": "2101",
+          "count": 1
+        }
+      ],
+      "untrimmed": 0,
+      "affixes": {}
+    },
+    {
+      "name": "Descripción",
+      "type": "string",
+      "type_hint": null,
+      "missing": 0,
+      "missing_pct": 0.0,
+      "distinct": 8,
+      "min": null,
+      "max": null,
+      "mean": null,
+      "min_length": 4,
+      "max_length": 20,
+      "top_values": [
+        {
+          "value": "Caja",
+          "count": 1
+        },
+        {
+          "value": "Bancos",
+          "count": 1
+        },
+        {
+          "value": "Proveedores",
+          "count": 1
+        }
+      ],
+      "untrimmed": 0,
+      "affixes": {}
+    },
+    {
+      "name": "Debe",
+      "type": "float",
+      "type_hint": null,
+      "missing": 0,
+      "missing_pct": 0.0,
+      "distinct": 6,
+      "min": 0.0,
+      "max": 250340.75,
+      "mean": 56341.4,
+      "min_length": 4,
+      "max_length": 10,
+      "top_values": [
+        {
+          "value": "0,00",
+          "count": 3
+        },
+        {
+          "value": "12.500,00",
+          "count": 1
+        },
+        {
+          "value": "250.340,75",
+          "count": 1
+        }
+      ],
+      "untrimmed": 0,
+      "affixes": {}
+    },
+    {
+      "name": "Haber",
+      "type": "float",
+      "type_hint": null,
+      "missing": 0,
+      "missing_pct": 0.0,
+      "distinct": 7,
+      "min": 0.0,
+      "max": 310000.0,
+      "mean": 50967.1,
+      "min_length": 4,
+      "max_length": 10,
+      "top_values": [
+        {
+          "value": "0,00",
+          "count": 2
+        },
+        {
+          "value": "1.200,00",
+          "count": 1
+        },
+        {
+          "value": "84.300,50",
+          "count": 1
+        }
+      ],
+      "untrimmed": 0,
+      "affixes": {}
+    },
+    {
+      "name": "Saldo",
+      "type": "float",
+      "type_hint": null,
+      "missing": 0,
+      "missing_pct": 0.0,
+      "distinct": 8,
+      "min": -310000.0,
+      "max": 249140.75,
+      "mean": 5374.38,
+      "min_length": 8,
+      "max_length": 11,
+      "top_values": [
+        {
+          "value": "12.500,00",
+          "count": 1
+        },
+        {
+          "value": "249.140,75",
+          "count": 1
+        },
+        {
+          "value": "84.300,50-",
+          "count": 1
+        }
+      ],
+      "untrimmed": 0,
+      "affixes": {}
+    }
+  ],
+  "checks": [
+    {
+      "check": "value_range",
+      "column": "Debe",
+      "limit": 1,
+      "value": 1,
+      "passed": true,
+      "expected": "int or float",
+      "actual": "float",
+      "range": {
+        "min": 0,
+        "max": null
+      },
+      "observed": {
+        "min": 0.0,
+        "max": 250340.75
+      }
+    },
+    {
+      "check": "value_range",
+      "column": "Haber",
+      "limit": 1,
+      "value": 1,
+      "passed": true,
+      "expected": "int or float",
+      "actual": "float",
+      "range": {
+        "min": 0,
+        "max": null
+      },
+      "observed": {
+        "min": 0.0,
+        "max": 310000.0
+      }
+    },
+    {
+      "check": "value_range",
+      "column": "Saldo",
+      "limit": 1,
+      "value": 0,
+      "passed": false,
+      "expected": "int or float",
+      "actual": "float",
+      "range": {
+        "min": -100000,
+        "max": 300000
+      },
+      "observed": {
+        "min": -310000.0,
+        "max": 249140.75
+      }
+    },
+    {
+      "check": "value_range",
+      "column": "Descripción",
+      "limit": 1,
+      "value": 0,
+      "passed": false,
+      "expected": "int or float",
+      "actual": "string",
+      "range": {
+        "min": 0,
+        "max": 1
+      },
+      "observed": {
+        "min": null,
+        "max": null
+      }
+    }
+  ]
+}

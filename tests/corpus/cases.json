@@ -89,5 +89,12 @@
     "args": ["--delimiter", "auto", "--decimal-comma", "--thousands", "dot", "--accounting-negatives", "--require-type", "Saldo=float"],
     "exit_code": 0,
     "about": "Trial balance from an ERP: negative balances written with a trailing minus (84.300,50-) and in parentheses ((9.870,00)) are read as negative numbers with --accounting-negatives."
+  },
+  {
+    "name": "erp_balances_sap_ranges",
+    "file": "erp_balances_sap.csv",
+    "args": ["--delimiter", "auto", "--decimal-comma", "--thousands", "dot", "--accounting-negatives", "--range", "Debe=0:", "--range", "Haber=0:", "--range", "Saldo=-100000:300000", "--range", "Descripción=0:1"],
+    "exit_code": 8,
+    "about": "The trial balance through --range: debits and credits are never negative and pass; a balance of -310.000,00 is outside the expected range; a text column cannot be checked against numbers."
   }
 ]

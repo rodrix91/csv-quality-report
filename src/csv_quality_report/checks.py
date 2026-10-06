@@ -9,14 +9,22 @@ from __future__ import annotations
 
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
+from datetime import date
+from typing import Any
 
-from .profile import Report
+from .profile import ColumnProfile, Report
 
 CHECK_MAX_MISSING = "max_missing"
 CHECK_MAX_DUPLICATES = "max_duplicates"
 CHECK_REQUIRED_COLUMN = "required_column"
 CHECK_COLUMN_TYPE = "column_type"
 CHECK_MAX_AFFIXES = "max_affixes"
+CHECK_VALUE_RANGE = "value_range"
+# A bound of a --range check: a number for int/float columns, a date for date
+# columns, None for an open side.
+Bound = int | float | date | None
+ValueRange = tuple[Bound, Bound]
+Observed = tuple[int | float | str | None, int | float | str | None]  # column min, max
 COLUMN_TYPES = ("int", "float", "bool", "date", "datetime", "string")
 # Inferred column types that satisfy each required type.
 _SATISFIES = {
@@ -44,6 +52,8 @@ class CheckResult:
     expected: str = ""  # column_type checks: the required type
     actual: str = ""  # column_type checks: the inferred type
     found: tuple[tuple[str, int], ...] = ()  # max_affixes checks: (affix, cells)
+    bounds: ValueRange = (None, None)  # value_range checks: the allowed range
+    observed: Observed = (None, None)  # value_range checks: the column's min and max
 
     def describe(self) -> str:
         """One-line, human-readable explanation used on stderr and in Markdown."""
@@ -70,12 +80,82 @@ class CheckResult:
             return f"column '{self.column}' {verb} {count} {noun}" + (
                 f": {found} (limit {int(self.limit)})" if found else f" (limit {int(self.limit)})"
             )
+        if self.check == CHECK_VALUE_RANGE:
+            return self._describe_range()
         return f"{_fmt(self.value)} duplicate rows (limit {_fmt(self.limit)})"
+
+    def _describe_range(self) -> str:
+        # Open sides stay empty, as in the option: 0.., ..5000, 0..5000.
+        span = "..".join("" if bound is None else _exact(bound) for bound in self.bounds)
+        if self.actual not in _RANGE_TYPES[self.expected]:
+            if self.passed:
+                return f"column '{self.column}' has no values to check against {span}"
+            message = (
+                f"column '{self.column}' is {self.actual}, a range needs {self.expected} values"
+            )
+            return message + (f" ({self.detail})" if self.detail else "")
+        verb = "is within" if self.passed else "has values outside"
+        first, last = (_exact(v) for v in self.observed)
+        return f"column '{self.column}' {verb} {span} (min {first}, max {last})"
+
+
+# Column types a range applies to, by the kind of its bounds.
+_RANGE_TYPES = {"int or float": {"int", "float"}, "date": {"date"}}
+
+
+def _exact(value: int | float | str | date | None) -> str:
+    """A bound or an observed value as written: 80000.0 as 80000, 1234.56 as 1234.56."""
+    if isinstance(value, float) and value.is_integer() and abs(value) < 1e16:
+        return str(int(value))
+    if isinstance(value, date):
+        return value.isoformat()
+    return str(value)
 
 
 def _fmt(number: float) -> str:
     """Print 10.0 as 10 and keep real decimals (12.5, 33.3333)."""
     return f"{number:g}" if number == int(number) else f"{number:.4g}"
+
+
+def _within(first: Any, last: Any, low: Any, high: Any) -> bool:
+    """True when ``first..last`` lies inside the inclusive bounds (``None`` is open)."""
+    return (low is None or first >= low) and (high is None or last <= high)
+
+
+def _range_check(name: str, column: ColumnProfile, bounds: ValueRange) -> CheckResult:
+    """The ``value_range`` check of one column against inclusive ``bounds``."""
+    low, high = bounds
+    expected = "date" if isinstance(low, date) or isinstance(high, date) else "int or float"
+    wanted = _RANGE_TYPES[expected]
+
+    def result(passed: bool, detail: str = "", observed: Observed = (None, None)) -> CheckResult:
+        return CheckResult(
+            check=CHECK_VALUE_RANGE,
+            column=name,
+            limit=1,
+            value=1 if passed else 0,
+            passed=passed,
+            detail=detail,
+            expected=expected,
+            actual=column.type,
+            bounds=bounds,
+            observed=observed,
+        )
+
+    if column.distinct == 0:
+        return result(True)
+    if column.type not in wanted:
+        hint = column.type_hint
+        if hint is None or hint.type not in wanted:
+            return result(False)
+        noun = "value does" if hint.nonconforming == 1 else "values do"
+        examples = ", ".join(f'"{v}"' for v in hint.examples)
+        return result(False, f"{hint.nonconforming} {noun} not fit: {examples}")
+    seen = (column.min, column.max)
+    if expected == "date":  # date columns report ISO 8601 text
+        first, last = (date.fromisoformat(str(v)) for v in seen)
+        return result(_within(first, last, low, high), observed=seen)
+    return result(_within(*seen, low, high), observed=seen)
 
 
 def evaluate(
@@ -86,6 +166,7 @@ def evaluate(
     column_max_missing: Mapping[str, float] | None = None,
     column_types: Mapping[str, str] | None = None,
     column_max_affixes: Mapping[str, int] | None = None,
+    column_ranges: Mapping[str, ValueRange] | None = None,
 ) -> list[CheckResult]:
     """Evaluate the requested thresholds; a value equal to its limit passes.
 
@@ -108,6 +189,13 @@ def evaluate(
     with number affixes, or no affix could ever be found: ``ValueError`` is
     raised instead of passing silently. Unknown names fail as
     ``required_column``.
+
+    ``column_ranges`` maps column names to ``(min, max)`` bounds, inclusive,
+    either of which may be ``None``: numbers for ``int`` and ``float``
+    columns, ``datetime.date`` values for ``date`` columns. The column's min
+    and max must lie within them; a column with no values passes. A column of
+    another type fails and says so (naming the stray values when its type
+    hint fits). Unknown names fail as ``required_column``.
 
     ``required_columns`` are matched exactly (case-sensitive) against the
     reported header, after duplicate-name suffixes; each one gives a check
@@ -188,8 +276,16 @@ def evaluate(
                 found=column.affixes,
             )
         )
+    ranges = dict(column_ranges or {})
+    for name, bounds in ranges.items():
+        column = by_name.get(name)
+        if column is None:
+            continue  # reported below as a missing required column
+        results.append(_range_check(name, column, bounds))
     unknown_limited = (
-        name for name in [*column_limits, *required_types, *affix_limits] if name not in present
+        name
+        for name in [*column_limits, *required_types, *affix_limits, *ranges]
+        if name not in present
     )
     for name in dict.fromkeys([*required_columns, *unknown_limited]):
         found = name in present
