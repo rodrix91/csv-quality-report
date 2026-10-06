@@ -4,9 +4,10 @@ from __future__ import annotations
 
 import json
 from collections.abc import Sequence
+from datetime import date
 from typing import Any
 
-from .checks import CHECK_MAX_AFFIXES, CheckResult
+from .checks import CHECK_MAX_AFFIXES, CHECK_VALUE_RANGE, CheckResult
 from .profile import ColumnProfile, Report
 from .reader import DEFAULT_ENCODING, DELIMITER_NAMES, delimiter_name
 
@@ -155,6 +156,19 @@ def render_markdown(report: Report, source: str, checks: Sequence[CheckResult] =
     return "\n".join(lines) + "\n"
 
 
+def _json_value(value: int | float | str | date | None) -> int | float | str | None:
+    return value.isoformat() if isinstance(value, date) else value
+
+
+def _range_fields(check: CheckResult) -> dict[str, Any]:
+    """JSON fields of a value_range check: the allowed range and the observed one."""
+    (low, high), (first, last) = check.bounds, check.observed
+    return {
+        "range": {"min": _json_value(low), "max": _json_value(high)},
+        "observed": {"min": first, "max": last},
+    }
+
+
 def render_json(report: Report, source: str, checks: Sequence[CheckResult] = ()) -> str:
     data: dict[str, Any] = {
         "source": source,
@@ -209,6 +223,7 @@ def render_json(report: Report, source: str, checks: Sequence[CheckResult] = ())
                 "passed": c.passed,
                 **({"expected": c.expected, "actual": c.actual} if c.expected else {}),
                 **({"found": dict(c.found)} if c.check == CHECK_MAX_AFFIXES else {}),
+                **(_range_fields(c) if c.check == CHECK_VALUE_RANGE else {}),
             }
             for c in checks
         ],
