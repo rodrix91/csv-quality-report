@@ -16,6 +16,7 @@ CHECK_MAX_MISSING = "max_missing"
 CHECK_MAX_DUPLICATES = "max_duplicates"
 CHECK_REQUIRED_COLUMN = "required_column"
 CHECK_COLUMN_TYPE = "column_type"
+CHECK_MAX_AFFIXES = "max_affixes"
 COLUMN_TYPES = ("int", "float", "bool", "date", "datetime", "string")
 # Inferred column types that satisfy each required type.
 _SATISFIES = {
@@ -42,6 +43,7 @@ class CheckResult:
     hint: str = ""  # a present column that matches after stripping whitespace
     expected: str = ""  # column_type checks: the required type
     actual: str = ""  # column_type checks: the inferred type
+    found: tuple[tuple[str, int], ...] = ()  # max_affixes checks: (affix, cells)
 
     def describe(self) -> str:
         """One-line, human-readable explanation used on stderr and in Markdown."""
@@ -60,6 +62,14 @@ class CheckResult:
                 return f"column '{self.column}' is {self.actual}, as required ({self.expected})"
             message = f"column '{self.column}' is {self.actual}, expected {self.expected}"
             return message + (f" ({self.detail})" if self.detail else "")
+        if self.check == CHECK_MAX_AFFIXES:
+            count = int(self.value)
+            noun = "number affix" if count == 1 else "number affixes"
+            verb = "mixes" if count > 1 else "has"
+            found = ", ".join(f'"{a}" in {n} cell' + ("s" if n != 1 else "") for a, n in self.found)
+            return f"column '{self.column}' {verb} {count} {noun}" + (
+                f": {found} (limit {int(self.limit)})" if found else f" (limit {int(self.limit)})"
+            )
         return f"{_fmt(self.value)} duplicate rows (limit {_fmt(self.limit)})"
 
 
@@ -75,6 +85,7 @@ def evaluate(
     required_columns: Iterable[str] = (),
     column_max_missing: Mapping[str, float] | None = None,
     column_types: Mapping[str, str] | None = None,
+    column_max_affixes: Mapping[str, int] | None = None,
 ) -> list[CheckResult]:
     """Evaluate the requested thresholds; a value equal to its limit passes.
 
@@ -90,6 +101,13 @@ def evaluate(
     every column satisfies string); a column with no values passes. When a
     failing string column has a type hint matching the requirement, the
     message names the stray values. Unknown names fail as ``required_column``.
+
+    ``column_max_affixes`` maps column names to the most distinct number
+    affixes (``Report.number_affixes``) the column may contain; ``1`` fails a
+    column that mixes currencies or units. The report must have been built
+    with number affixes, or no affix could ever be found: ``ValueError`` is
+    raised instead of passing silently. Unknown names fail as
+    ``required_column``.
 
     ``required_columns`` are matched exactly (case-sensitive) against the
     reported header, after duplicate-name suffixes; each one gives a check
@@ -153,7 +171,26 @@ def evaluate(
                 actual=column.type,
             )
         )
-    unknown_limited = (name for name in [*column_limits, *required_types] if name not in present)
+    affix_limits = dict(column_max_affixes or {})
+    if affix_limits and not report.number_affixes:
+        raise ValueError("max_affixes checks need a report built with number affixes")
+    for name, max_affixes in affix_limits.items():
+        column = by_name.get(name)
+        if column is None:
+            continue  # reported below as a missing required column
+        results.append(
+            CheckResult(
+                check=CHECK_MAX_AFFIXES,
+                column=name,
+                limit=max_affixes,
+                value=len(column.affixes),
+                passed=len(column.affixes) <= max_affixes,
+                found=column.affixes,
+            )
+        )
+    unknown_limited = (
+        name for name in [*column_limits, *required_types, *affix_limits] if name not in present
+    )
     for name in dict.fromkeys([*required_columns, *unknown_limited]):
         found = name in present
         near = [] if found else [h for h in header if h.strip() == name.strip()]

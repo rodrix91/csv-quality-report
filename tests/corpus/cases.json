@@ -75,5 +75,12 @@
     "args": ["--delimiter", "auto", "--decimal-comma", "--thousands", "dot", "--na", "s/d", "--number-affix", "Gs.", "--number-affix", "US$", "--number-affix", "kg", "--number-affix", "lb", "--number-affix", "%"],
     "exit_code": 0,
     "about": "Invoice export with currency symbols, units and percentages: amounts become numbers, and the per-column affix counts show guaraníes mixed with dollars and one weight in pounds; 'a convenir' keeps the discount as text."
+  },
+  {
+    "name": "py_invoices_affixes_gates",
+    "file": "py_invoices_affixes.csv",
+    "args": ["--delimiter", "auto", "--decimal-comma", "--thousands", "dot", "--na", "s/d", "--number-affix", "Gs.", "--number-affix", "US$", "--number-affix", "kg", "--number-affix", "lb", "--number-affix", "%", "--max-affixes", "Monto=1", "--max-affixes", "Peso=1", "--max-affixes", "Descuento=1"],
+    "exit_code": 8,
+    "about": "The same invoices through --max-affixes: amounts in two currencies and weights in two units fail, discounts with one affix pass."
   }
 ]
