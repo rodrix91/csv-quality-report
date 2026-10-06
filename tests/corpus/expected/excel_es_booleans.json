@@ -177,6 +177,7 @@
       "affixes": {}
     }
   ],
+  "baseline": null,
   "checks": [
     {
       "check": "column_type",

@@ -96,5 +96,12 @@
     "args": ["--delimiter", "auto", "--decimal-comma", "--thousands", "dot", "--accounting-negatives", "--range", "Debe=0:", "--range", "Haber=0:", "--range", "Saldo=-100000:300000", "--range", "Descripción=0:1"],
     "exit_code": 8,
     "about": "The trial balance through --range: debits and credits are never negative and pass; a balance of -310.000,00 is outside the expected range; a text column cannot be checked against numbers."
+  },
+  {
+    "name": "py_invoices_next_day",
+    "file": "py_invoices_next_day.csv",
+    "args": ["--delimiter", "auto", "--decimal-comma", "--thousands", "dot", "--na", "s/d", "--number-affix", "Gs.", "--number-affix", "US$", "--number-affix", "kg", "--number-affix", "lb", "--number-affix", "%", "--baseline", "tests/corpus/expected/py_invoices_affixes.json", "--fail-on-schema-change"],
+    "exit_code": 8,
+    "about": "The next export of the same invoices, compared with the report of the first one: Descuento was dropped, Moneda appeared, 'a confirmar' turned Monto into text and many weights are blank; the schema changes fail the run."
   }
 ]

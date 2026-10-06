@@ -11,7 +11,8 @@ from datetime import date
 from pathlib import Path
 
 from . import __version__
-from .checks import COLUMN_TYPES, Bound, ValueRange, evaluate
+from .checks import COLUMN_TYPES, Bound, ValueRange, evaluate, schema_change_check
+from .compare import compare_reports, load_baseline
 from .errors import EXIT_CHECKS, CsvQualityError, OutputWriteError
 from .inference import DATE_ORDERS, bool_word_map, check_number_affixes, check_thousands
 from .profile import TOP_N, profile_file
@@ -330,6 +331,14 @@ def build_parser() -> argparse.ArgumentParser:
         help="per-column missing limit, overrides --max-missing for NAME (repeatable)",
     )
     parser.add_argument(
+        "--baseline",
+        type=Path,
+        default=None,
+        metavar="REPORT",
+        help="compare with an earlier JSON report of the same source (from --format json or "
+        "--json-output): added, removed and retyped columns, missing-value and row changes",
+    )
+    parser.add_argument(
         "--columns",
         type=lambda text: _column_names(text, "--columns"),
         default=None,
@@ -370,6 +379,11 @@ def build_parser() -> argparse.ArgumentParser:
         metavar="NAME=MIN:MAX",
         help="fail if column NAME has values outside MIN..MAX (inclusive; numbers, or "
         "YYYY-MM-DD dates for date columns; one side may be empty); repeatable",
+    )
+    gates.add_argument(
+        "--fail-on-schema-change",
+        action="store_true",
+        help="with --baseline: fail if columns were added or removed or changed type",
     )
     gates.add_argument(
         "--max-duplicates",
@@ -418,9 +432,13 @@ def main(argv: Sequence[str] | None = None) -> int:
                 "--max-affixes needs --number-affix (otherwise no affix is ever found)"
             )
         _check_selected(args)
+        if args.fail_on_schema_change and args.baseline is None:
+            raise ValueError("--fail-on-schema-change needs --baseline")
     except ValueError as exc:
         parser.error(str(exc))
     try:
+        # Read the baseline first: a wrong path should not cost a full profile.
+        baseline = None if args.baseline is None else load_baseline(args.baseline)
         report = profile_file(
             args.path,
             max_rows=args.max_rows,
@@ -450,15 +468,18 @@ def main(argv: Sequence[str] | None = None) -> int:
         column_max_affixes=dict(args.max_affixes),  # the last limit for a name wins
         column_ranges=dict(args.range),  # the last range for a name wins
     )
+    comparison = None if baseline is None else compare_reports(baseline, report)
+    if comparison is not None and args.fail_on_schema_change:
+        checks.append(schema_change_check(comparison))
     source = display_name(args.path)
     if args.json_output is not None:
         try:
-            _write_text(args.json_output, render_json(report, source, checks))
+            _write_text(args.json_output, render_json(report, source, checks, comparison))
         except OutputWriteError as exc:
             print(f"error: {exc.message}", file=sys.stderr)
             return exc.exit_code
     render = render_json if args.format == "json" else render_markdown
-    sys.stdout.write(render(report, source, checks))
+    sys.stdout.write(render(report, source, checks, comparison))
     failed = [c for c in checks if not c.passed]
     for check in failed:
         print(f"check failed: {check.describe()}", file=sys.stderr)

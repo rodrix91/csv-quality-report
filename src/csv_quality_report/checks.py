@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from datetime import date
 from typing import Any
 
+from .compare import Comparison
 from .profile import ColumnProfile, Report
 
 CHECK_MAX_MISSING = "max_missing"
@@ -20,6 +21,7 @@ CHECK_REQUIRED_COLUMN = "required_column"
 CHECK_COLUMN_TYPE = "column_type"
 CHECK_MAX_AFFIXES = "max_affixes"
 CHECK_VALUE_RANGE = "value_range"
+CHECK_SCHEMA_CHANGE = "schema_change"
 # A bound of a --range check: a number for int/float columns, a date for date
 # columns, None for an open side.
 Bound = int | float | date | None
@@ -82,6 +84,11 @@ class CheckResult:
             )
         if self.check == CHECK_VALUE_RANGE:
             return self._describe_range()
+        if self.check == CHECK_SCHEMA_CHANGE:
+            if self.passed:
+                return "no columns added, removed or retyped since the baseline"
+            noun = "change" if self.value == 1 else "changes"
+            return f"{int(self.value)} schema {noun} since the baseline: {self.detail}"
         return f"{_fmt(self.value)} duplicate rows (limit {_fmt(self.limit)})"
 
     def _describe_range(self) -> str:
@@ -115,6 +122,26 @@ def _exact(value: int | float | str | date | None) -> str:
 def _fmt(number: float) -> str:
     """Print 10.0 as 10 and keep real decimals (12.5, 33.3333)."""
     return f"{number:g}" if number == int(number) else f"{number:.4g}"
+
+
+def schema_change_check(comparison: Comparison) -> CheckResult:
+    """A check that fails when columns were added, removed or changed type since the baseline."""
+    parts = []
+    if comparison.added_columns:
+        parts.append("added " + ", ".join(f"'{name}'" for name in comparison.added_columns))
+    if comparison.removed_columns:
+        parts.append("removed " + ", ".join(f"'{name}'" for name in comparison.removed_columns))
+    parts.extend(
+        f"'{change.column}' {change.before} -> {change.after}" for change in comparison.type_changes
+    )
+    return CheckResult(
+        check=CHECK_SCHEMA_CHANGE,
+        column=None,
+        limit=0,
+        value=comparison.schema_changes,
+        passed=comparison.schema_changes == 0,
+        detail="; ".join(parts),
+    )
 
 
 def _within(first: Any, last: Any, low: Any, high: Any) -> bool:

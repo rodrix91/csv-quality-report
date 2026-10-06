@@ -1,6 +1,6 @@
 {
-  "source": "tests/corpus/py_invoices_affixes.csv",
-  "rows": 8,
+  "source": "tests/corpus/py_invoices_next_day.csv",
+  "rows": 9,
   "truncated": false,
   "delimiter": ";",
   "delimiter_detected": true,
@@ -33,7 +33,7 @@
       "type_hint": null,
       "missing": 0,
       "missing_pct": 0.0,
-      "distinct": 8,
+      "distinct": 9,
       "min": null,
       "max": null,
       "mean": null,
@@ -41,15 +41,15 @@
       "max_length": 8,
       "top_values": [
         {
-          "value": "001-0001",
+          "value": "001-0009",
           "count": 1
         },
         {
-          "value": "001-0002",
+          "value": "001-0010",
           "count": 1
         },
         {
-          "value": "001-0003",
+          "value": "001-0011",
           "count": 1
         }
       ],
@@ -58,100 +58,127 @@
     },
     {
       "name": "Monto",
-      "type": "float",
+      "type": "string",
       "type_hint": null,
       "missing": 0,
       "missing_pct": 0.0,
-      "distinct": 8,
-      "min": 25.5,
-      "max": 2400000.0,
-      "mean": 534443.0,
+      "distinct": 9,
+      "min": null,
+      "max": null,
+      "mean": null,
       "min_length": 9,
       "max_length": 13,
       "top_values": [
         {
-          "value": "Gs. 150.000",
+          "value": "Gs. 210.000",
           "count": 1
         },
         {
-          "value": "Gs. 1.250.000",
+          "value": "Gs. 98.000",
           "count": 1
         },
         {
-          "value": "US$ 25,50",
+          "value": "a confirmar",
           "count": 1
         }
       ],
       "untrimmed": 0,
       "affixes": {
-        "Gs.": 6,
-        "US$": 2
+        "Gs.": 7,
+        "US$": 1
       }
     },
     {
       "name": "Peso",
       "type": "float",
       "type_hint": null,
-      "missing": 1,
-      "missing_pct": 12.5,
-      "distinct": 7,
-      "min": 3.0,
-      "max": 1200.0,
-      "mean": 304.179,
+      "missing": 4,
+      "missing_pct": 44.4,
+      "distinct": 5,
+      "min": 2.0,
+      "max": 40.0,
+      "mean": 13.9,
       "min_length": 4,
-      "max_length": 8,
+      "max_length": 6,
       "top_values": [
         {
-          "value": "12,5 kg",
+          "value": "15 kg",
           "count": 1
         },
         {
-          "value": "800 kg",
+          "value": "40 kg",
           "count": 1
         },
         {
-          "value": "3 lb",
+          "value": "2 kg",
           "count": 1
         }
       ],
       "untrimmed": 0,
       "affixes": {
-        "kg": 6,
-        "lb": 1
+        "kg": 5
       }
     },
     {
-      "name": "Descuento",
+      "name": "Moneda",
       "type": "string",
       "type_hint": null,
       "missing": 0,
       "missing_pct": 0.0,
-      "distinct": 5,
+      "distinct": 2,
       "min": null,
       "max": null,
       "mean": null,
       "min_length": 3,
-      "max_length": 10,
+      "max_length": 3,
       "top_values": [
         {
-          "value": "10 %",
-          "count": 2
+          "value": "PYG",
+          "count": 8
         },
         {
-          "value": "0 %",
-          "count": 2
-        },
-        {
-          "value": "5 %",
-          "count": 2
+          "value": "USD",
+          "count": 1
         }
       ],
       "untrimmed": 0,
-      "affixes": {
-        "%": 7
-      }
+      "affixes": {}
     }
   ],
-  "baseline": null,
-  "checks": []
+  "baseline": {
+    "source": "tests/corpus/py_invoices_affixes.csv",
+    "rows": {
+      "before": 8,
+      "after": 9
+    },
+    "added_columns": [
+      "Moneda"
+    ],
+    "removed_columns": [
+      "Descuento"
+    ],
+    "type_changes": [
+      {
+        "column": "Monto",
+        "before": "float",
+        "after": "string"
+      }
+    ],
+    "missing_changes": [
+      {
+        "column": "Peso",
+        "before_pct": 12.5,
+        "after_pct": 44.4
+      }
+    ]
+  },
+  "checks": [
+    {
+      "check": "schema_change",
+      "column": null,
+      "limit": 0,
+      "value": 3,
+      "passed": false
+    }
+  ]
 }
