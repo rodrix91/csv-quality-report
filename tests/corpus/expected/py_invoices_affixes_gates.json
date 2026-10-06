@@ -152,6 +152,7 @@
       }
     }
   ],
+  "baseline": null,
   "checks": [
     {
       "check": "max_affixes",

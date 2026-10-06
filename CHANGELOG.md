@@ -7,6 +7,7 @@ All notable changes to this project are documented here. The format follows [Kee
 ### Added
 
 - `--columns NAMES` profiles only the given columns, in that order, for wide exports; rows are still read whole (duplicates compare full rows) and `--require-columns` checks the full header. An unknown name is a usage error that suggests a padded match; a per-column gate on a column left out is a usage error. JSON gains `selected_columns` and `header_columns`, Markdown `Columns: N of M (selected)`; `Report` gains `header` and `selected_columns`, and the API a `columns` argument (#89).
+- `--baseline REPORT` compares a run with an earlier JSON report of the same source: added and removed columns, type changes, missing-value changes and the row count, in a `Changes since baseline` Markdown section and a `baseline` JSON object. `--fail-on-schema-change` fails the run (exit code 8) on added, removed or retyped columns. Python API: `compare_reports()` and `Comparison`. The corpus gains the next day's invoice export (#91).
 
 ## [0.10.0] - 2026-10-05
 

@@ -19,6 +19,7 @@ csv-quality-report never guesses these conventions: each one is turned on with a
 | `$ 1.234,56`, `Gs. 50.000`, `12,5 kg`, `15 %` | `--number-affix '$' --number-affix Gs. ...` |
 | `(1.234,56)` or `1.234,56-` for negatives | `--accounting-negatives` |
 | A column that mixes currencies or units | `--max-affixes NAME=1` (with `--number-affix`) |
+| An export whose columns or types changed since last time | `--baseline yesterday.json --fail-on-schema-change` |
 | Impossible values: negative weights, dates in 1900 | `--range Peso=0:` or `--range Fecha=2026-01-01:2026-12-31` |
 | Very long text fields (descriptions, JSON) | `--max-field-size N` |
 

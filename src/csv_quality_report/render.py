@@ -8,6 +8,7 @@ from datetime import date
 from typing import Any
 
 from .checks import CHECK_MAX_AFFIXES, CHECK_VALUE_RANGE, CheckResult
+from .compare import Comparison
 from .profile import ColumnProfile, Report
 from .reader import DEFAULT_ENCODING, DELIMITER_NAMES, delimiter_name
 
@@ -122,7 +123,62 @@ def _bool_words_line(report: Report) -> list[str]:
 _DATE_ORDER_NAMES = {"dmy": "day/month/year", "mdy": "month/day/year", "ymd": "year/month/day"}
 
 
-def render_markdown(report: Report, source: str, checks: Sequence[CheckResult] = ()) -> str:
+def _baseline_section(comparison: Comparison | None) -> list[str]:
+    """Markdown section with the changes since a baseline report, when one was given."""
+    if comparison is None:
+        return []
+    c = comparison
+    lines = ["", "## Changes since baseline", ""]
+    if c.baseline_source:
+        lines.append(f"- Baseline: report of `{_md_escape(c.baseline_source)}`")
+    lines.append(f"- Rows: {c.rows_before} -> {c.rows_after}")
+    if c.added_columns:
+        lines.append("- Added columns: " + ", ".join(_md_escape(n) for n in c.added_columns))
+    if c.removed_columns:
+        lines.append("- Removed columns: " + ", ".join(_md_escape(n) for n in c.removed_columns))
+    if c.type_changes:
+        lines.append(
+            "- Type changes: "
+            + "; ".join(f"{_md_escape(t.column)} {t.before} -> {t.after}" for t in c.type_changes)
+        )
+    if c.missing_changes:
+        lines.append(
+            "- Missing values: "
+            + "; ".join(
+                f"{_md_escape(m.column)} {m.before_pct:.1f}% -> {m.after_pct:.1f}%"
+                for m in c.missing_changes
+            )
+        )
+    if not (c.added_columns or c.removed_columns or c.type_changes or c.missing_changes):
+        lines.append("- No column changes")
+    return lines
+
+
+def _baseline_json(comparison: Comparison | None) -> dict[str, Any] | None:
+    if comparison is None:
+        return None
+    c = comparison
+    return {
+        "source": c.baseline_source,
+        "rows": {"before": c.rows_before, "after": c.rows_after},
+        "added_columns": list(c.added_columns),
+        "removed_columns": list(c.removed_columns),
+        "type_changes": [
+            {"column": t.column, "before": t.before, "after": t.after} for t in c.type_changes
+        ],
+        "missing_changes": [
+            {"column": m.column, "before_pct": m.before_pct, "after_pct": m.after_pct}
+            for m in c.missing_changes
+        ],
+    }
+
+
+def render_markdown(
+    report: Report,
+    source: str,
+    checks: Sequence[CheckResult] = (),
+    comparison: Comparison | None = None,
+) -> str:
     lines = [
         f"# CSV quality report: {_md_escape(source)}",
         "",
@@ -153,6 +209,7 @@ def render_markdown(report: Report, source: str, checks: Sequence[CheckResult] =
             f"| {_md_escape(c.name)} | {c.type} | {c.missing} | {c.missing_pct:.1f} "
             f"| {c.distinct} | {_num(c.min)} | {_num(c.max)} | {_num(c.mean)} | {_top(c)} |"
         )
+    lines.extend(_baseline_section(comparison))
     lines.extend(_checks_section(checks))
     return "\n".join(lines) + "\n"
 
@@ -170,7 +227,12 @@ def _range_fields(check: CheckResult) -> dict[str, Any]:
     }
 
 
-def render_json(report: Report, source: str, checks: Sequence[CheckResult] = ()) -> str:
+def render_json(
+    report: Report,
+    source: str,
+    checks: Sequence[CheckResult] = (),
+    comparison: Comparison | None = None,
+) -> str:
     data: dict[str, Any] = {
         "source": source,
         "rows": report.rows,
@@ -219,6 +281,7 @@ def render_json(report: Report, source: str, checks: Sequence[CheckResult] = ())
             }
             for c in report.columns
         ],
+        "baseline": _baseline_json(comparison),
         "checks": [
             {
                 "check": c.check,

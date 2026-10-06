@@ -11,7 +11,7 @@ from pathlib import Path
 import pytest
 
 import csv_quality_report
-from csv_quality_report import checks, errors, profile, reader, render
+from csv_quality_report import checks, compare, errors, profile, reader, render
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -20,10 +20,12 @@ def test_public_names_are_exported_and_listed() -> None:
     expected = {
         "CheckResult",
         "ColumnProfile",
+        "Comparison",
         "CsvQualityError",
         "Report",
         "__version__",
         "build_report",
+        "compare_reports",
         "evaluate",
         "profile_file",
         "read_table",
@@ -43,6 +45,8 @@ def test_exports_are_the_same_objects_as_the_module_paths() -> None:
     assert csv_quality_report.evaluate is checks.evaluate
     assert csv_quality_report.render_json is render.render_json
     assert csv_quality_report.render_markdown is render.render_markdown
+    assert csv_quality_report.compare_reports is compare.compare_reports
+    assert csv_quality_report.Comparison is compare.Comparison
     assert csv_quality_report.CsvQualityError is errors.CsvQualityError
 
 

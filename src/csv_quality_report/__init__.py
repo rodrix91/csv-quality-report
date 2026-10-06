@@ -16,6 +16,7 @@ keeps working.
 __version__ = "0.10.0"
 
 from .checks import CheckResult, evaluate
+from .compare import Comparison, compare_reports
 from .errors import CsvQualityError
 from .profile import ColumnProfile, Report, build_report, profile_file
 from .reader import read_table
@@ -24,10 +25,12 @@ from .render import render_json, render_markdown
 __all__ = [
     "CheckResult",
     "ColumnProfile",
+    "Comparison",
     "CsvQualityError",
     "Report",
     "__version__",
     "build_report",
+    "compare_reports",
     "evaluate",
     "profile_file",
     "read_table",
