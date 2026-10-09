@@ -21,6 +21,8 @@ csv-quality-report never guesses these conventions: each one is turned on with a
 | A column that mixes currencies or units | `--max-affixes NAME=1` (with `--number-affix`) |
 | An export whose columns or types changed since last time | `--baseline yesterday.json --fail-on-schema-change` |
 | Impossible values: negative weights, dates in 1900 | `--range Peso=0:` or `--range Fecha=2026-01-01:2026-12-31` |
+| Times outside the period or shift | `--range Despacho=2026-01-01:2026-01-31` or `--range Despacho=2026-01-05T06:00:2026-01-05T22:00` |
+| A wide export where only some columns matter | `--columns Remito,Despacho` |
 | Very long text fields (descriptions, JSON) | `--max-field-size N` |
 
 When a column still comes out as `string`, look at its `type_hint` (the `Mostly typed:` line in Markdown): it names the type that fits most cells and the values that block it, written exactly as they are in the file.
@@ -208,4 +210,35 @@ $ python -m csv_quality_report tests/corpus/erp_balances_sap.csv --delimiter aut
 
 ## In a pipeline
 
-The same options work in the [GitHub Action](../../README.md#use-as-a-github-action) through its `args` input, and from Python as keyword arguments of `profile_file` (`decimal_comma=True`, `thousands="."`, `date_order="dmy"`, `bool_words=(("sí", "no"),)`, `number_affixes=("$",)`, `accounting_negatives=True`). Add `--json-output report.json` to keep the full report next to the Markdown summary.
+A daily job usually checks a few columns of a wide export, not all of them. Suppose the day-first ERP export above should hold only January dispatches. This job profiles only the delivery note, the dispatch time and the weight with `--columns`, and checks that every dispatch falls in January and no weight is negative or above a truck's load. Date bounds on a date-time column compare calendar days, so `2026-01-31` admits a dispatch at 23:59 that day. The file also holds February dispatches, so the job fails with exit code 8 and says which range was broken:
+
+```console
+$ python -m csv_quality_report tests/corpus/erp_day_first.csv --delimiter auto --decimal-comma --thousands dot --na s/d --date-order dmy --columns Remito,Despacho,'Peso kg' --range Despacho=2026-01-01:2026-01-31 --range 'Peso kg=0:5000'
+```
+
+```markdown
+# CSV quality report: tests/corpus/erp_day_first.csv
+
+- Rows analyzed: 12
+- Columns: 3 of 5 (selected)
+- Delimiter: semicolon (detected)
+- Also counted as missing: `s/d`
+- Thousands separator: dot
+- Date order: day/month/year
+- Duplicate rows: 0
+
+| Column | Type | Missing | Missing % | Distinct | Min | Max | Mean | Top 3 values |
+|---|---|---|---|---|---|---|---|---|
+| Remito | string | 0 | 0.0 | 12 |  |  |  | R-0001 (1), R-0002 (1), R-0003 (1) |
+| Despacho | datetime | 1 | 8.3 | 11 | 2026-01-02 08:15 | 2026-02-14 15:55 |  | 02/01/2026 8:15 (1), 02/01/2026 16:40 (1), 05/01/2026 9:05 (1) |
+| Peso kg | float | 1 | 8.3 | 11 | 75.25 | 3400.0 | 1202.45 | 1.250,5 (1), 980 (1), 2.100 (1) |
+
+## Checks: FAILED (1 of 2 failed)
+
+- FAIL: column 'Despacho' has values outside 2026-01-01..2026-01-31 (min 2026-01-02 08:15, max 2026-02-14 15:55)
+- pass: column 'Peso kg' is within 0..5000 (min 75.25, max 3400)
+```
+
+Date-times with a UTC offset (`2026-01-05T08:15-03:00`) are compared as instants, and their bounds need an offset too: a time without one could be in any zone, so the check fails and asks for one instead of guessing.
+
+The same options work in the [GitHub Action](../../README.md#use-as-a-github-action) through its `args` input, and from Python as keyword arguments of `profile_file` (`decimal_comma=True`, `thousands="."`, `date_order="dmy"`, `bool_words=(("sí", "no"),)`, `number_affixes=("$",)`, `accounting_negatives=True`, `columns=("Remito", "Despacho")`), with the gates as arguments of `evaluate` (`column_ranges={"Despacho": (date(2026, 1, 1), date(2026, 1, 31))}`). Add `--json-output report.json` to keep the full report next to the Markdown summary.

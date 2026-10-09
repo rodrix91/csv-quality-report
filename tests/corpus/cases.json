@@ -42,6 +42,13 @@
     "about": "Stray values (N/A, 12a, pendiente) keep qty and ship_date as text; type hints name them and --require-type fails."
   },
   {
+    "name": "utf8_bom_events_ranges",
+    "file": "utf8_bom_events.csv",
+    "args": ["--range", " recorded_at =2026-03-01T12:00Z:2026-03-02T07:15Z", "--range", "temperature=0:30"],
+    "exit_code": 8,
+    "about": "Date-times with offsets through --range: compared as instants, events written at 08:00-04:00 and 09:15+02:00 are exactly 12:00 and 07:15 UTC and pass, which a wall-clock comparison would fail; a temperature of -3 fails 0:30."
+  },
+  {
     "name": "erp_day_first",
     "file": "erp_day_first.csv",
     "args": ["--delimiter", "auto", "--decimal-comma", "--thousands", "dot", "--na", "s/d", "--date-order", "dmy", "--require-type", "Emisión=date", "--require-type", "Despacho=datetime", "--require-type", "Vencimiento=date"],
