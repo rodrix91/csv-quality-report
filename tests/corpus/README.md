@@ -5,7 +5,7 @@ Small files that reproduce real-world CSV problems, each run through the command
 | File | What it exercises |
 |---|---|
 | `es_excel_cp1252.csv` | Spanish spreadsheet export: cp1252 with CRLF line ends, `;` separators, amounts like `1.234,56` and `12.345.678,9`, `s/d` gaps (one of them padded, `" s/d "`, which must count as missing and not as untrimmed), values with surrounding spaces, one exact duplicate row. Used twice: plain, and through every kind of quality gate. |
-| `utf8_bom_events.csv` | UTF-8 with a byte order mark, ISO 8601 date-times with different offsets (the range compares instants), booleans in two cases, a header name with surrounding spaces. |
+| `utf8_bom_events.csv` | UTF-8 with a byte order mark, ISO 8601 date-times with different offsets (the range compares instants), booleans in two cases, a header name with surrounding spaces. Used twice: plain, and through `--range` with date-time bounds in UTC that the events meet only when compared as instants (`08:00-04:00` is the 12:00 UTC lower bound). |
 | `tab_quoted.tsv` | Tab separated, with quoted fields that contain a newline, a comma and a tab, and an exact duplicate record. |
 | `ports_pipe.csv.gz` | Pipe separated and gzip-compressed; both are detected from the content. |
 | `erp_day_first.csv` | ERP export with day-first dates (`5/1/2026`, `02/01/2026 8:15`) read with `--date-order dmy`, ISO values in the same columns, grouped weights, and an impossible due date (`30/02/2026`) that keeps the column as text, is named in the type hint and fails `--require-type`. |
