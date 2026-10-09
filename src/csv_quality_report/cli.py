@@ -11,10 +11,23 @@ from datetime import date
 from pathlib import Path
 
 from . import __version__
-from .checks import COLUMN_TYPES, Bound, ValueRange, evaluate, schema_change_check
+from .checks import (
+    COLUMN_TYPES,
+    Bound,
+    ValueRange,
+    evaluate,
+    range_bounds_problem,
+    schema_change_check,
+)
 from .compare import compare_reports, load_baseline
 from .errors import EXIT_CHECKS, CsvQualityError, OutputWriteError
-from .inference import DATE_ORDERS, bool_word_map, check_number_affixes, check_thousands
+from .inference import (
+    DATE_ORDERS,
+    bool_word_map,
+    check_number_affixes,
+    check_thousands,
+    parse_datetime,
+)
 from .profile import TOP_N, profile_file
 from .reader import DEFAULT_ENCODING, DELIMITER_AUTO, display_name, normalize_encoding
 from .render import render_json, render_markdown
@@ -126,10 +139,22 @@ def _column_affixes(text: str) -> tuple[str, int]:
 
 
 _ISO_DATE_RE = re.compile(r"[0-9]{4}-[0-9]{2}-[0-9]{2}")
+# The shape of an ISO 8601 date-time bound: date, time and an optional offset.
+# Loose on purpose (any calendar values, any number of fraction digits), so
+# _bound() can say why a value that looks like a date-time is not a valid one.
+_ISO_DATETIME = (
+    r"[0-9]{4}-[0-9]{2}-[0-9]{2}[T ][0-9]{2}:[0-9]{2}(?::[0-9]{2}(?:\.[0-9]+)?)?"
+    r"(?:Z|[+-][0-9]{2}(?::?[0-9]{2})?)?"
+)
+_ISO_DATETIME_RE = re.compile(_ISO_DATETIME)
+# MIN:MAX, where a side is empty, a date-time (which contains colons) or any
+# text without a colon. Date-times are tried first, so the colon that splits
+# the range is the one between two bounds: 2026-10-01T08:00:2026-10-01T18:00.
+_RANGE_SPEC_RE = re.compile(rf"\s*({_ISO_DATETIME}|[^:]*?)\s*:\s*({_ISO_DATETIME}|[^:]*?)\s*")
 
 
 def _bound(text: str, option: str) -> Bound:
-    """One side of a ``--range``: empty (open), an ISO date, or a finite number."""
+    """One side of a ``--range``: empty (open), an ISO date or date-time, or a finite number."""
     if not text:
         return None
     if _ISO_DATE_RE.fullmatch(text):
@@ -139,6 +164,13 @@ def _bound(text: str, option: str) -> Bound:
             raise argparse.ArgumentTypeError(
                 f"invalid --range value: {option!r} ({text!r} is not a valid date)"
             ) from None
+    if _ISO_DATETIME_RE.fullmatch(text):
+        moment = parse_datetime(text)
+        if moment is None:
+            raise argparse.ArgumentTypeError(
+                f"invalid --range value: {option!r} ({text!r} is not a valid date-time)"
+            )
+        return moment
     try:
         return int(text)
     except ValueError:
@@ -147,7 +179,8 @@ def _bound(text: str, option: str) -> Bound:
         number = float(text)
     except ValueError:
         raise argparse.ArgumentTypeError(
-            f"invalid --range value: {option!r} ({text!r} is not a number or a YYYY-MM-DD date)"
+            f"invalid --range value: {option!r} ({text!r} is not a number, "
+            "a YYYY-MM-DD date or an ISO 8601 date-time)"
         ) from None
     if not math.isfinite(number):
         raise argparse.ArgumentTypeError(
@@ -159,27 +192,22 @@ def _bound(text: str, option: str) -> Bound:
 def _column_range(text: str) -> tuple[str, ValueRange]:
     """Parse ``NAME=MIN:MAX``; either bound may be empty, names may contain ``=``."""
     name, sep, spec = text.rpartition("=")
-    if not sep or not name or spec.count(":") != 1:
+    match = _RANGE_SPEC_RE.fullmatch(spec)
+    # A lone date-time would split inside its time (2026-10-01T08 and 00).
+    if not sep or not name or match is None or _ISO_DATETIME_RE.fullmatch(spec.strip()):
         raise argparse.ArgumentTypeError(
             f"invalid --range value: {text!r} (use NAME=MIN:MAX; one side may be empty)"
         )
-    low_text, high_text = spec.split(":")
-    low, high = _bound(low_text.strip(), text), _bound(high_text.strip(), text)
+    low, high = _bound(match[1], text), _bound(match[2], text)
     if low is None and high is None:
         raise argparse.ArgumentTypeError(f"invalid --range value: {text!r} (give MIN, MAX or both)")
-    if low is not None and high is not None:
-        if isinstance(low, date) and isinstance(high, date):
-            reversed_bounds = low > high
-        elif not isinstance(low, date) and not isinstance(high, date):
-            reversed_bounds = low > high
-        else:
-            raise argparse.ArgumentTypeError(
-                f"invalid --range value: {text!r} (both bounds must be numbers, or both dates)"
-            )
-        if reversed_bounds:
-            raise argparse.ArgumentTypeError(
-                f"invalid --range value: {text!r} (MIN is greater than MAX)"
-            )
+    problem = range_bounds_problem(low, high)
+    if problem:
+        raise argparse.ArgumentTypeError(f"invalid --range value: {text!r} ({problem})")
+    if low is not None and high is not None and low > high:  # type: ignore[operator]
+        raise argparse.ArgumentTypeError(
+            f"invalid --range value: {text!r} (MIN is greater than MAX)"
+        )
     return name, (low, high)
 
 
@@ -377,8 +405,9 @@ def build_parser() -> argparse.ArgumentParser:
         action="append",
         default=[],
         metavar="NAME=MIN:MAX",
-        help="fail if column NAME has values outside MIN..MAX (inclusive; numbers, or "
-        "YYYY-MM-DD dates for date columns; one side may be empty); repeatable",
+        help="fail if column NAME has values outside MIN..MAX (inclusive; numbers, "
+        "YYYY-MM-DD dates for date or datetime columns, or ISO 8601 date-times; one side "
+        "may be empty); repeatable",
     )
     gates.add_argument(
         "--fail-on-schema-change",

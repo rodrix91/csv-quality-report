@@ -124,12 +124,13 @@ def test_hint_of_another_kind_is_not_shown(write_csv: WriteCsv) -> None:
     assert check.describe() == "column 'd' is string, a range needs int or float values"
 
 
-def test_datetime_columns_are_not_supported(write_csv: WriteCsv) -> None:
+def test_datetime_columns_take_date_bounds(write_csv: WriteCsv) -> None:
+    # Unsupported until #94, which compares calendar days (tests/test_datetime_range.py).
     report = profile_file(write_csv("t\n2026-01-05T10:00\n"))
     (check,) = evaluate(report, column_ranges={"t": (date(2026, 1, 1), None)})
     assert (check.passed, check.describe()) == (
-        False,
-        "column 't' is datetime, a range needs date values",
+        True,
+        "column 't' is within 2026-01-01.. (min 2026-01-05T10:00, max 2026-01-05T10:00)",
     )
 
 
@@ -172,10 +173,10 @@ def test_works_with_reading_options(write_csv: WriteCsv) -> None:
         ("=0:1", "(use NAME=MIN:MAX; one side may be empty)"),
         ("peso=1:2:3", "(use NAME=MIN:MAX; one side may be empty)"),
         ("peso=:", "(give MIN, MAX or both)"),
-        ("peso=a:5", "('a' is not a number or a YYYY-MM-DD date)"),
+        ("peso=a:5", "('a' is not a number, a YYYY-MM-DD date or an ISO 8601 date-time)"),
         ("peso=5:1", "(MIN is greater than MAX)"),
         ("fecha=2026-02-01:2026-01-01", "(MIN is greater than MAX)"),
-        ("peso=2026-01-01:5", "(both bounds must be numbers, or both dates)"),
+        ("peso=2026-01-01:5", "(both bounds must be numbers, both dates or both date-times)"),
         ("peso=inf:", "('inf' is not a finite number)"),
         ("peso=:nan", "('nan' is not a finite number)"),
         ("fecha=2026-02-30:", "('2026-02-30' is not a valid date)"),

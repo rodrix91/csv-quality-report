@@ -9,10 +9,11 @@ from __future__ import annotations
 
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, datetime
 from typing import Any
 
 from .compare import Comparison
+from .inference import parse_datetime
 from .profile import ColumnProfile, Report
 
 CHECK_MAX_MISSING = "max_missing"
@@ -23,8 +24,9 @@ CHECK_MAX_AFFIXES = "max_affixes"
 CHECK_VALUE_RANGE = "value_range"
 CHECK_SCHEMA_CHANGE = "schema_change"
 # A bound of a --range check: a number for int/float columns, a date for date
-# columns, None for an open side.
-Bound = int | float | date | None
+# and datetime columns, a datetime for date and datetime columns, None for an
+# open side.
+Bound = int | float | date | datetime | None
 ValueRange = tuple[Bound, Bound]
 Observed = tuple[int | float | str | None, int | float | str | None]  # column min, max
 COLUMN_TYPES = ("int", "float", "bool", "date", "datetime", "string")
@@ -101,13 +103,20 @@ class CheckResult:
                 f"column '{self.column}' is {self.actual}, a range needs {self.expected} values"
             )
             return message + (f" ({self.detail})" if self.detail else "")
+        if self.detail:  # values of the right type that cannot be compared with the bounds
+            return f"column '{self.column}' cannot be checked against {span} ({self.detail})"
         verb = "is within" if self.passed else "has values outside"
         first, last = (_exact(v) for v in self.observed)
         return f"column '{self.column}' {verb} {span} (min {first}, max {last})"
 
 
-# Column types a range applies to, by the kind of its bounds.
-_RANGE_TYPES = {"int or float": {"int", "float"}, "date": {"date"}}
+# Column types a range applies to, by the kind of its bounds. Dates and
+# date-times apply to both temporal types; see docs/decisions/0003.
+_RANGE_TYPES = {
+    "int or float": {"int", "float"},
+    "date": {"date", "datetime"},
+    "datetime": {"date", "datetime"},
+}
 
 
 def _exact(value: int | float | str | date | None) -> str:
@@ -144,15 +153,50 @@ def schema_change_check(comparison: Comparison) -> CheckResult:
     )
 
 
+def _bound_kind(bound: Bound) -> str:
+    """``number``, ``date`` or ``date-time`` (``datetime`` is a subclass of ``date``)."""
+    if isinstance(bound, datetime):
+        return "date-time"
+    return "date" if isinstance(bound, date) else "number"
+
+
+def range_bounds_problem(low: Bound, high: Bound) -> str | None:
+    """Why ``low`` and ``high`` cannot bound one range, or ``None`` when they can.
+
+    Both bounds must be of the same kind (numbers, dates or date-times), and
+    two date-times must both have a UTC offset or both lack one, since the two
+    cannot be ordered. An open side (``None``) goes with any bound.
+    """
+    if low is None or high is None:
+        return None
+    if _bound_kind(low) != _bound_kind(high):
+        return "both bounds must be numbers, both dates or both date-times"
+    if isinstance(low, datetime) and isinstance(high, datetime):
+        if (low.tzinfo is None) != (high.tzinfo is None):
+            return "both date-times must have a UTC offset, or neither"
+    return None
+
+
 def _within(first: Any, last: Any, low: Any, high: Any) -> bool:
     """True when ``first..last`` lies inside the inclusive bounds (``None`` is open)."""
     return (low is None or first >= low) and (high is None or last <= high)
 
 
 def _range_check(name: str, column: ColumnProfile, bounds: ValueRange) -> CheckResult:
-    """The ``value_range`` check of one column against inclusive ``bounds``."""
+    """The ``value_range`` check of one column against inclusive ``bounds``.
+
+    Dates and date-times are compared as described in ADR 0003: date bounds
+    compare calendar days, date-time bounds compare times (instants when the
+    values have a UTC offset), and a comparison that would need a guessed time
+    zone fails and says why.
+    """
     low, high = bounds
-    expected = "date" if isinstance(low, date) or isinstance(high, date) else "int or float"
+    if isinstance(low, datetime) or isinstance(high, datetime):
+        expected = "datetime"
+    elif isinstance(low, date) or isinstance(high, date):
+        expected = "date"
+    else:
+        expected = "int or float"
     wanted = _RANGE_TYPES[expected]
 
     def result(passed: bool, detail: str = "", observed: Observed = (None, None)) -> CheckResult:
@@ -179,10 +223,37 @@ def _range_check(name: str, column: ColumnProfile, bounds: ValueRange) -> CheckR
         examples = ", ".join(f'"{v}"' for v in hint.examples)
         return result(False, f"{hint.nonconforming} {noun} not fit: {examples}")
     seen = (column.min, column.max)
-    if expected == "date":  # date columns report ISO 8601 text
-        first, last = (date.fromisoformat(str(v)) for v in seen)
-        return result(_within(first, last, low, high), observed=seen)
-    return result(_within(*seen, low, high), observed=seen)
+    if expected == "int or float":
+        return result(_within(*seen, low, high), observed=seen)
+    if column.min is None:  # a datetime column mixing values with and without an offset
+        return result(False, "it mixes values with and without a UTC offset, so it has no range")
+    # Date and datetime columns report ISO 8601 text that parse_datetime accepts.
+    first, last = (_moment(value) for value in seen)
+    with_offset = first.tzinfo is not None
+    if expected == "date":
+        if with_offset:
+            return result(
+                False,
+                "its values have a UTC offset, so their calendar day depends on the time zone; "
+                "use date-times with an offset as bounds",
+            )
+        return result(_within(first.date(), last.date(), low, high), observed=seen)
+    bound = low if low is not None else high  # both have an offset, or neither
+    if with_offset != (isinstance(bound, datetime) and bound.tzinfo is not None):
+        detail = (
+            "its values have a UTC offset and the bounds do not"
+            if with_offset
+            else "its values have no UTC offset and the bounds do"
+        )
+        return result(False, detail)
+    return result(_within(first, last, low, high), observed=seen)
+
+
+def _moment(value: int | float | str | None) -> datetime:
+    """The date-time of a date or datetime column's min or max (a date is midnight)."""
+    moment = parse_datetime(str(value))
+    assert moment is not None, value  # the column type guarantees it
+    return moment
 
 
 def evaluate(
@@ -219,10 +290,15 @@ def evaluate(
 
     ``column_ranges`` maps column names to ``(min, max)`` bounds, inclusive,
     either of which may be ``None``: numbers for ``int`` and ``float``
-    columns, ``datetime.date`` values for ``date`` columns. The column's min
-    and max must lie within them; a column with no values passes. A column of
-    another type fails and says so (naming the stray values when its type
-    hint fits). Unknown names fail as ``required_column``.
+    columns, ``datetime.date`` values for ``date`` and ``datetime`` columns
+    (comparing calendar days), or ``datetime.datetime`` values for ``date``
+    and ``datetime`` columns (comparing times; instants when the values have
+    a UTC offset). The column's min and max must lie within them; a column
+    with no values passes. A column of another type fails and says so (naming
+    the stray values when its type hint fits), and so does a comparison that
+    would need a guessed time zone (see ADR 0003). Bounds of different kinds,
+    or date-times with and without an offset, raise ``ValueError``. Unknown
+    names fail as ``required_column``.
 
     ``required_columns`` are matched exactly (case-sensitive) against the
     file's whole header (``Report.header``, after duplicate-name suffixes),
@@ -317,6 +393,9 @@ def evaluate(
         )
     ranges = dict(column_ranges or {})
     for name, bounds in ranges.items():
+        problem = range_bounds_problem(*bounds)
+        if problem:
+            raise ValueError(f"invalid range for column {name!r}: {problem}")
         column = by_name.get(name)
         if column is None:
             continue  # reported below as a missing required column
