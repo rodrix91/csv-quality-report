@@ -299,7 +299,7 @@ Inputs reach the shell only through environment variables, never interpolated in
 
 ## Use from Python
 
-The same engine is available as a library. These names are the supported API, importable from `csv_quality_report`: `profile_file`, `build_report`, `read_table`, `evaluate`, `render_markdown`, `render_json`, `Report`, `ColumnProfile`, `CheckResult` and `CsvQualityError`, plus `compare_reports` and `Comparison` to compare a report with an earlier JSON report (`compare_reports(json.loads(text), report)`). `profile_file` takes the same options as the command line (`max_rows`, `delimiter`, `decimal_comma`, `na_tokens`, `top_n`) and streams the file.
+The same engine is available as a library. These names are the supported API, importable from `csv_quality_report`: `profile_file`, `build_report`, `read_table`, `evaluate`, `render_markdown`, `render_json`, `Report`, `ColumnProfile`, `CheckResult` and `CsvQualityError`, plus `compare_reports` and `Comparison` to compare a report with an earlier JSON report (`compare_reports(json.loads(text), report)`). `profile_file` takes the same options as the command line (`max_rows`, `delimiter`, `decimal_comma`, `na_tokens`, `top_n`) and streams the file; like `read_table`, it accepts the path as a `pathlib.Path`, a string or any path-like object, and `"-"` reads standard input.
 
 ```python
 from pathlib import Path

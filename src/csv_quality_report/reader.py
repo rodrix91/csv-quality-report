@@ -6,6 +6,7 @@ import codecs
 import csv
 import gzip
 import io
+import os
 import re
 import sys
 import zlib
@@ -353,15 +354,22 @@ def _text_stream(
             binary.close()
 
 
+# What the public reading functions accept as a path: "data.csv", Path(...),
+# any os.PathLike; "-" means standard input.
+PathArg = str | os.PathLike[str]
+
+
 @contextmanager
 def open_rows(
-    path: Path,
+    path: PathArg,
     max_rows: int | None = None,
     delimiter: str = ",",
     encoding: str = DEFAULT_ENCODING,
     max_field_size: int | None = None,
 ) -> Iterator[RowStream]:
     """Open ``path`` and yield a ``RowStream`` that reads it lazily.
+
+    ``path`` is a ``str`` or any path-like object (``pathlib.Path``...).
 
     The file is read as UTF-8 (a leading BOM is accepted), or in ``encoding``
     (a canonical codec name, see ``normalize_encoding``), without loading it
@@ -387,6 +395,7 @@ def open_rows(
     in the ``csv`` module, so the previous value is restored when the stream
     closes, also after an error.
     """
+    path = Path(path)  # the rest of the reader works on Path objects
     previous_limit = None if max_field_size is None else csv.field_size_limit(max_field_size)
     try:
         with _open_rows(path, max_rows, delimiter, encoding) as stream:
@@ -453,7 +462,7 @@ def _open_rows(
 
 
 def read_table(
-    path: Path,
+    path: PathArg,
     max_rows: int | None = None,
     delimiter: str = ",",
     encoding: str = DEFAULT_ENCODING,

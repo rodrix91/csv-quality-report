@@ -9,7 +9,6 @@ from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass
 from itertools import compress, islice, repeat
 from operator import itemgetter
-from pathlib import Path
 
 from .errors import ColumnSelectionError
 from .inference import (
@@ -34,7 +33,7 @@ from .inference import (
     strip_thousands,
     value_type,
 )
-from .reader import DEFAULT_ENCODING, RowStream, Table, open_rows
+from .reader import DEFAULT_ENCODING, PathArg, RowStream, Table, open_rows
 
 TOP_N = 3  # default number of most frequent values per column (--top)
 # A type hint needs at least 9/10 of the non-missing cells. Kept as integers:
@@ -620,7 +619,7 @@ def build_report(
 
 
 def profile_file(
-    path: Path,
+    path: PathArg,
     max_rows: int | None = None,
     delimiter: str = ",",
     decimal_comma: bool = False,
@@ -636,6 +635,8 @@ def profile_file(
     columns: Sequence[str] | None = None,
 ) -> Report:
     """Stream ``path`` and profile it without loading the whole file into memory.
+
+    ``path`` is a ``str`` or any path-like object; ``"-"`` reads standard input.
 
     Same rules and errors as ``reader.open_rows``; same result as
     ``build_report(read_table(...))``.
