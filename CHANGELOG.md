@@ -4,6 +4,10 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Added
+
+- `--range` checks `datetime` columns. Bounds may be ISO 8601 date-times (`Escaneo=2026-10-01T08:00:2026-10-01T18:00`, also with seconds, `Z` or an offset), split at the colon between the two bounds, for `date` and `datetime` columns; `YYYY-MM-DD` bounds now also apply to `datetime` columns and compare calendar days. Values with an offset are compared as instants; a column with offsets checked against bounds without them (or the reverse, or with date bounds) and a column that mixes both fail and say why, instead of guessing a time zone (ADR 0003). JSON items of these checks have `expected: "datetime"`. `evaluate()` accepts `datetime` bounds and raises `ValueError` for bounds of different kinds, which used to fail with `TypeError` (#94).
+
 ## [0.11.0] - 2026-10-06
 
 ### Added
