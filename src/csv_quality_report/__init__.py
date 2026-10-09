@@ -13,7 +13,7 @@ Every module path used before (``csv_quality_report.profile`` and so on)
 keeps working.
 """
 
-__version__ = "0.11.0"
+__version__ = "0.12.0"
 
 from .checks import CheckResult, evaluate
 from .compare import Comparison, compare_reports

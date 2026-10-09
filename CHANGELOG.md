@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-10-08
+
 ### Added
 
 - `--range` checks `datetime` columns. Bounds may be ISO 8601 date-times (`Escaneo=2026-10-01T08:00:2026-10-01T18:00`, also with seconds, `Z` or an offset), split at the colon between the two bounds, for `date` and `datetime` columns; `YYYY-MM-DD` bounds now also apply to `datetime` columns and compare calendar days. Values with an offset are compared as instants; a column with offsets checked against bounds without them (or the reverse, or with date bounds) and a column that mixes both fail and say why, instead of guessing a time zone (ADR 0003). JSON items of these checks have `expected: "datetime"`. `evaluate()` accepts `datetime` bounds and raises `ValueError` for bounds of different kinds, which used to fail with `TypeError` (#94).
@@ -134,7 +136,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 - Initial version: per-column type inference, missing values, distinct counts, min/max and top values, duplicate rows, Markdown and JSON output.
 
-[Unreleased]: https://github.com/rodrix91/csv-quality-report/compare/v0.11.0...HEAD
+[Unreleased]: https://github.com/rodrix91/csv-quality-report/compare/v0.12.0...HEAD
+[0.12.0]: https://github.com/rodrix91/csv-quality-report/compare/v0.11.0...v0.12.0
 [0.11.0]: https://github.com/rodrix91/csv-quality-report/compare/v0.10.0...v0.11.0
 [0.10.0]: https://github.com/rodrix91/csv-quality-report/compare/v0.9.0...v0.10.0
 [0.9.0]: https://github.com/rodrix91/csv-quality-report/compare/v0.8.0...v0.9.0
