@@ -1,0 +1,205 @@
+{
+  "source": "tests/corpus/py_invoices_next_day.csv",
+  "rows": 9,
+  "truncated": false,
+  "delimiter": ";",
+  "delimiter_detected": true,
+  "sep_line": false,
+  "na_tokens": [
+    "s/d"
+  ],
+  "top_n": 3,
+  "compressed": false,
+  "encoding": "utf-8",
+  "thousands": ".",
+  "date_order": null,
+  "bool_words": [],
+  "number_affixes": [
+    "Gs.",
+    "US$",
+    "kg",
+    "lb",
+    "%"
+  ],
+  "accounting_negatives": false,
+  "selected_columns": null,
+  "header_columns": 4,
+  "duplicate_rows": 0,
+  "untrimmed_columns": [],
+  "columns": [
+    {
+      "name": "Factura",
+      "type": "string",
+      "type_hint": null,
+      "missing": 0,
+      "missing_pct": 0.0,
+      "distinct": 9,
+      "min": null,
+      "max": null,
+      "mean": null,
+      "min_length": 8,
+      "max_length": 8,
+      "top_values": [
+        {
+          "value": "001-0009",
+          "count": 1
+        },
+        {
+          "value": "001-0010",
+          "count": 1
+        },
+        {
+          "value": "001-0011",
+          "count": 1
+        }
+      ],
+      "untrimmed": 0,
+      "affixes": {}
+    },
+    {
+      "name": "Monto",
+      "type": "string",
+      "type_hint": null,
+      "missing": 0,
+      "missing_pct": 0.0,
+      "distinct": 9,
+      "min": null,
+      "max": null,
+      "mean": null,
+      "min_length": 9,
+      "max_length": 13,
+      "top_values": [
+        {
+          "value": "Gs. 210.000",
+          "count": 1
+        },
+        {
+          "value": "Gs. 98.000",
+          "count": 1
+        },
+        {
+          "value": "a confirmar",
+          "count": 1
+        }
+      ],
+      "untrimmed": 0,
+      "affixes": {
+        "Gs.": 7,
+        "US$": 1
+      }
+    },
+    {
+      "name": "Peso",
+      "type": "float",
+      "type_hint": null,
+      "missing": 4,
+      "missing_pct": 44.4,
+      "distinct": 5,
+      "min": 2.0,
+      "max": 40.0,
+      "mean": 13.9,
+      "min_length": 4,
+      "max_length": 6,
+      "top_values": [
+        {
+          "value": "15 kg",
+          "count": 1
+        },
+        {
+          "value": "40 kg",
+          "count": 1
+        },
+        {
+          "value": "2 kg",
+          "count": 1
+        }
+      ],
+      "untrimmed": 0,
+      "affixes": {
+        "kg": 5
+      }
+    },
+    {
+      "name": "Moneda",
+      "type": "string",
+      "type_hint": null,
+      "missing": 0,
+      "missing_pct": 0.0,
+      "distinct": 2,
+      "min": null,
+      "max": null,
+      "mean": null,
+      "min_length": 3,
+      "max_length": 3,
+      "top_values": [
+        {
+          "value": "PYG",
+          "count": 8
+        },
+        {
+          "value": "USD",
+          "count": 1
+        }
+      ],
+      "untrimmed": 0,
+      "affixes": {}
+    }
+  ],
+  "baseline": {
+    "source": "tests/corpus/py_invoices_affixes.csv",
+    "rows": {
+      "before": 8,
+      "after": 9
+    },
+    "added_columns": [
+      "Moneda"
+    ],
+    "removed_columns": [
+      "Descuento"
+    ],
+    "type_changes": [
+      {
+        "column": "Monto",
+        "before": "float",
+        "after": "string"
+      }
+    ],
+    "missing_changes": [
+      {
+        "column": "Peso",
+        "before_pct": 12.5,
+        "after_pct": 44.4
+      }
+    ]
+  },
+  "checks": [
+    {
+      "check": "row_drop",
+      "column": null,
+      "limit": 10.0,
+      "value": 0.0,
+      "passed": true
+    },
+    {
+      "check": "missing_increase",
+      "column": "Factura",
+      "limit": 20.0,
+      "value": 0.0,
+      "passed": true
+    },
+    {
+      "check": "missing_increase",
+      "column": "Monto",
+      "limit": 20.0,
+      "value": 0.0,
+      "passed": true
+    },
+    {
+      "check": "missing_increase",
+      "column": "Peso",
+      "limit": 20.0,
+      "value": 31.9444,
+      "passed": false
+    }
+  ]
+}

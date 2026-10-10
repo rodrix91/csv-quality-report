@@ -10,6 +10,7 @@ from __future__ import annotations
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from datetime import date, datetime
+from fractions import Fraction
 from typing import Any
 
 from .compare import Comparison
@@ -23,6 +24,8 @@ CHECK_COLUMN_TYPE = "column_type"
 CHECK_MAX_AFFIXES = "max_affixes"
 CHECK_VALUE_RANGE = "value_range"
 CHECK_SCHEMA_CHANGE = "schema_change"
+CHECK_ROW_DROP = "row_drop"
+CHECK_MISSING_INCREASE = "missing_increase"
 # A bound of a --range check: a number for int/float columns, a date for date
 # and datetime columns, a datetime for date and datetime columns, None for an
 # open side.
@@ -40,6 +43,7 @@ _SATISFIES = {
     "string": set(COLUMN_TYPES),
 }
 _MAX_LISTED = 10  # columns named in a "missing column" message
+_NO_BASELINE_COUNT = "the baseline has no 'missing' count for it"
 
 
 @dataclass(frozen=True)
@@ -91,7 +95,27 @@ class CheckResult:
                 return "no columns added, removed or retyped since the baseline"
             noun = "change" if self.value == 1 else "changes"
             return f"{int(self.value)} schema {noun} since the baseline: {self.detail}"
+        if self.check == CHECK_ROW_DROP:
+            change = f"fell {_fmt(self.value)}%" if self.value > 0 else "did not fall"
+            return (
+                f"row count {change} since the baseline "
+                f"({self.detail} rows; limit {_fmt(self.limit)}%)"
+            )
+        if self.check == CHECK_MISSING_INCREASE:
+            return self._describe_missing_increase()
         return f"{_fmt(self.value)} duplicate rows (limit {_fmt(self.limit)})"
+
+    def _describe_missing_increase(self) -> str:
+        if self.detail == _NO_BASELINE_COUNT:
+            return f"column '{self.column}' cannot be compared with the baseline ({self.detail})"
+        if self.value > 0:
+            change = f"rose {_fmt(self.value)} points"
+        else:
+            change = "did not rise"
+        return (
+            f"column '{self.column}' missing values {change} since the baseline "
+            f"({self.detail}; limit {_fmt(self.limit)} points)"
+        )
 
     def _describe_range(self) -> str:
         # Open sides stay empty, as in the option: 0.., ..5000, 0..5000.
@@ -151,6 +175,80 @@ def schema_change_check(comparison: Comparison) -> CheckResult:
         passed=comparison.schema_changes == 0,
         detail="; ".join(parts),
     )
+
+
+def _limit(limit: float) -> Fraction:
+    """A percentage limit as the exact decimal written (``0.1`` is 1/10, not a binary float)."""
+    return Fraction(str(limit))
+
+
+def _shown(value: Fraction) -> float:
+    """A percentage for reports: 4 decimals, but never 0 for a value that is not 0."""
+    rounded = round(float(value), 4)
+    return rounded if rounded or not value else float(value)
+
+
+def _share(missing: int, rows: int) -> Fraction:
+    """Missing cells as an exact percentage of ``rows`` (0 for an empty file)."""
+    return Fraction(100 * missing, rows) if rows else Fraction(0)
+
+
+def row_drop_check(comparison: Comparison, max_drop: float) -> CheckResult:
+    """A check that fails when the row count fell by more than ``max_drop`` % of the baseline's.
+
+    More rows than the baseline, or a baseline without rows, is no drop. The
+    comparison is exact (fractions of the row counts); a drop equal to the
+    limit passes.
+    """
+    before, after = comparison.rows_before, comparison.rows_after
+    drop = Fraction(100 * (before - after), before) if before > after else Fraction(0)
+    return CheckResult(
+        check=CHECK_ROW_DROP,
+        column=None,
+        limit=max_drop,
+        value=_shown(drop),
+        passed=drop <= _limit(max_drop),
+        detail=f"{before} -> {after}",
+    )
+
+
+def missing_increase_checks(comparison: Comparison, max_increase: float) -> list[CheckResult]:
+    """One check per compared column: missing share rose by at most ``max_increase`` points.
+
+    The share of missing cells is computed exactly from the counts of both
+    reports (``Comparison.missing_counts``), so the rounded ``missing_pct``
+    never hides a rise just above the limit; a rise equal to the limit passes.
+    A baseline column without a ``missing`` count fails and says why. Columns
+    added since the baseline are not compared: they are schema changes.
+    """
+    results = []
+    for count in comparison.missing_counts:
+        after = _share(count.after, comparison.rows_after)
+        if count.before is None:
+            results.append(
+                CheckResult(
+                    check=CHECK_MISSING_INCREASE,
+                    column=count.column,
+                    limit=max_increase,
+                    value=0,
+                    passed=False,
+                    detail=_NO_BASELINE_COUNT,
+                )
+            )
+            continue
+        before = _share(count.before, comparison.rows_before)
+        rise = after - before
+        results.append(
+            CheckResult(
+                check=CHECK_MISSING_INCREASE,
+                column=count.column,
+                limit=max_increase,
+                value=_shown(rise),
+                passed=rise <= _limit(max_increase),
+                detail=f"{_fmt(_shown(before))}% -> {_fmt(_shown(after))}%",
+            )
+        )
+    return results
 
 
 def _bound_kind(bound: Bound) -> str:

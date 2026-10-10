@@ -16,7 +16,9 @@ from .checks import (
     Bound,
     ValueRange,
     evaluate,
+    missing_increase_checks,
     range_bounds_problem,
+    row_drop_check,
     schema_change_check,
 )
 from .compare import compare_reports, load_baseline
@@ -415,6 +417,22 @@ def build_parser() -> argparse.ArgumentParser:
         help="with --baseline: fail if columns were added or removed or changed type",
     )
     gates.add_argument(
+        "--max-row-drop",
+        type=_percentage,
+        default=None,
+        metavar="PCT",
+        help="with --baseline: fail if the row count fell by more than PCT %% of the "
+        "baseline's rows (0-100)",
+    )
+    gates.add_argument(
+        "--max-missing-increase",
+        type=_percentage,
+        default=None,
+        metavar="PCT",
+        help="with --baseline: fail if a column's missing values rose by more than PCT "
+        "percentage points (0-100)",
+    )
+    gates.add_argument(
         "--max-duplicates",
         type=_non_negative_int,
         default=None,
@@ -461,8 +479,14 @@ def main(argv: Sequence[str] | None = None) -> int:
                 "--max-affixes needs --number-affix (otherwise no affix is ever found)"
             )
         _check_selected(args)
-        if args.fail_on_schema_change and args.baseline is None:
-            raise ValueError("--fail-on-schema-change needs --baseline")
+        if args.baseline is None:
+            for option, given in (
+                ("--fail-on-schema-change", args.fail_on_schema_change),
+                ("--max-row-drop", args.max_row_drop is not None),
+                ("--max-missing-increase", args.max_missing_increase is not None),
+            ):
+                if given:
+                    raise ValueError(f"{option} needs --baseline")
     except ValueError as exc:
         parser.error(str(exc))
     try:
@@ -498,8 +522,13 @@ def main(argv: Sequence[str] | None = None) -> int:
         column_ranges=dict(args.range),  # the last range for a name wins
     )
     comparison = None if baseline is None else compare_reports(baseline, report)
-    if comparison is not None and args.fail_on_schema_change:
-        checks.append(schema_change_check(comparison))
+    if comparison is not None:
+        if args.fail_on_schema_change:
+            checks.append(schema_change_check(comparison))
+        if args.max_row_drop is not None:
+            checks.append(row_drop_check(comparison, args.max_row_drop))
+        if args.max_missing_increase is not None:
+            checks.extend(missing_increase_checks(comparison, args.max_missing_increase))
     source = display_name(args.path)
     if args.json_output is not None:
         try:

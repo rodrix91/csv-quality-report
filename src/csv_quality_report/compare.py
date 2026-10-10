@@ -34,6 +34,20 @@ class MissingChange:
 
 
 @dataclass(frozen=True)
+class MissingCount:
+    """Missing cells of a column in the baseline and in the current report.
+
+    ``before`` is ``None`` when the baseline entry has no integer ``missing``
+    count (a report not written by this tool), so drift gates can say so
+    instead of guessing from the rounded ``missing_pct``.
+    """
+
+    column: str
+    before: int | None
+    after: int
+
+
+@dataclass(frozen=True)
 class Comparison:
     """What changed between a baseline report and the current one."""
 
@@ -44,6 +58,9 @@ class Comparison:
     removed_columns: tuple[str, ...]
     type_changes: tuple[TypeChange, ...]
     missing_changes: tuple[MissingChange, ...]
+    # Every column present in both reports, in the current report's order,
+    # with exact counts for the drift gates (``--max-missing-increase``).
+    missing_counts: tuple[MissingCount, ...] = ()
 
     @property
     def schema_changes(self) -> int:
@@ -93,6 +110,11 @@ def compare_reports(baseline: Mapping[str, Any], report: Report) -> Comparison:
         for name, column in after.items()
         if name in before and before[name]["missing_pct"] != column.missing_pct
     )
+    missing_counts = tuple(
+        MissingCount(name, _missing_count(before[name]), column.missing)
+        for name, column in after.items()
+        if name in before
+    )
     return Comparison(
         baseline_source=str(baseline.get("source", "")),
         rows_before=baseline["rows"],
@@ -101,7 +123,16 @@ def compare_reports(baseline: Mapping[str, Any], report: Report) -> Comparison:
         removed_columns=tuple(name for name in before if name not in after),
         type_changes=type_changes,
         missing_changes=missing_changes,
+        missing_counts=missing_counts,
     )
+
+
+def _missing_count(entry: Mapping[str, Any]) -> int | None:
+    """The baseline column's ``missing`` count, or ``None`` when it has no valid one."""
+    count = entry.get("missing")
+    if isinstance(count, int) and not isinstance(count, bool) and count >= 0:
+        return count
+    return None
 
 
 def load_baseline(path: Path) -> dict[str, Any]:
