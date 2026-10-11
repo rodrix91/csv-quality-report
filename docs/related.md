@@ -12,4 +12,6 @@ Use `csv-quality-report` for full profiling (types, locales, ranges, quality gat
 
 `--delimiter` accepts `comma` (default), `semicolon`, `tab`, or `pipe`. Comma remains the default, so existing commands do not change. Semicolon covers the usual Spanish and Latin American spreadsheet export.
 
+`--encoding` defaults to `utf-8`. For a Windows Excel export, pass `--encoding cp1252` or `--encoding latin-1`.
+
 It is not a replacement and is not a production pipeline.
