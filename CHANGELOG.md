@@ -8,6 +8,10 @@ All notable changes to this project are documented here. The format follows [Kee
 
 - Drift gates for `--baseline`, both failing with exit code 8: `--max-row-drop PCT` fails when the row count fell by more than `PCT` % of the baseline's rows (a truncated export), and `--max-missing-increase PCT` fails for each column whose share of missing values rose by more than `PCT` percentage points (a column that empties out), with one limit for every column. Shares are computed exactly from the `missing` and `rows` counts of both reports, never from the rounded `missing_pct`; a baseline column without a `missing` count fails and says so. JSON check items `row_drop` and `missing_increase`; `Comparison` gains `missing_counts` (`MissingCount` items, with a default, so existing code keeps working), and `csv_quality_report.checks` gains `row_drop_check()` and `missing_increase_checks()`. The corpus gains a case with both gates on the invoice exports (#101).
 
+### Changed
+
+- `docs/related.md` now matches the current ops-field-brief behavior: whitespace and tab-only fields count as missing, repeated keys are counted as extra rows, `--top 0` reports no groups, a negative `--top` exits `2`, an unknown delimiter exits `2`, quoted and multiline fields stay intact, a trailing comma does not break the row, a duplicate header uses the last value, `--help` exits `0`, and the suite has thirty-nine tests.
+
 ## [0.12.0] - 2026-10-08
 
 ### Added
