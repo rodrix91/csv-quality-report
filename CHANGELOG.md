@@ -10,7 +10,7 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Changed
 
-- `docs/related.md` now matches the current ops-field-brief behavior: whitespace and tab-only fields count as missing, repeated keys are counted as extra rows, `--top 0` reports no groups, a negative `--top` exits `2`, an unknown delimiter exits `2`, quoted and multiline fields stay intact, a trailing comma does not break the row, a duplicate header uses the last value, `--help` exits `0`, and the suite has thirty-nine tests.
+- `docs/related.md` now matches the current ops-field-brief behavior: whitespace and tab-only fields count as missing, repeated keys are counted as extra rows, `--top 0` reports no groups, a negative `--top` exits `2`, an unknown delimiter exits `2`, quoted and multiline fields stay intact, a trailing comma does not break the row, a duplicate header uses the last value, `--help` exits `0`, the suite has thirty-nine tests, and it links to `CONTRIBUTING.md`.
 
 ## [0.12.0] - 2026-10-08
 
