@@ -10,4 +10,6 @@
 
 Use `csv-quality-report` for full profiling (types, locales, ranges, quality gates). Use `ops-field-brief` when the question is operational completeness.
 
+`--delimiter` accepts `comma` (default), `semicolon`, `tab`, or `pipe`. Comma remains the default, so existing commands do not change. Semicolon covers the usual Spanish and Latin American spreadsheet export.
+
 It is not a replacement and is not a production pipeline.
