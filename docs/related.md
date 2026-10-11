@@ -4,7 +4,7 @@
 
 [ops-field-brief](https://github.com/rodrix91/ops-field-brief) is a small standard-library Python CLI that answers three operational questions about one CSV:
 
-- Are the required fields filled? (empty cells and tokens such as `NA`, `N/A`, `null`, `none`, `s/d`, `N/D`, and `-` count as missing)
+- Are the required fields filled? (empty cells and tokens such as `NA`, `N/A`, `null`, `none`, `s/d`, `s.d.`, `N/D`, `N.D.`, and `-` count as missing)
 - Does the business key repeat? Blank keys are not counted as repeats.
 - Which groups account for the rows? A blank group is reported as `(blank)`.
 
