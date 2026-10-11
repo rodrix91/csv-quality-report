@@ -20,4 +20,4 @@ A path of `-` reads the CSV from stdin. `--help` exits `0` and lists the argumen
 
 An unknown `--key` or `--group` exits `2` and names the column. An empty `--required` list exits `2`. `--max-missing` can allow a share of blanks; a value outside 0 to 1 exits `2`.
 
-Status: 0.1.0. Thirty-nine local unit tests. CI runs the same suite on Python 3.10 through 3.13. It is not a replacement and is not a production pipeline.
+Status: 0.1.0. Thirty-nine local unit tests. CI runs the same suite on Python 3.10 through 3.13. See [CONTRIBUTING.md](https://github.com/rodrix91/ops-field-brief/blob/main/CONTRIBUTING.md) for the setup and the guidelines. It is not a replacement and is not a production pipeline.
