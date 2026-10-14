@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.13.0] - 2026-10-14
+
 ### Added
 
 - Drift gates for `--baseline`, both failing with exit code 8: `--max-row-drop PCT` fails when the row count fell by more than `PCT` % of the baseline's rows (a truncated export), and `--max-missing-increase PCT` fails for each column whose share of missing values rose by more than `PCT` percentage points (a column that empties out), with one limit for every column. Shares are computed exactly from the `missing` and `rows` counts of both reports, never from the rounded `missing_pct`; a baseline column without a `missing` count fails and says so. JSON check items `row_drop` and `missing_increase`; `Comparison` gains `missing_counts` (`MissingCount` items, with a default, so existing code keeps working), and `csv_quality_report.checks` gains `row_drop_check()` and `missing_increase_checks()`. The corpus gains a case with both gates on the invoice exports (#101).
@@ -148,7 +150,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 - Initial version: per-column type inference, missing values, distinct counts, min/max and top values, duplicate rows, Markdown and JSON output.
 
-[Unreleased]: https://github.com/rodrix91/csv-quality-report/compare/v0.12.0...HEAD
+[Unreleased]: https://github.com/rodrix91/csv-quality-report/compare/v0.13.0...HEAD
+[0.13.0]: https://github.com/rodrix91/csv-quality-report/compare/v0.12.0...v0.13.0
 [0.12.0]: https://github.com/rodrix91/csv-quality-report/compare/v0.11.0...v0.12.0
 [0.11.0]: https://github.com/rodrix91/csv-quality-report/compare/v0.10.0...v0.11.0
 [0.10.0]: https://github.com/rodrix91/csv-quality-report/compare/v0.9.0...v0.10.0
