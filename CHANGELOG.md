@@ -8,13 +8,13 @@ All notable changes to this project are documented here. The format follows [Kee
 
 - Drift gates for `--baseline`, both failing with exit code 8: `--max-row-drop PCT` fails when the row count fell by more than `PCT` % of the baseline's rows (a truncated export), and `--max-missing-increase PCT` fails for each column whose share of missing values rose by more than `PCT` percentage points (a column that empties out), with one limit for every column. Shares are computed exactly from the `missing` and `rows` counts of both reports, never from the rounded `missing_pct`; a baseline column without a `missing` count fails and says so. JSON check items `row_drop` and `missing_increase`; `Comparison` gains `missing_counts` (`MissingCount` items, with a default, so existing code keeps working), and `csv_quality_report.checks` gains `row_drop_check()` and `missing_increase_checks()`. The corpus gains a case with both gates on the invoice exports (#101).
 
-### Fixed
-
-- `--json-output` no longer overwrites the data it reports on. A target that is the input file or the `--baseline` report, also through another spelling of the path (`dir/../data.csv`), a symbolic link or a hard link, is now a usage error (exit code 2) raised before anything is read; before, the CSV or the baseline was silently replaced by the JSON report. Files are compared by device and inode (`os.path.samefile`); standard input (`-`) protects no file, and a missing input is still the usual read error (exit code 3). Regression tests in `tests/test_output_path_collisions.py`.
-
 ### Changed
 
 - `docs/related.md` now matches the current ops-field-brief behavior (whitespace and tab-only fields count as missing, repeated keys are counted as extra rows, `--top 0` reports no groups, a negative `--top` exits `2`, an unknown delimiter exits `2`, quoted and multiline fields stay intact, a trailing comma does not break the row, a duplicate header uses the last value, a UTF-8 BOM on stdin is stripped, `--help` exits `0`, the suite has forty tests, and it links to `CONTRIBUTING.md`) and describes `inventory-policy-lab`.
+
+### Fixed
+
+- `--json-output` no longer overwrites the data it reports on. A target that is the input file or the `--baseline` report, also through another spelling of the path (`dir/../data.csv`), a symbolic link or a hard link, is now a usage error (exit code 2) raised before anything is read; before, the CSV or the baseline was silently replaced by the JSON report. Files are compared by device and inode (`os.path.samefile`); standard input (`-`) protects no file, and a missing input is still the usual read error (exit code 3). Regression tests in `tests/test_output_path_collisions.py` (#104).
 
 ## [0.12.0] - 2026-10-08
 
