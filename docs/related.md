@@ -12,7 +12,7 @@ Use `csv-quality-report` for full profiling (types, locales, ranges, quality gat
 
 `--delimiter` accepts `comma` (default), `semicolon`, `tab`, or `pipe`. Comma remains the default, so existing commands do not change. Semicolon covers the usual Spanish and Latin American spreadsheet export. An unknown delimiter exits `2`.
 
-`--encoding` defaults to `utf-8`. A UTF-8 BOM, common in Excel exports, is stripped. For a Windows Excel export in Spanish, pass `--encoding cp1252` or `--encoding latin-1`. An unknown encoding exits `2`.
+`--encoding` defaults to `utf-8`. A UTF-8 BOM, common in Excel exports, is stripped, including on stdin. For a Windows Excel export in Spanish, pass `--encoding cp1252` or `--encoding latin-1`. An unknown encoding exits `2`.
 
 A quoted field that contains a comma stays one field. An escaped quote stays in the field. A multiline quoted field stays one row. A trailing comma does not break the row. A duplicate column name in the header uses the last value, following the standard library CSV reader.
 
@@ -20,4 +20,8 @@ A path of `-` reads the CSV from stdin. `--help` exits `0` and lists the argumen
 
 An unknown `--key` or `--group` exits `2` and names the column. An empty `--required` list exits `2`. `--max-missing` can allow a share of blanks; a value outside 0 to 1 exits `2`.
 
-Status: 0.1.0. Thirty-nine local unit tests. CI runs the same suite on Python 3.10 through 3.13. See [CONTRIBUTING.md](https://github.com/rodrix91/ops-field-brief/blob/main/CONTRIBUTING.md) for the setup and the guidelines. It is not a replacement and is not a production pipeline.
+Status: 0.1.0. Forty local unit tests. CI runs the same suite on Python 3.10 through 3.13. See [CONTRIBUTING.md](https://github.com/rodrix91/ops-field-brief/blob/main/CONTRIBUTING.md) for the setup and the guidelines. It is not a replacement and is not a production pipeline.
+
+## inventory-policy-lab
+
+[inventory-policy-lab](https://github.com/rodrix91/inventory-policy-lab) is a standard-library Python toolkit and CLI that turns a per-SKU demand history CSV into an inventory policy: ABC-XYZ classification, Syntetos-Boylan demand patterns (smooth, erratic, intermittent, lumpy), backtested forecasts scored by MASE (naive, moving average, SES, Croston, SBA), safety stock (normal formula or bootstrap of protection-interval demand), reorder points, EOQ, and an in-sample replay of the resulting (s, Q) policy. Use `csv-quality-report` first to check that a demand extract is clean and complete before running an inventory policy analysis.
