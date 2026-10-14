@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import math
+import os
 import re
 import sys
 from collections.abc import Sequence
@@ -31,7 +32,13 @@ from .inference import (
     parse_datetime,
 )
 from .profile import TOP_N, profile_file
-from .reader import DEFAULT_ENCODING, DELIMITER_AUTO, display_name, normalize_encoding
+from .reader import (
+    DEFAULT_ENCODING,
+    DELIMITER_AUTO,
+    display_name,
+    is_stdin,
+    normalize_encoding,
+)
 from .render import render_json, render_markdown
 
 
@@ -466,6 +473,35 @@ def _check_selected(args: argparse.Namespace) -> None:
                 raise ValueError(f"{option} checks column '{name}', which --columns leaves out")
 
 
+def _same_file(first: Path, second: Path) -> bool:
+    """Return whether two paths name the same existing file.
+
+    Compares the device and inode numbers, so a different spelling of the path
+    (``dir/../file``), a symbolic link and a hard link all count as the same file.
+    A path that does not exist, or cannot be inspected, names no file to protect.
+    """
+    try:
+        return os.path.samefile(first, second)
+    except OSError:
+        return False
+
+
+def _check_output_path(args: argparse.Namespace) -> None:
+    """Raise ``ValueError`` when --json-output would overwrite the input or the baseline."""
+    if args.json_output is None:
+        return
+    inputs = (
+        ("the input file", None if is_stdin(args.path) else args.path),
+        ("the --baseline report", args.baseline),
+    )
+    for what, path in inputs:
+        if path is not None and _same_file(args.json_output, path):
+            raise ValueError(
+                f"--json-output '{args.json_output}' is {what}; writing the report there "
+                "would overwrite it (choose another file)"
+            )
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
@@ -479,6 +515,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 "--max-affixes needs --number-affix (otherwise no affix is ever found)"
             )
         _check_selected(args)
+        _check_output_path(args)
         if args.baseline is None:
             for option, given in (
                 ("--fail-on-schema-change", args.fail_on_schema_change),
