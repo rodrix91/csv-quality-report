@@ -31,6 +31,7 @@ from .inference import (
     check_thousands,
     parse_datetime,
 )
+from .output import write_atomic
 from .profile import TOP_N, profile_file
 from .reader import (
     DEFAULT_ENCODING,
@@ -456,14 +457,6 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _write_text(path: Path, text: str) -> None:
-    """Write ``text`` to ``path`` as UTF-8, raising ``OutputWriteError`` on failure."""
-    try:
-        path.write_text(text, encoding="utf-8")
-    except OSError as exc:
-        raise OutputWriteError(f"cannot write '{path}': {exc.strerror or exc}") from exc
-
-
 def _check_selected(args: argparse.Namespace) -> None:
     """Raise ``ValueError`` when a per-column gate names a column left out by --columns."""
     if args.columns is None:
@@ -584,7 +577,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     source = display_name(args.path)
     if args.json_output is not None:
         try:
-            _write_text(args.json_output, render_json(report, source, checks, comparison))
+            write_atomic(args.json_output, render_json(report, source, checks, comparison))
         except OutputWriteError as exc:
             print(f"error: {exc.message}", file=sys.stderr)
             return exc.exit_code
