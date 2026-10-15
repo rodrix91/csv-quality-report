@@ -44,6 +44,11 @@ _SATISFIES = {
 }
 _MAX_LISTED = 10  # columns named in a "missing column" message
 _NO_BASELINE_COUNT = "the baseline has no 'missing' count for it"
+# Why a column named by a per-column missing_increase limit cannot be compared.
+_NOT_IN_BASELINE = "the baseline has no column of that name"
+_NOT_IN_FILE = "the file no longer has it"
+_IN_NEITHER = "neither the file nor the baseline has it"
+_UNCOMPARABLE = (_NO_BASELINE_COUNT, _NOT_IN_BASELINE, _NOT_IN_FILE, _IN_NEITHER)
 
 
 @dataclass(frozen=True)
@@ -106,7 +111,7 @@ class CheckResult:
         return f"{_fmt(self.value)} duplicate rows (limit {_fmt(self.limit)})"
 
     def _describe_missing_increase(self) -> str:
-        if self.detail == _NO_BASELINE_COUNT:
+        if self.detail in _UNCOMPARABLE:
             return f"column '{self.column}' cannot be compared with the baseline ({self.detail})"
         if self.value > 0:
             change = f"rose {_fmt(self.value)} points"
@@ -212,29 +217,36 @@ def row_drop_check(comparison: Comparison, max_drop: float) -> CheckResult:
     )
 
 
-def missing_increase_checks(comparison: Comparison, max_increase: float) -> list[CheckResult]:
-    """One check per compared column: missing share rose by at most ``max_increase`` points.
+def missing_increase_checks(
+    comparison: Comparison,
+    max_increase: float | None,
+    column_max_increase: Mapping[str, float] | None = None,
+) -> list[CheckResult]:
+    """One check per compared column: missing share rose by at most its limit, in points.
 
-    The share of missing cells is computed exactly from the counts of both
-    reports (``Comparison.missing_counts``), so the rounded ``missing_pct``
-    never hides a rise just above the limit; a rise equal to the limit passes.
-    A baseline column without a ``missing`` count fails and says why. Columns
-    added since the baseline are not compared: they are schema changes.
+    ``max_increase`` applies to every column present in both reports;
+    ``column_max_increase`` maps column names to their own limit, which
+    overrides ``max_increase`` for that column and can be used without it
+    (``max_increase`` is then ``None`` and only the named columns are
+    checked). The share of missing cells is computed exactly from the counts
+    of both reports (``Comparison.missing_counts``), so the rounded
+    ``missing_pct`` never hides a rise just above the limit; a rise equal to
+    the limit passes. A baseline column without a ``missing`` count fails and
+    says why. Columns added since the baseline are not compared by
+    ``max_increase``: they are schema changes. A column named in
+    ``column_max_increase`` that cannot be compared (added since the
+    baseline, removed from the file, or in neither report) fails and says
+    why, after the compared columns, instead of being ignored.
     """
+    limits = dict(column_max_increase or {})
     results = []
     for count in comparison.missing_counts:
+        limit = limits.pop(count.column, max_increase)
+        if limit is None:
+            continue
         after = _share(count.after, comparison.rows_after)
         if count.before is None:
-            results.append(
-                CheckResult(
-                    check=CHECK_MISSING_INCREASE,
-                    column=count.column,
-                    limit=max_increase,
-                    value=0,
-                    passed=False,
-                    detail=_NO_BASELINE_COUNT,
-                )
-            )
+            results.append(_uncompared(count.column, limit, _NO_BASELINE_COUNT))
             continue
         before = _share(count.before, comparison.rows_before)
         rise = after - before
@@ -242,13 +254,33 @@ def missing_increase_checks(comparison: Comparison, max_increase: float) -> list
             CheckResult(
                 check=CHECK_MISSING_INCREASE,
                 column=count.column,
-                limit=max_increase,
+                limit=limit,
                 value=_shown(rise),
-                passed=rise <= _limit(max_increase),
+                passed=rise <= _limit(limit),
                 detail=f"{_fmt(_shown(before))}% -> {_fmt(_shown(after))}%",
             )
         )
+    for name, limit in limits.items():  # named columns that were not compared
+        if name in comparison.added_columns:
+            detail = _NOT_IN_BASELINE
+        elif name in comparison.removed_columns:
+            detail = _NOT_IN_FILE
+        else:
+            detail = _IN_NEITHER
+        results.append(_uncompared(name, limit, detail))
     return results
+
+
+def _uncompared(column: str, limit: float, detail: str) -> CheckResult:
+    """A failed ``missing_increase`` check for a column that cannot be compared."""
+    return CheckResult(
+        check=CHECK_MISSING_INCREASE,
+        column=column,
+        limit=limit,
+        value=0,
+        passed=False,
+        detail=detail,
+    )
 
 
 def _bound_kind(bound: Bound) -> str:

@@ -4,6 +4,10 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Added
+
+- `--max-missing-increase-column NAME=PCT` (repeatable, needs `--baseline`) sets the missing-value drift limit for one column, in percentage points, overriding `--max-missing-increase` for that column; it works with or without the global limit (without it, only the named columns are checked), so a pipeline can let no column lose values except a free-text one. Same `missing_increase` check, message, exact arithmetic and exit code 8; the last limit for a name wins and names are split at the last `=`. A named column that cannot be compared (added since the baseline, removed from the file, or in neither report) fails and says why instead of being ignored; with `--columns`, naming a column left out is a usage error. `missing_increase_checks()` gains a `column_max_increase` mapping and accepts `None` as the global limit. The corpus gains a case with a per-column limit on the invoice exports (#108).
+
 ### Changed
 
 - `--json-output` is written atomically: the report goes to a temporary file in the same directory, is synced, and is then moved onto `FILE` with `os.replace`. A failure or an interrupt halfway (a full disk, a killed job) no longer leaves an empty or half-written report or destroys the previous one, which pipelines often reuse as the next `--baseline`; the temporary file is removed and the exit code is still 9. An existing file keeps its permissions, symbolic links are written through, and targets that are not regular files (`/dev/stdout`, a named pipe) are written in place as before. The target's directory must now be writable, and a hard-linked target becomes a new file (ADR 0004). New module `csv_quality_report.output` (#107).
