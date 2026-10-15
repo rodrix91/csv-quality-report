@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.14.0] - 2026-10-15
+
 ### Added
 
 - `--max-missing-increase-column NAME=PCT` (repeatable, needs `--baseline`) sets the missing-value drift limit for one column, in percentage points, overriding `--max-missing-increase` for that column; it works with or without the global limit (without it, only the named columns are checked), so a pipeline can let no column lose values except a free-text one. Same `missing_increase` check, message, exact arithmetic and exit code 8; the last limit for a name wins and names are split at the last `=`. A named column that cannot be compared (added since the baseline, removed from the file, or in neither report) fails and says why instead of being ignored; with `--columns`, naming a column left out is a usage error. `missing_increase_checks()` gains a `column_max_increase` mapping and accepts `None` as the global limit. The corpus gains a case with a per-column limit on the invoice exports (#108).
@@ -158,7 +160,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 - Initial version: per-column type inference, missing values, distinct counts, min/max and top values, duplicate rows, Markdown and JSON output.
 
-[Unreleased]: https://github.com/rodrix91/csv-quality-report/compare/v0.13.0...HEAD
+[Unreleased]: https://github.com/rodrix91/csv-quality-report/compare/v0.14.0...HEAD
+[0.14.0]: https://github.com/rodrix91/csv-quality-report/compare/v0.13.0...v0.14.0
 [0.13.0]: https://github.com/rodrix91/csv-quality-report/compare/v0.12.0...v0.13.0
 [0.12.0]: https://github.com/rodrix91/csv-quality-report/compare/v0.11.0...v0.12.0
 [0.11.0]: https://github.com/rodrix91/csv-quality-report/compare/v0.10.0...v0.11.0
