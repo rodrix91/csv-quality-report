@@ -58,6 +58,7 @@ python -m csv_quality_report --version
 - `--encoding NAME` — text encoding of the file: any Python text codec, such as `cp1252`, `latin-1` or `utf-16` (default `utf-8`, with an optional BOM). Works with standard input, gzip and `--delimiter auto`. Unknown names and non-text codecs (`base64`) are usage errors; bytes that are invalid in the chosen encoding stop with exit code 4 and their offset. JSON reports the canonical name as `encoding`; Markdown adds an `Encoding:` line when it is not UTF-8.
 - `--max-field-size N` — allow fields of up to `N` characters. Python's `csv` module stops at 131,072 by default, which also protects against an unclosed quote swallowing the rest of a file into one field, so the default is kept; a file that hits it stops with exit code 6 and a message that names this option. The limit is restored after the run (it is process-wide in the `csv` module).
 - `--json-output FILE` — also write the JSON report (the same content as `--format json`, including `checks`) to `FILE`, while stdout keeps the chosen `--format`. The data is profiled once. The file is written even when a quality gate fails, so CI can keep it as an artifact; reading errors write no file, and a file that cannot be written stops with exit code 9.
+  - Atomic write: the report is written to a temporary file in the same directory and then moved onto `FILE` (`os.replace`), so a failure or an interrupt never leaves a half-written report and never destroys the one an earlier run left there (often the next run's `--baseline`); the temporary file is removed and the tool exits with code 9. An existing `FILE` keeps its permissions, a symbolic link is written through, and a target that is not a regular file (`/dev/stdout`) is written in place. The directory must be writable; a hard-linked `FILE` becomes a new file. See [ADR 0004](https://github.com/rodrix91/csv-quality-report/blob/main/docs/decisions/0004-atomic-output.md).
   - Protection: a `FILE` that is the input file or the `--baseline` report (also through another spelling of the path, a symbolic link or a hard link) is a usage error (exit code 2), checked before reading, so the report never overwrites its own data.
 - `--top N` — how many most frequent values to list per column (default 3; `0` lists none). JSON reports the setting as `top_n`.
 - `--columns NAMES` — profile only these comma-separated columns, in the order given (repeated names count once); useful for wide ERP or BI exports where a pipeline only cares about a few columns (on a 200,000-row file with 40 columns, profiling 3 of them takes about 2.0 s instead of 3.0 s; reading and comparing whole rows is the part that remains). Rows are still read whole, so ragged rows and encoding errors are still found and duplicate rows still compare full rows; `--require-columns` checks the full header. A name that is not in the header is a usage error (exit code 2) that lists the columns and suggests a name that only differs by surrounding whitespace; a per-column gate on a column left out is a usage error too. JSON reports `selected_columns` (`null` by default) and `header_columns`; Markdown says `Columns: 3 of 40 (selected)`.
@@ -365,6 +366,8 @@ flowchart TD
     cli --> render
     cli --> errors
     cli --> checks
+    cli --> output
+    output --> errors
     checks --> profile
     render --> checks
     reader --> errors
@@ -383,9 +386,10 @@ flowchart TD
 | `profile.py` | single-pass per-column statistics and duplicate-row count |
 | `render.py` | Markdown and JSON output |
 | `checks.py` | optional quality gates (`--max-missing`, `--max-missing-column`, `--max-duplicates`, `--require-columns`, `--require-type`) evaluated on a finished report |
+| `output.py` | atomic write of the `--json-output` file (temporary file + `os.replace`) |
 | `errors.py` | error classes and exit codes |
 
-Design rationale and alternatives: [docs/decisions/0001-architecture.md](https://github.com/rodrix91/csv-quality-report/blob/main/docs/decisions/0001-architecture.md) for streaming, [docs/decisions/0002-streaming-profile.md](https://github.com/rodrix91/csv-quality-report/blob/main/docs/decisions/0002-streaming-profile.md), and for comparing times in `--range`, [docs/decisions/0003-datetime-ranges.md](https://github.com/rodrix91/csv-quality-report/blob/main/docs/decisions/0003-datetime-ranges.md) (in the [source repository](https://github.com/rodrix91/csv-quality-report); not included in the packages).
+Design rationale and alternatives: [docs/decisions/0001-architecture.md](https://github.com/rodrix91/csv-quality-report/blob/main/docs/decisions/0001-architecture.md) for streaming, [docs/decisions/0002-streaming-profile.md](https://github.com/rodrix91/csv-quality-report/blob/main/docs/decisions/0002-streaming-profile.md), and for comparing times in `--range`, [docs/decisions/0003-datetime-ranges.md](https://github.com/rodrix91/csv-quality-report/blob/main/docs/decisions/0003-datetime-ranges.md), and for writing `--json-output`, [docs/decisions/0004-atomic-output.md](https://github.com/rodrix91/csv-quality-report/blob/main/docs/decisions/0004-atomic-output.md) (in the [source repository](https://github.com/rodrix91/csv-quality-report); not included in the packages).
 
 ## Testing
 
@@ -407,7 +411,7 @@ Tests (`tests/`) are behavior tests that call the CLI: happy path, missing value
 
 ## Security notes
 
-- Reads one local file path given on the command line, or standard input with `-`; makes no network calls and writes no files except the one named with `--json-output`, which is refused when it is the input file or the baseline. Gzip input is decompressed in a stream, with bounded memory.
+- Reads one local file path given on the command line, or standard input with `-`; makes no network calls and writes no files except the one named with `--json-output` (and, while writing it, a temporary file next to it that is removed on failure), which is refused when it is the input file or the baseline. Gzip input is decompressed in a stream, with bounded memory.
 - Uses only the Python standard library at runtime.
 - CSV content is treated as data only (never executed). Markdown output escapes `|` and newlines in cell text but does not sanitize other Markdown, so render untrusted files' reports with care.
 

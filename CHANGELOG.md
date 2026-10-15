@@ -4,6 +4,10 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Changed
+
+- `--json-output` is written atomically: the report goes to a temporary file in the same directory, is synced, and is then moved onto `FILE` with `os.replace`. A failure or an interrupt halfway (a full disk, a killed job) no longer leaves an empty or half-written report or destroys the previous one, which pipelines often reuse as the next `--baseline`; the temporary file is removed and the exit code is still 9. An existing file keeps its permissions, symbolic links are written through, and targets that are not regular files (`/dev/stdout`, a named pipe) are written in place as before. The target's directory must now be writable, and a hard-linked target becomes a new file (ADR 0004). New module `csv_quality_report.output` (#107).
+
 ## [0.13.0] - 2026-10-14
 
 ### Added
