@@ -97,13 +97,11 @@ def _non_negative_int(text: str) -> int:
     return value
 
 
-def _column_limit(text: str) -> tuple[str, float]:
+def _column_limit(text: str, option: str = "--max-missing-column") -> tuple[str, float]:
     """Parse ``NAME=PCT``; the last ``=`` separates them, so names may contain ``=``."""
     name, sep, value = text.rpartition("=")
     if not sep or not name:
-        raise argparse.ArgumentTypeError(
-            f"invalid --max-missing-column value: {text!r} (use NAME=PCT)"
-        )
+        raise argparse.ArgumentTypeError(f"invalid {option} value: {text!r} (use NAME=PCT)")
     return name, _percentage(value)
 
 
@@ -440,6 +438,15 @@ def build_parser() -> argparse.ArgumentParser:
         "percentage points (0-100)",
     )
     gates.add_argument(
+        "--max-missing-increase-column",
+        type=lambda text: _column_limit(text, "--max-missing-increase-column"),
+        action="append",
+        default=[],
+        metavar="NAME=PCT",
+        help="with --baseline: per-column limit in percentage points, overrides "
+        "--max-missing-increase for NAME (repeatable)",
+    )
+    gates.add_argument(
         "--max-duplicates",
         type=_non_negative_int,
         default=None,
@@ -466,6 +473,7 @@ def _check_selected(args: argparse.Namespace) -> None:
         ("--require-type", [name for name, _ in args.require_type]),
         ("--max-affixes", [name for name, _ in args.max_affixes]),
         ("--range", [name for name, _ in args.range]),
+        ("--max-missing-increase-column", [name for name, _ in args.max_missing_increase_column]),
     )
     for option, names in gates:
         for name in names:
@@ -521,6 +529,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 ("--fail-on-schema-change", args.fail_on_schema_change),
                 ("--max-row-drop", args.max_row_drop is not None),
                 ("--max-missing-increase", args.max_missing_increase is not None),
+                ("--max-missing-increase-column", bool(args.max_missing_increase_column)),
             ):
                 if given:
                     raise ValueError(f"{option} needs --baseline")
@@ -564,8 +573,14 @@ def main(argv: Sequence[str] | None = None) -> int:
             checks.append(schema_change_check(comparison))
         if args.max_row_drop is not None:
             checks.append(row_drop_check(comparison, args.max_row_drop))
-        if args.max_missing_increase is not None:
-            checks.extend(missing_increase_checks(comparison, args.max_missing_increase))
+        if args.max_missing_increase is not None or args.max_missing_increase_column:
+            checks.extend(
+                missing_increase_checks(
+                    comparison,
+                    args.max_missing_increase,
+                    dict(args.max_missing_increase_column),  # the last limit for a name wins
+                )
+            )
     source = display_name(args.path)
     if args.json_output is not None:
         try:
