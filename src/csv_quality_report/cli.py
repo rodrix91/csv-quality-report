@@ -239,6 +239,13 @@ def _column_names(text: str, option: str = "--require-columns") -> tuple[str, ..
     return names
 
 
+def _column_name(text: str) -> str:
+    """One column name, exactly as written (commas and ``=`` are part of it)."""
+    if not text.strip():
+        raise argparse.ArgumentTypeError(f"invalid --unique value: {text!r} (no name)")
+    return text
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="python -m csv_quality_report",
@@ -418,6 +425,15 @@ def build_parser() -> argparse.ArgumentParser:
         "may be empty); repeatable",
     )
     gates.add_argument(
+        "--unique",
+        type=_column_name,
+        action="append",
+        default=[],
+        metavar="NAME",
+        help="fail if column NAME has a non-missing value more than once, such as a "
+        "repeated invoice number (stripped text, case-sensitive); repeatable",
+    )
+    gates.add_argument(
         "--fail-on-schema-change",
         action="store_true",
         help="with --baseline: fail if columns were added or removed or changed type",
@@ -467,6 +483,7 @@ def _check_selected(args: argparse.Namespace) -> None:
         ("--max-affixes", [name for name, _ in args.max_affixes]),
         ("--range", [name for name, _ in args.range]),
         ("--max-missing-increase-column", [name for name, _ in args.max_missing_increase_column]),
+        ("--unique", args.unique),
     )
     for option, names in gates:
         for name in names:
@@ -559,6 +576,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         column_types=dict(args.require_type),  # the last type for a name wins
         column_max_affixes=dict(args.max_affixes),  # the last limit for a name wins
         column_ranges=dict(args.range),  # the last range for a name wins
+        unique_columns=args.unique,  # a repeated name gives one check
     )
     comparison = None if baseline is None else compare_reports(baseline, report)
     if comparison is not None:

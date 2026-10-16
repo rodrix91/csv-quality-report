@@ -1,0 +1,15 @@
+Guía;Pedido;Fecha;Estado;Peso kg;Destino
+AR-1001;P-5501;06/10/2026;Entregado;1,2;Córdoba
+AR-1002;P-5502;06/10/2026;Entregado;0,8;Rosario
+AR-1003;P-5503;06/10/2026;En tránsito;12,5;Mendoza
+AR-1004;P-5504;06/10/2026;Devuelto;3,4;Salta
+AR-1005;P-5505;07/10/2026;Entregado;2;Neuquén
+AR-1004;P-5506;07/10/2026;En tránsito;3,4;Salta
+AR-1006;P-5507;07/10/2026;Entregado;0,5;Córdoba
+s/d;P-5508;07/10/2026;Pendiente;7,25;Tucumán
+AR-1007;P-5509;08/10/2026;En tránsito;1,1;La Plata
+AR-1008;P-5510;08/10/2026;Entregado;4;Rosario
+ AR-1007 ;P-5511;08/10/2026;Entregado;1,1;La Plata
+;P-5512;08/10/2026;Pendiente;0,9;Mar del Plata
+AR-1004;P-5513;09/10/2026;Entregado;3,4;Salta
+AR-1009;P-5514;09/10/2026;Entregado;15;Córdoba

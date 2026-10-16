@@ -1,0 +1,228 @@
+{
+  "source": "tests/corpus/courier_shipments.csv",
+  "rows": 14,
+  "truncated": false,
+  "delimiter": ";",
+  "delimiter_detected": true,
+  "sep_line": false,
+  "na_tokens": [
+    "s/d"
+  ],
+  "top_n": 3,
+  "compressed": false,
+  "encoding": "utf-8",
+  "thousands": null,
+  "date_order": "dmy",
+  "bool_words": [],
+  "number_affixes": [],
+  "accounting_negatives": false,
+  "selected_columns": null,
+  "header_columns": 6,
+  "duplicate_rows": 0,
+  "untrimmed_columns": [],
+  "columns": [
+    {
+      "name": "Guía",
+      "type": "string",
+      "type_hint": null,
+      "missing": 2,
+      "missing_pct": 14.3,
+      "distinct": 9,
+      "min": null,
+      "max": null,
+      "mean": null,
+      "min_length": 7,
+      "max_length": 7,
+      "top_values": [
+        {
+          "value": "AR-1004",
+          "count": 3
+        },
+        {
+          "value": "AR-1007",
+          "count": 2
+        },
+        {
+          "value": "AR-1001",
+          "count": 1
+        }
+      ],
+      "untrimmed": 1,
+      "affixes": {}
+    },
+    {
+      "name": "Pedido",
+      "type": "string",
+      "type_hint": null,
+      "missing": 0,
+      "missing_pct": 0.0,
+      "distinct": 14,
+      "min": null,
+      "max": null,
+      "mean": null,
+      "min_length": 6,
+      "max_length": 6,
+      "top_values": [
+        {
+          "value": "P-5501",
+          "count": 1
+        },
+        {
+          "value": "P-5502",
+          "count": 1
+        },
+        {
+          "value": "P-5503",
+          "count": 1
+        }
+      ],
+      "untrimmed": 0,
+      "affixes": {}
+    },
+    {
+      "name": "Fecha",
+      "type": "date",
+      "type_hint": null,
+      "missing": 0,
+      "missing_pct": 0.0,
+      "distinct": 4,
+      "min": "2026-10-06",
+      "max": "2026-10-09",
+      "mean": null,
+      "min_length": 10,
+      "max_length": 10,
+      "top_values": [
+        {
+          "value": "06/10/2026",
+          "count": 4
+        },
+        {
+          "value": "07/10/2026",
+          "count": 4
+        },
+        {
+          "value": "08/10/2026",
+          "count": 4
+        }
+      ],
+      "untrimmed": 0,
+      "affixes": {}
+    },
+    {
+      "name": "Estado",
+      "type": "string",
+      "type_hint": null,
+      "missing": 0,
+      "missing_pct": 0.0,
+      "distinct": 4,
+      "min": null,
+      "max": null,
+      "mean": null,
+      "min_length": 8,
+      "max_length": 11,
+      "top_values": [
+        {
+          "value": "Entregado",
+          "count": 8
+        },
+        {
+          "value": "En tránsito",
+          "count": 3
+        },
+        {
+          "value": "Pendiente",
+          "count": 2
+        }
+      ],
+      "untrimmed": 0,
+      "affixes": {}
+    },
+    {
+      "name": "Peso kg",
+      "type": "float",
+      "type_hint": null,
+      "missing": 0,
+      "missing_pct": 0.0,
+      "distinct": 11,
+      "min": 0.5,
+      "max": 15.0,
+      "mean": 4.03929,
+      "min_length": 1,
+      "max_length": 4,
+      "top_values": [
+        {
+          "value": "3,4",
+          "count": 3
+        },
+        {
+          "value": "1,1",
+          "count": 2
+        },
+        {
+          "value": "1,2",
+          "count": 1
+        }
+      ],
+      "untrimmed": 0,
+      "affixes": {}
+    },
+    {
+      "name": "Destino",
+      "type": "string",
+      "type_hint": null,
+      "missing": 0,
+      "missing_pct": 0.0,
+      "distinct": 8,
+      "min": null,
+      "max": null,
+      "mean": null,
+      "min_length": 5,
+      "max_length": 13,
+      "top_values": [
+        {
+          "value": "Córdoba",
+          "count": 3
+        },
+        {
+          "value": "Salta",
+          "count": 3
+        },
+        {
+          "value": "Rosario",
+          "count": 2
+        }
+      ],
+      "untrimmed": 0,
+      "affixes": {}
+    }
+  ],
+  "baseline": null,
+  "checks": [
+    {
+      "check": "max_duplicates",
+      "column": null,
+      "limit": 0,
+      "value": 0,
+      "passed": true
+    },
+    {
+      "check": "unique",
+      "column": "Guía",
+      "limit": 0,
+      "value": 3,
+      "passed": false,
+      "repeated": {
+        "AR-1004": 3,
+        "AR-1007": 2
+      }
+    },
+    {
+      "check": "unique",
+      "column": "Pedido",
+      "limit": 0,
+      "value": 0,
+      "passed": true,
+      "repeated": {}
+    }
+  ]
+}

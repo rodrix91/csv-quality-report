@@ -26,6 +26,7 @@ CHECK_VALUE_RANGE = "value_range"
 CHECK_SCHEMA_CHANGE = "schema_change"
 CHECK_ROW_DROP = "row_drop"
 CHECK_MISSING_INCREASE = "missing_increase"
+CHECK_UNIQUE = "unique"
 # A bound of a --range check: a number for int/float columns, a date for date
 # and datetime columns, a datetime for date and datetime columns, None for an
 # open side.
@@ -67,6 +68,7 @@ class CheckResult:
     found: tuple[tuple[str, int], ...] = ()  # max_affixes checks: (affix, cells)
     bounds: ValueRange = (None, None)  # value_range checks: the allowed range
     observed: Observed = (None, None)  # value_range checks: the column's min and max
+    repeated: tuple[tuple[str, int], ...] = ()  # unique checks: most repeated (value, cells)
 
     def describe(self) -> str:
         """One-line, human-readable explanation used on stderr and in Markdown."""
@@ -108,7 +110,19 @@ class CheckResult:
             )
         if self.check == CHECK_MISSING_INCREASE:
             return self._describe_missing_increase()
+        if self.check == CHECK_UNIQUE:
+            return self._describe_unique()
         return f"{_fmt(self.value)} duplicate rows (limit {_fmt(self.limit)})"
+
+    def _describe_unique(self) -> str:
+        if self.passed:
+            return f"column '{self.column}' has no repeated values"
+        count = int(self.value)
+        verb = "cell repeats" if count == 1 else "cells repeat"
+        examples = ", ".join(f'"{value}" in {cells} cells' for value, cells in self.repeated)
+        return f"column '{self.column}' is not unique: {count} {verb} an earlier value" + (
+            f" ({examples})" if examples else ""
+        )
 
     def _describe_missing_increase(self) -> str:
         if self.detail in _UNCOMPARABLE:
@@ -379,6 +393,25 @@ def _range_check(name: str, column: ColumnProfile, bounds: ValueRange) -> CheckR
     return result(_within(first, last, low, high), observed=seen)
 
 
+def _unique_check(name: str, column: ColumnProfile, rows: int) -> CheckResult:
+    """A check that fails when ``column`` has a non-missing value more than once.
+
+    Each column counts its stripped, non-missing values, and every cell is
+    either missing or one of them, so the cells that repeat an earlier value
+    are the non-missing cells minus the distinct values. The examples are the
+    repeated values among the column's top values (none with ``top_n`` 0).
+    """
+    repeated = rows - column.missing - column.distinct
+    return CheckResult(
+        check=CHECK_UNIQUE,
+        column=name,
+        limit=0,
+        value=repeated,
+        passed=repeated <= 0,
+        repeated=tuple((value, cells) for value, cells in column.top_values if cells > 1),
+    )
+
+
 def _moment(value: int | float | str | None) -> datetime:
     """The date-time of a date or datetime column's min or max (a date is midnight)."""
     moment = parse_datetime(str(value))
@@ -395,6 +428,7 @@ def evaluate(
     column_types: Mapping[str, str] | None = None,
     column_max_affixes: Mapping[str, int] | None = None,
     column_ranges: Mapping[str, ValueRange] | None = None,
+    unique_columns: Iterable[str] = (),
 ) -> list[CheckResult]:
     """Evaluate the requested thresholds; a value equal to its limit passes.
 
@@ -429,6 +463,15 @@ def evaluate(
     would need a guessed time zone (see ADR 0003). Bounds of different kinds,
     or date-times with and without an offset, raise ``ValueError``. Unknown
     names fail as ``required_column``.
+
+    ``unique_columns`` names columns that must not have a non-missing value
+    more than once, such as an invoice number or a tracking code. Values
+    compare as the report counts them: stripped of surrounding whitespace,
+    case-sensitive, as text (``007`` and ``7`` differ); missing cells never
+    repeat. The check's ``value`` is the number of cells that repeat an
+    earlier value, exact also when they are not among the top values, and
+    ``repeated`` lists the repeated top values. Unknown names fail as
+    ``required_column``.
 
     ``required_columns`` are matched exactly (case-sensitive) against the
     file's whole header (``Report.header``, after duplicate-name suffixes),
@@ -473,8 +516,10 @@ def evaluate(
     present = set(header)
     listed = ", ".join(header[:_MAX_LISTED]) + (", ..." if len(header) > _MAX_LISTED else "")
     by_name = {col.name: col for col in report.columns}
+    unique = list(dict.fromkeys(unique_columns))
     gated = [*(column_max_missing or {}), *(column_types or {}), *(column_max_affixes or {})]
-    unprofiled = [name for name in [*gated, *(column_ranges or {})] if name in present]
+    gated += [*(column_ranges or {}), *unique]
+    unprofiled = [name for name in gated if name in present]
     unprofiled = [name for name in unprofiled if name not in by_name]
     if unprofiled:
         raise ValueError(
@@ -530,9 +575,14 @@ def evaluate(
         if column is None:
             continue  # reported below as a missing required column
         results.append(_range_check(name, column, bounds))
+    for name in unique:
+        column = by_name.get(name)
+        if column is None:
+            continue  # reported below as a missing required column
+        results.append(_unique_check(name, column, report.rows))
     unknown_limited = (
         name
-        for name in [*column_limits, *required_types, *affix_limits, *ranges]
+        for name in [*column_limits, *required_types, *affix_limits, *ranges, *unique]
         if name not in present
     )
     for name in dict.fromkeys([*required_columns, *unknown_limited]):
