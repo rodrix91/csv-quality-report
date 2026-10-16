@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.18.0] - 2026-10-16
+
 ### Added
 
 - `--record-time`: adds a top-level `"generated_at"` (the UTC time the run started, whole seconds, `2026-10-16T04:06:00Z`) right after `source` in the JSON report, on stdout with `--format json` and in the `--json-output` file. Opt-in: without it reports stay byte-identical. `SOURCE_DATE_EPOCH`, when set, replaces the clock; a value that is not a whole number of seconds is a usage error, and the flag without a JSON report is one too (#129, ADR 0008).
@@ -205,7 +207,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 - Initial version: per-column type inference, missing values, distinct counts, min/max and top values, duplicate rows, Markdown and JSON output.
 
-[Unreleased]: https://github.com/rodrix91/csv-quality-report/compare/v0.17.0...HEAD
+[Unreleased]: https://github.com/rodrix91/csv-quality-report/compare/v0.18.0...HEAD
+[0.18.0]: https://github.com/rodrix91/csv-quality-report/compare/v0.17.0...v0.18.0
 [0.17.0]: https://github.com/rodrix91/csv-quality-report/compare/v0.16.0...v0.17.0
 [0.16.0]: https://github.com/rodrix91/csv-quality-report/compare/v0.15.0...v0.16.0
 [0.15.0]: https://github.com/rodrix91/csv-quality-report/compare/v0.14.0...v0.15.0
