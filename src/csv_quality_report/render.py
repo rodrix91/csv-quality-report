@@ -240,17 +240,22 @@ def _unique_key_fields(check: CheckResult) -> dict[str, Any]:
 
 
 def _allowed_fields(check: CheckResult) -> dict[str, Any]:
-    """JSON fields of a schema_change check with --allow-type-change rules."""
-    if not check.allowed_rules:
-        return {}
-    return {
-        "allowed_type_changes": [
+    """JSON fields of a schema_change check with --allow-* options, each only when given."""
+    fields: dict[str, Any] = {}
+    if check.allowed_rules:
+        fields["allowed_type_changes"] = [
             {"column": r.column, "before": r.before, "after": r.after} for r in check.allowed_rules
-        ],
-        "tolerated": [
+        ]
+        fields["tolerated"] = [
             {"column": t.column, "before": t.before, "after": t.after} for t in check.tolerated
-        ],
-    }
+        ]
+    if check.allowed_added:
+        fields["allowed_added_columns"] = list(check.allowed_added)
+        fields["tolerated_added_columns"] = list(check.tolerated_added)
+    if check.allowed_removed:
+        fields["allowed_removed_columns"] = list(check.allowed_removed)
+        fields["tolerated_removed_columns"] = list(check.tolerated_removed)
+    return fields
 
 
 def _range_fields(check: CheckResult) -> dict[str, Any]:
