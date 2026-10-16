@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
 from pathlib import Path
 from types import ModuleType
 from typing import Any
@@ -68,3 +69,15 @@ def test_error_cases_store_one_relative_error_message() -> None:
         message = corpus.expected_path(case).read_text(encoding="utf-8")
         assert message.startswith("error: ") and message.count("\n") == 1, message
         assert f"'tests/corpus/{case['file']}'" in message
+
+
+@pytest.mark.parametrize("before", [None, "0"])
+def test_case_environment_is_restored(monkeypatch: pytest.MonkeyPatch, before: str | None) -> None:
+    if before is None:
+        monkeypatch.delenv("SOURCE_DATE_EPOCH", raising=False)
+    else:
+        monkeypatch.setenv("SOURCE_DATE_EPOCH", before)
+    (case,) = [c for c in CASES if c["name"] == "stock_counts_week1_stamped"]
+    code, output = corpus.run_case(case)
+    assert code == 0 and '"generated_at": "2026-10-05T22:00:00Z"' in output
+    assert os.environ.get("SOURCE_DATE_EPOCH") == before

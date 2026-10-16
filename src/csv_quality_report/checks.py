@@ -9,10 +9,11 @@ from __future__ import annotations
 
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from fractions import Fraction
 from typing import Any
 
+from .clock import format_stamp, parse_stamp
 from .compare import Comparison, TypeChange
 from .inference import parse_datetime
 from .profile import ColumnProfile, KeyProfile, Report, key_columns
@@ -28,6 +29,10 @@ CHECK_ROW_DROP = "row_drop"
 CHECK_MISSING_INCREASE = "missing_increase"
 CHECK_UNIQUE = "unique"
 CHECK_UNIQUE_KEY = "unique_key"
+CHECK_BASELINE_AGE = "baseline_age"
+# A baseline stamped up to this many seconds after the clock counts as 0
+# seconds old (clocks of two machines differ a little); later is an error.
+CLOCK_SKEW_TOLERANCE = 300
 # A bound of a --range check: a number for int/float columns, a date for date
 # and datetime columns, a datetime for date and datetime columns, None for an
 # open side.
@@ -77,6 +82,7 @@ class CheckResult:
     # type changes they tolerated (not counted in ``value``).
     allowed_rules: tuple[TypeChangeRule, ...] = ()
     tolerated: tuple[TypeChange, ...] = ()
+    generated_at: str | None = None  # baseline_age checks: the baseline's stamp
 
     def describe(self) -> str:
         """One-line, human-readable explanation used on stderr and in Markdown."""
@@ -119,6 +125,8 @@ class CheckResult:
             return self._describe_unique()
         if self.check == CHECK_UNIQUE_KEY:
             return self._describe_unique_key()
+        if self.check == CHECK_BASELINE_AGE:
+            return self.detail
         return f"{_fmt(self.value)} duplicate rows (limit {_fmt(self.limit)})"
 
     def _describe_schema_change(self) -> str:
@@ -328,6 +336,82 @@ def row_drop_check(comparison: Comparison, max_drop: float) -> CheckResult:
         value=_shown(drop),
         passed=drop <= _limit(max_drop),
         detail=f"{before} -> {after}",
+    )
+
+
+_DURATION_UNITS = (("day", 86400), ("hour", 3600), ("minute", 60), ("second", 1))
+
+
+def format_duration(seconds: int) -> str:
+    """``seconds`` in words, every non-zero unit: ``9 days 4 hours``, ``0 seconds``."""
+    parts = []
+    for unit, size in _DURATION_UNITS:
+        count, seconds = divmod(seconds, size)
+        if count:
+            parts.append(f"{count} {unit}" + ("s" if count != 1 else ""))
+    return " ".join(parts) or "0 seconds"
+
+
+def baseline_age_check(comparison: Comparison, max_age: int, now: datetime) -> CheckResult:
+    """A check that fails when the baseline report is more than ``max_age`` seconds old.
+
+    The age is ``now`` (an aware datetime) minus the baseline's
+    ``generated_at`` stamp, written by ``--record-time``, in whole seconds;
+    an age equal to the limit passes. A baseline without a stamp, or with
+    one that is not a ``YYYY-MM-DDTHH:MM:SSZ`` time, fails and says why: the
+    file's modification time is never used, since copying or downloading
+    the file changes it. A stamp up to ``CLOCK_SKEW_TOLERANCE`` seconds in
+    the future counts as 0 seconds old; later fails.
+    """
+    if isinstance(max_age, bool) or not isinstance(max_age, int):
+        raise TypeError(f"max_age must be a whole number of seconds, not {max_age!r}")
+    if max_age <= 0:
+        raise ValueError(f"max_age must be positive, not {max_age}")
+    if now.tzinfo is None:
+        raise ValueError("now must be an aware datetime (with a UTC offset)")
+    stamp = comparison.baseline_generated_at
+    limit = format_duration(max_age)
+    if stamp is None:
+        return _age_problem(
+            max_age, stamp, "the baseline has no 'generated_at' time (write it with --record-time)"
+        )
+    generated = parse_stamp(stamp)
+    if generated is None:
+        return _age_problem(
+            max_age,
+            stamp,
+            f"the baseline's 'generated_at' is not a UTC time like 2026-10-16T04:06:00Z: {stamp!r}",
+        )
+    age = (now - generated) // timedelta(seconds=1)
+    if age < -CLOCK_SKEW_TOLERANCE:
+        return _age_problem(
+            max_age,
+            stamp,
+            f"the baseline was generated in the future: {stamp} is {format_duration(-age)} "
+            f"ahead of the clock ({format_stamp(now)})",
+        )
+    age = max(age, 0)
+    return CheckResult(
+        check=CHECK_BASELINE_AGE,
+        column=None,
+        limit=max_age,
+        value=age,
+        passed=age <= max_age,
+        detail=f"the baseline is {format_duration(age)} old (generated {stamp}; limit {limit})",
+        generated_at=stamp,
+    )
+
+
+def _age_problem(max_age: int, stamp: str | None, detail: str) -> CheckResult:
+    """A failed ``baseline_age`` check whose age cannot be known."""
+    return CheckResult(
+        check=CHECK_BASELINE_AGE,
+        column=None,
+        limit=max_age,
+        value=0,
+        passed=False,
+        detail=detail,
+        generated_at=stamp,
     )
 
 

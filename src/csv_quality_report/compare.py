@@ -61,6 +61,10 @@ class Comparison:
     # Every column present in both reports, in the current report's order,
     # with exact counts for the drift gates (``--max-missing-increase``).
     missing_counts: tuple[MissingCount, ...] = ()
+    # The baseline's "generated_at" stamp (--record-time), as written, or None
+    # when it has none; a value that is not a string is kept as its JSON text
+    # so --max-baseline-age can say it is not a time.
+    baseline_generated_at: str | None = None
 
     @property
     def schema_changes(self) -> int:
@@ -124,7 +128,15 @@ def compare_reports(baseline: Mapping[str, Any], report: Report) -> Comparison:
         type_changes=type_changes,
         missing_changes=missing_changes,
         missing_counts=missing_counts,
+        baseline_generated_at=_stamp_text(baseline.get("generated_at")),
     )
+
+
+def _stamp_text(value: Any) -> str | None:
+    """The baseline's ``generated_at``: ``None`` when absent, JSON text when not a string."""
+    if value is None:
+        return None
+    return value if isinstance(value, str) else json.dumps(value)
 
 
 def _missing_count(entry: Mapping[str, Any]) -> int | None:
