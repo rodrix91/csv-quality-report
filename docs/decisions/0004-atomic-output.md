@@ -19,6 +19,7 @@ Until 0.13.0 the CLI wrote `--json-output FILE` with `Path.write_text`, which tr
 
 - A hard-linked target is replaced by a new file: the path given to `--json-output` gets the new report, other names of the old file keep the old one (atomic replacement cannot update every name of a file).
 - The owner and group of an existing file are not copied; the new file belongs to the user who runs the tool.
+- A read-only target is refused with exit code 9 and `cannot write 'FILE': the file is read-only`, on every platform, and keeps its content (#122). The rename alone would replace it on POSIX, where only the directory's permissions count, and fail on Windows with `Access is denied`; checking `os.access(target, os.W_OK)` first keeps the behavior of the old in-place write, which also refused it, and the same on every platform. Root, which may write any file, still replaces it.
 - The directory must be writable. A writable file in a read-only directory, which the old in-place write could overwrite, now fails with exit code 9 and leaves the file unchanged. Falling back to an in-place write would silently drop the guarantee.
 - A crash between creating the temporary file and removing it (power loss, `SIGKILL`) can leave a hidden `.<name>.<random>.tmp` file next to the target; it never replaces or damages the report.
 - The directory itself is not synced after the rename, so after a power loss the rename may be lost and the old report found instead; either way the file holds one complete report.
