@@ -287,7 +287,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: Check shipments.csv
         id: quality
-        uses: rodrix91/csv-quality-report@v0.14.0  # pin a release tag or commit SHA for reproducible runs (@main follows unreleased changes)
+        uses: rodrix91/csv-quality-report@v0.16.0  # pin a release tag or commit SHA for reproducible runs (@main follows unreleased changes)
         with:
           path: data/shipments.csv
           args: --delimiter auto --na NA,s/d --max-missing 5 --max-duplicates 0 --require-columns shipment_id,date
