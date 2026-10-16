@@ -18,12 +18,14 @@ from .checks import (
     Bound,
     TypeChangeRule,
     ValueRange,
+    baseline_age_check,
     evaluate,
     missing_increase_checks,
     range_bounds_problem,
     row_drop_check,
     schema_change_check,
 )
+from .clock import current_time, format_stamp
 from .compare import compare_reports, load_baseline
 from .errors import EXIT_CHECKS, CsvQualityError, OutputWriteError
 from .inference import (
@@ -89,6 +91,21 @@ def _percentage(text: str) -> float:
     if not 0.0 <= value <= 100.0:
         raise argparse.ArgumentTypeError("must be between 0 and 100")
     return value
+
+
+_DURATION = re.compile(r"([0-9]+)([smhdw])")
+_DURATION_SECONDS = {"s": 1, "m": 60, "h": 3600, "d": 86400, "w": 604800}
+
+
+def _duration(text: str) -> int:
+    """Parse a duration such as ``36h`` or ``7d`` into seconds (a positive whole number)."""
+    match = _DURATION.fullmatch(text.strip())
+    if match is None or int(match[1]) == 0:
+        raise argparse.ArgumentTypeError(
+            f"invalid --max-baseline-age value: {text!r} (use a positive whole number with "
+            "s, m, h, d or w, such as 36h or 7d)"
+        )
+    return int(match[1]) * _DURATION_SECONDS[match[2]]
 
 
 def _non_negative_int(text: str) -> int:
@@ -381,6 +398,13 @@ def build_parser() -> argparse.ArgumentParser:
         metavar="FILE",
         help="also write the JSON report (with checks) to FILE; stdout keeps --format",
     )
+    parser.add_argument(
+        "--record-time",
+        action="store_true",
+        help='add the UTC time the run started ("generated_at") to the JSON report, so a '
+        "later run can check its age with --max-baseline-age (SOURCE_DATE_EPOCH, when set, "
+        "replaces the clock)",
+    )
     gates = parser.add_argument_group(
         "quality gates", f"exit with code {EXIT_CHECKS} when a threshold is exceeded"
     )
@@ -510,6 +534,15 @@ def build_parser() -> argparse.ArgumentParser:
         "--max-missing-increase for NAME (repeatable)",
     )
     gates.add_argument(
+        "--max-baseline-age",
+        type=_duration,
+        default=None,
+        metavar="DURATION",
+        help="with --baseline: fail if the baseline report is older than DURATION, a whole "
+        "number with s, m, h, d or w (36h, 7d); the baseline needs the time --record-time "
+        "writes",
+    )
+    gates.add_argument(
         "--max-duplicates",
         type=_non_negative_int,
         default=None,
@@ -603,6 +636,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 ("--max-missing-increase", args.max_missing_increase is not None),
                 ("--max-missing-increase-column", bool(args.max_missing_increase_column)),
                 ("--allow-type-change", bool(args.allow_type_change)),
+                ("--max-baseline-age", args.max_baseline_age is not None),
             ):
                 if given:
                     raise ValueError(f"{option} needs --baseline")
@@ -611,6 +645,11 @@ def main(argv: Sequence[str] | None = None) -> int:
                 "--allow-type-change needs --fail-on-schema-change "
                 "(type changes only fail the run with that gate)"
             )
+        if args.record_time and args.format != "json" and args.json_output is None:
+            raise ValueError("--record-time needs a JSON report (--format json or --json-output)")
+        # One reading of the clock: the stamp and the age check agree, and a
+        # bad SOURCE_DATE_EPOCH is a usage error before the file is read.
+        now = current_time() if args.record_time or args.max_baseline_age is not None else None
     except ValueError as exc:
         parser.error(str(exc))
     try:
@@ -662,15 +701,21 @@ def main(argv: Sequence[str] | None = None) -> int:
                     dict(args.max_missing_increase_column),  # the last limit for a name wins
                 )
             )
+        if args.max_baseline_age is not None:
+            assert now is not None  # read with the other usage checks
+            checks.append(baseline_age_check(comparison, args.max_baseline_age, now))
     source = display_name(args.path)
+    stamp = format_stamp(now) if args.record_time and now is not None else None
     if args.json_output is not None:
         try:
-            write_atomic(args.json_output, render_json(report, source, checks, comparison))
+            write_atomic(args.json_output, render_json(report, source, checks, comparison, stamp))
         except OutputWriteError as exc:
             print(f"error: {exc.message}", file=sys.stderr)
             return exc.exit_code
-    render = render_json if args.format == "json" else render_markdown
-    sys.stdout.write(render(report, source, checks, comparison))
+    if args.format == "json":
+        sys.stdout.write(render_json(report, source, checks, comparison, stamp))
+    else:
+        sys.stdout.write(render_markdown(report, source, checks, comparison))
     failed = [c for c in checks if not c.passed]
     for check in failed:
         print(f"check failed: {check.describe()}", file=sys.stderr)

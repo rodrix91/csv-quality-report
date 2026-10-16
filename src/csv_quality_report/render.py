@@ -8,6 +8,7 @@ from datetime import date
 from typing import Any
 
 from .checks import (
+    CHECK_BASELINE_AGE,
     CHECK_MAX_AFFIXES,
     CHECK_SCHEMA_CHANGE,
     CHECK_UNIQUE,
@@ -138,6 +139,8 @@ def _baseline_section(comparison: Comparison | None) -> list[str]:
     lines = ["", "## Changes since baseline", ""]
     if c.baseline_source:
         lines.append(f"- Baseline: report of `{_md_escape(c.baseline_source)}`")
+    if c.baseline_generated_at is not None:
+        lines.append(f"- Baseline generated: {_md_escape(c.baseline_generated_at)}")
     lines.append(f"- Rows: {c.rows_before} -> {c.rows_after}")
     if c.added_columns:
         lines.append("- Added columns: " + ", ".join(_md_escape(n) for n in c.added_columns))
@@ -167,6 +170,8 @@ def _baseline_json(comparison: Comparison | None) -> dict[str, Any] | None:
     c = comparison
     return {
         "source": c.baseline_source,
+        # Only for a stamped baseline (--record-time), so other reports keep their bytes.
+        **({} if c.baseline_generated_at is None else {"generated_at": c.baseline_generated_at}),
         "rows": {"before": c.rows_before, "after": c.rows_after},
         "added_columns": list(c.added_columns),
         "removed_columns": list(c.removed_columns),
@@ -262,9 +267,12 @@ def render_json(
     source: str,
     checks: Sequence[CheckResult] = (),
     comparison: Comparison | None = None,
+    generated_at: str | None = None,
 ) -> str:
+    """The report as JSON; ``generated_at`` (``--record-time``) adds that top-level key."""
     data: dict[str, Any] = {
         "source": source,
+        **({} if generated_at is None else {"generated_at": generated_at}),
         "rows": report.rows,
         "truncated": report.truncated,
         "delimiter": report.delimiter,
@@ -325,6 +333,7 @@ def render_json(
                 **({"repeated": dict(c.repeated)} if c.check == CHECK_UNIQUE else {}),
                 **(_unique_key_fields(c) if c.check == CHECK_UNIQUE_KEY else {}),
                 **(_allowed_fields(c) if c.check == CHECK_SCHEMA_CHANGE else {}),
+                **({"generated_at": c.generated_at} if c.check == CHECK_BASELINE_AGE else {}),
             }
             for c in checks
         ],

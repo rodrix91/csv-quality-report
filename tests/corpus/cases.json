@@ -166,5 +166,37 @@
     "args": ["--delimiter", "auto", "--decimal-comma", "--columns", "Depósito,SKU,Cantidad,Fecha conteo", "--baseline", "tests/corpus/expected/stock_counts_week1.json", "--fail-on-schema-change", "--allow-type-change", "Cantidad=int:float", "--allow-type-change", "date:datetime"],
     "exit_code": 0,
     "about": "The same rules on the columns a consumer reads (--columns leaves Lote out): both type changes are allowed, nothing else changed, so the schema gate passes and still lists what it tolerated."
+  },
+  {
+    "name": "stock_counts_week1_stamped",
+    "file": "stock_counts_week1.csv",
+    "args": ["--delimiter", "auto", "--decimal-comma", "--record-time"],
+    "env": {"SOURCE_DATE_EPOCH": "1791237600"},
+    "exit_code": 0,
+    "about": "The first count profiled with --record-time on a fixed clock (SOURCE_DATE_EPOCH, 2026-10-05T22:00:00Z): the report carries generated_at; the stamped baseline of the next two cases."
+  },
+  {
+    "name": "stock_counts_week2_fresh_baseline",
+    "file": "stock_counts_week2.csv",
+    "args": ["--delimiter", "auto", "--decimal-comma", "--baseline", "tests/corpus/expected/stock_counts_week1_stamped.json", "--max-baseline-age", "8d"],
+    "env": {"SOURCE_DATE_EPOCH": "1791806400"},
+    "exit_code": 0,
+    "about": "The weekly job a week later (2026-10-12T12:00:00Z) with --max-baseline-age 8d: the baseline is 6 days 14 hours old, so the check passes; the comparison shows when the baseline was generated."
+  },
+  {
+    "name": "stock_counts_week2_stale_baseline",
+    "file": "stock_counts_week2.csv",
+    "args": ["--delimiter", "auto", "--decimal-comma", "--baseline", "tests/corpus/expected/stock_counts_week1_stamped.json", "--max-baseline-age", "8d"],
+    "env": {"SOURCE_DATE_EPOCH": "1792411200"},
+    "exit_code": 8,
+    "about": "The same comparison two weeks later (2026-10-19T12:00:00Z), as when a pipeline stops refreshing its baseline: 13 days 14 hours is over the 8-day limit, so the run fails."
+  },
+  {
+    "name": "stock_counts_week2_unstamped_baseline",
+    "file": "stock_counts_week2.csv",
+    "args": ["--delimiter", "auto", "--decimal-comma", "--baseline", "tests/corpus/expected/stock_counts_week1.json", "--max-baseline-age", "8d"],
+    "env": {"SOURCE_DATE_EPOCH": "1791806400"},
+    "exit_code": 8,
+    "about": "The age gate on a baseline written without --record-time: its age cannot be known (the file's modification time is never used), so the check fails and says how to stamp it."
   }
 ]

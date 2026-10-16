@@ -1,7 +1,8 @@
 """Regenerate the expected reports of the end-to-end corpus in tests/corpus.
 
 Each case in ``tests/corpus/cases.json`` runs the command line on one file
-with its options; the JSON report it prints is stored in
+with its options (and, when the case has ``env``, those environment
+variables, such as ``SOURCE_DATE_EPOCH`` to fix the clock); the JSON report it prints is stored in
 ``tests/corpus/expected/<name>.json``. Cases that stop with an error (any
 exit code other than 0, or 8 for failed quality gates, which still print
 the report) store the message written to stderr in
@@ -46,6 +47,9 @@ def run_case(case: dict[str, Any]) -> tuple[int, str]:
     """
     out, err = io.StringIO(), io.StringIO()
     previous = Path.cwd()
+    # Environment variables of the case, such as SOURCE_DATE_EPOCH for a fixed clock.
+    saved = {name: os.environ.get(name) for name in case.get("env", {})}
+    os.environ.update(case.get("env", {}))
     os.chdir(ROOT)
     try:
         # Typed with "/" as on a command line, so the reports are the same on Windows (#120).
@@ -54,6 +58,11 @@ def run_case(case: dict[str, Any]) -> tuple[int, str]:
             code = cli_main([path, "--format", "json", *case["args"]])
     finally:
         os.chdir(previous)
+        for name, value in saved.items():
+            if value is None:
+                del os.environ[name]
+            else:
+                os.environ[name] = value
     return code, out.getvalue() if code in REPORT_CODES else err.getvalue()
 
 

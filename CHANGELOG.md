@@ -4,6 +4,11 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Added
+
+- `--record-time`: adds a top-level `"generated_at"` (the UTC time the run started, whole seconds, `2026-10-16T04:06:00Z`) right after `source` in the JSON report, on stdout with `--format json` and in the `--json-output` file. Opt-in: without it reports stay byte-identical. `SOURCE_DATE_EPOCH`, when set, replaces the clock; a value that is not a whole number of seconds is a usage error, and the flag without a JSON report is one too (#129, ADR 0008).
+- `--max-baseline-age DURATION` gate (needs `--baseline`): fails with exit code 8 when the baseline report is older than `DURATION`, a positive whole number with `s`, `m`, `h`, `d` or `w` (`36h`, `7d`), so a pipeline that stopped refreshing its baseline is noticed: `the baseline is 9 days 4 hours old (generated 2026-10-07T00:00:00Z; limit 7 days)`. The age comes from the baseline's `generated_at`, never from the file's modification time; a baseline without a stamp, or with one in another form, fails and says why, and a stamp more than 5 minutes ahead of the clock fails as generated in the future. File-level `baseline_age` check with `limit` and `value` in seconds and `generated_at`; the comparison shows `Baseline generated:` in Markdown and `generated_at` in the JSON `baseline` object, only for stamped baselines. `baseline_age_check()` and `format_duration()` in `csv_quality_report.checks`, `Comparison.baseline_generated_at`, `render_json(..., generated_at)` and the `csv_quality_report.clock` module. The corpus gains a stamped weekly stock count and three age checks on a fixed clock; corpus cases may set environment variables (`env`) (#129, ADR 0008).
+
 ### Changed
 
 - The GitHub Action example in the README pins the latest release tag, `@v0.17.0`.
