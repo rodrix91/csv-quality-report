@@ -50,7 +50,8 @@ def run_json(capsys: pytest.CaptureFixture[str], *args: str) -> dict[str, Any]:
 def test_stdin_helpers() -> None:
     assert is_stdin(Path("-")) and not is_stdin(Path("data.csv"))
     assert display_name(Path("-")) == STDIN_NAME == "<stdin>"
-    assert display_name(Path("dir/data.csv")) == "dir/data.csv"
+    assert display_name("dir/data.csv") == "dir/data.csv"  # a str is kept as given (#120)
+    assert display_name(Path("dir/data.csv")) == str(Path("dir/data.csv"))  # native separator
 
 
 def test_stdin_report_matches_the_file_report(

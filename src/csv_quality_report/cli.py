@@ -37,6 +37,7 @@ from .profile import TOP_N, profile_file
 from .reader import (
     DEFAULT_ENCODING,
     DELIMITER_AUTO,
+    PathArg,
     display_name,
     is_stdin,
     normalize_encoding,
@@ -254,7 +255,9 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "path",
-        type=Path,
+        # Kept as typed, not as a Path, so reports and messages name the file
+        # the same way on every platform (#120).
+        type=str,
         help="CSV file to analyze (UTF-8 unless --encoding; gzip is detected); - reads stdin",
     )
     parser.add_argument("--version", action="version", version=f"csv-quality-report {__version__}")
@@ -492,7 +495,7 @@ def _check_selected(args: argparse.Namespace) -> None:
                 raise ValueError(f"{option} checks column '{name}', which --columns leaves out")
 
 
-def _same_file(first: Path, second: Path) -> bool:
+def _same_file(first: Path, second: PathArg) -> bool:
     """Return whether two paths name the same existing file.
 
     Compares the device and inode numbers, so a different spelling of the path

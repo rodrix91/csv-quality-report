@@ -1,8 +1,8 @@
-"""Output is the same on every platform: UTF-8, ``\\n`` line endings, ``/`` in paths (#120).
+"""Output is the same on every platform: UTF-8, ``\\n`` line endings, paths as typed (#120).
 
 The Windows CI job found that a redirected stdout used the ANSI code page and
-CRLF, and that paths were reported with backslashes. These tests pin the
-portable behavior; on Linux they simulate the Windows streams.
+CRLF, and that a path typed as ``a/b.csv`` was reported as ``a\\b.csv``. These
+tests pin the portable behavior; on Linux they simulate the Windows streams.
 """
 
 from __future__ import annotations
@@ -70,13 +70,24 @@ def test_json_output_file_is_utf8_with_lf(write_csv: WriteCsv, tmp_path: Path) -
     assert b"\r\n" not in raw and "東京".encode() in raw
 
 
-@pytest.mark.parametrize(
-    "path",
-    [PureWindowsPath("tests\\corpus\\data.csv"), PurePosixPath("tests/corpus/data.csv")],
-)
-def test_paths_are_reported_with_forward_slashes(path: PureWindowsPath | PurePosixPath) -> None:
-    assert display_name(path) == "tests/corpus/data.csv"
+def test_a_typed_path_is_reported_as_typed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    (tmp_path / "exports").mkdir()
+    (tmp_path / "exports" / "data.csv").write_text(DATA, encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    assert main(["exports/data.csv", "--format", "json"]) == 0
+    assert json.loads(capsys.readouterr().out)["source"] == "exports/data.csv"
+    assert main(["exports/missing.csv"]) == 3
+    assert "error: cannot read 'exports/missing.csv': " in capsys.readouterr().err
+
+
+def test_display_name_keeps_a_str_and_uses_fspath_for_path_objects() -> None:
+    assert display_name("exports/data.csv") == "exports/data.csv"
+    assert display_name("exports\\data.csv") == "exports\\data.csv"
+    assert display_name(PureWindowsPath("exports/data.csv")) == "exports\\data.csv"
+    assert display_name(PurePosixPath("exports/data.csv")) == "exports/data.csv"
 
 
 def test_stdin_keeps_its_name_on_every_platform() -> None:
-    assert display_name(PureWindowsPath("-")) == "<stdin>"
+    assert display_name(PureWindowsPath("-")) == display_name("-") == "<stdin>"

@@ -14,7 +14,7 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
 from itertools import chain
-from pathlib import Path, PurePath
+from pathlib import Path
 from typing import Protocol, cast
 
 from .errors import (
@@ -28,6 +28,9 @@ from .errors import (
 _CHUNK = 1 << 20  # bytes per read when locating an invalid UTF-8 byte
 DELIMITER_AUTO = "auto"
 STDIN = "-"  # path that means "read standard input"
+# What the public reading functions accept as a path: "data.csv", Path(...),
+# any os.PathLike; "-" means standard input.
+PathArg = str | os.PathLike[str]
 DEFAULT_ENCODING = "utf-8"  # read as utf-8-sig, so a leading BOM is accepted
 STDIN_NAME = "<stdin>"  # how standard input is named in messages and reports
 _GZIP_MAGIC = b"\x1f\x8b"  # first bytes of every gzip stream; CSV text never starts so
@@ -176,6 +179,7 @@ class RowStream:
     def __init__(
         self,
         path: Path,
+        name: str,
         records: Iterator[list[str]],
         reader: _CsvReader,
         raw_header: list[str],
@@ -187,6 +191,7 @@ class RowStream:
         sep_line: bool = False,
     ) -> None:
         self.path = path
+        self.name = name  # the path as given, for messages
         self.compressed = compressed
         self.encoding = encoding
         self.sep_line = sep_line
@@ -202,7 +207,7 @@ class RowStream:
     def __iter__(self) -> Iterator[list[str]]:
         count = 0
         for record in _guarded(
-            self.path, self._records, self._reader, self.compressed, self.encoding
+            self.path, self._records, self._reader, self.compressed, self.encoding, self.name
         ):
             if not record:  # blank line
                 continue
@@ -223,18 +228,20 @@ class _CsvReader(Protocol):
     def line_num(self) -> int: ...
 
 
-def is_stdin(path: PurePath) -> bool:
+def is_stdin(path: PathArg) -> bool:
     """True when ``path`` is ``-``, the conventional name for standard input."""
-    return str(path) == STDIN
+    return os.fspath(path) == STDIN
 
 
-def display_name(path: PurePath) -> str:
+def display_name(path: PathArg) -> str:
     """Name used for ``path`` in messages and reports (``<stdin>`` for ``-``).
 
-    Separators are always ``/`` (``Path.as_posix``), so the same command gives
-    the same report on Windows as on Linux and macOS (#120).
+    A ``str`` is kept exactly as given, so a path typed as ``data/x.csv`` is
+    reported as ``data/x.csv`` on every platform, also on Windows, where
+    ``Path`` would turn it into ``data\\x.csv`` (#120). A path-like object
+    gives its ``os.fspath`` text.
     """
-    return STDIN_NAME if is_stdin(path) else path.as_posix()
+    return STDIN_NAME if is_stdin(path) else os.fspath(path)
 
 
 def normalize_encoding(name: str) -> str:
@@ -282,28 +289,34 @@ def _guarded(
     reader: _CsvReader,
     compressed: bool = False,
     encoding: str = DEFAULT_ENCODING,
+    name: str | None = None,
 ) -> Iterator[list[str]]:
-    """Re-raise low-level errors from ``records`` as ``CsvQualityError`` subclasses."""
+    """Re-raise low-level errors from ``records`` as ``CsvQualityError`` subclasses.
+
+    ``name`` is the path as given, for messages (``display_name(path)`` by default).
+    """
+    if name is None:
+        name = display_name(path)
     try:
         yield from records
     except UnicodeDecodeError as exc:
-        raise _encoding_error(path, compressed, encoding) from exc
+        raise _encoding_error(path, name, compressed, encoding) from exc
     except csv.Error as exc:
         message = f"malformed CSV near line {reader.line_num}: {exc}"
         if "field larger than field limit" in str(exc):
             message += "; if the file really has long fields, raise the limit with --max-field-size"
         raise RaggedRowError(message) from exc
     except _STREAM_ERRORS as exc:  # I/O failure, or corrupt or truncated gzip data
-        raise _read_error(path, exc) from exc
+        raise _read_error(name, exc) from exc
 
 
-def _read_error(path: Path, exc: BaseException) -> FileReadError:
+def _read_error(name: str, exc: BaseException) -> FileReadError:
     reason = exc.strerror if isinstance(exc, OSError) and exc.strerror else exc
-    return FileReadError(f"cannot read '{display_name(path)}': {reason}")
+    return FileReadError(f"cannot read '{name}': {reason}")
 
 
 def _encoding_error(
-    path: Path, compressed: bool = False, encoding: str = DEFAULT_ENCODING
+    path: Path, name: str, compressed: bool = False, encoding: str = DEFAULT_ENCODING
 ) -> EncodingError:
     if is_stdin(path):
         where = "the offset of the invalid byte is not available on standard input"
@@ -321,12 +334,12 @@ def _encoding_error(
     else:
         advice = "check the encoding given with --encoding"
         label = encoding
-    return EncodingError(f"'{display_name(path)}' is not valid {label} ({where}); {advice}")
+    return EncodingError(f"'{name}' is not valid {label} ({where}); {advice}")
 
 
 @contextmanager
 def _text_stream(
-    path: Path, encoding: str = DEFAULT_ENCODING
+    path: Path, name: str, encoding: str = DEFAULT_ENCODING
 ) -> Iterator[tuple[io.TextIOWrapper, bool]]:
     """Open ``path`` (or standard input for ``-``) as text in ``encoding``.
 
@@ -341,7 +354,7 @@ def _text_stream(
         binary = path.open("rb") if owned else cast(io.BufferedReader, sys.stdin.buffer)
         compressed = binary.peek(2)[:2] == _GZIP_MAGIC
     except OSError as exc:
-        raise _read_error(path, exc) from exc
+        raise _read_error(name, exc) from exc
     try:
         source = gzip.GzipFile(fileobj=binary, mode="rb") if compressed else binary
         codec = "utf-8-sig" if encoding == DEFAULT_ENCODING else encoding
@@ -356,11 +369,6 @@ def _text_stream(
     finally:
         if owned:
             binary.close()
-
-
-# What the public reading functions accept as a path: "data.csv", Path(...),
-# any os.PathLike; "-" means standard input.
-PathArg = str | os.PathLike[str]
 
 
 @contextmanager
@@ -399,10 +407,11 @@ def open_rows(
     in the ``csv`` module, so the previous value is restored when the stream
     closes, also after an error.
     """
+    name = display_name(path)  # as given: Path() would change the separators on Windows
     path = Path(path)  # the rest of the reader works on Path objects
     previous_limit = None if max_field_size is None else csv.field_size_limit(max_field_size)
     try:
-        with _open_rows(path, max_rows, delimiter, encoding) as stream:
+        with _open_rows(path, name, max_rows, delimiter, encoding) as stream:
             yield stream
     finally:
         if previous_limit is not None:
@@ -411,10 +420,10 @@ def open_rows(
 
 @contextmanager
 def _open_rows(
-    path: Path, max_rows: int | None, delimiter: str, encoding: str
+    path: Path, name: str, max_rows: int | None, delimiter: str, encoding: str
 ) -> Iterator[RowStream]:
-    """``open_rows`` without the field size handling."""
-    with _text_stream(path, encoding) as (handle, compressed):
+    """``open_rows`` without the field size handling; ``name`` is used in messages."""
+    with _text_stream(path, name, encoding) as (handle, compressed):
         try:
             first = handle.readline()
             declared = declared_delimiter(first)
@@ -424,7 +433,7 @@ def _open_rows(
                     delimiter = declared
                 elif delimiter != declared:
                     raise DelimiterDetectionError(
-                        f"'{display_name(path)}' declares the {_describe(declared)} delimiter "
+                        f"'{name}' declares the {_describe(declared)} delimiter "
                         f"in its first line (sep={declared}), but the delimiter in use is "
                         f"{_describe(delimiter)}; pass --delimiter auto to follow the file"
                     )
@@ -435,9 +444,9 @@ def _open_rows(
                 if len(sample) > SNIFF_CHARS:
                     sample += handle.readline()  # end the sample on a line boundary
         except UnicodeDecodeError as exc:
-            raise _encoding_error(path, compressed, encoding) from exc
+            raise _encoding_error(path, name, compressed, encoding) from exc
         except _STREAM_ERRORS as exc:
-            raise _read_error(path, exc) from exc
+            raise _read_error(name, exc) from exc
         if detected:
             delimiter = detect_delimiter(sample)
         # Parse what was read ahead again, then continue with the rest of the stream.
@@ -447,12 +456,13 @@ def _open_rows(
         records = iter(reader)
         counter = _LineCounter(reader, 0 if declared is None else 1)
         header = next(
-            (r for r in _guarded(path, records, counter, compressed, encoding) if r), None
+            (r for r in _guarded(path, records, counter, compressed, encoding, name) if r), None
         )
         if header is None:
-            raise EmptyFileError(f"'{display_name(path)}' is empty (no header row)")
+            raise EmptyFileError(f"'{name}' is empty (no header row)")
         yield RowStream(
             path,
+            name,
             records,
             counter,
             header,
