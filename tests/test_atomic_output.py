@@ -17,6 +17,10 @@ from csv_quality_report.errors import EXIT_WRITE, OutputWriteError
 from csv_quality_report.output import write_atomic
 
 WriteCsv = Callable[..., Path]
+Symlink = Callable[[Path, Path], None]
+# Windows has no POSIX permission bits: chmod only toggles the read-only flag
+# and the umask does not apply, so these modes cannot be observed there (#116).
+posix_modes = pytest.mark.skipif(os.name == "nt", reason="no POSIX permission bits on Windows")
 DATA = "a,b\n1,x\n,y\n1,x\n"
 OLD = '{"previous": "report"}\n'
 
@@ -37,6 +41,7 @@ def test_writes_new_file_without_leftovers(tmp_path: Path) -> None:
     assert leftovers(tmp_path) == []
 
 
+@posix_modes
 def test_new_file_gets_the_umask_permissions(tmp_path: Path) -> None:
     umask = os.umask(0o027)
     try:
@@ -46,6 +51,7 @@ def test_new_file_gets_the_umask_permissions(tmp_path: Path) -> None:
     assert stat.S_IMODE((tmp_path / "report.json").stat().st_mode) == 0o640
 
 
+@posix_modes
 def test_replaces_existing_file_and_keeps_its_mode(tmp_path: Path) -> None:
     target = tmp_path / "report.json"
     target.write_text(OLD * 500, encoding="utf-8")
@@ -56,25 +62,26 @@ def test_replaces_existing_file_and_keeps_its_mode(tmp_path: Path) -> None:
     assert leftovers(tmp_path) == []
 
 
-def test_symlink_is_written_through(tmp_path: Path) -> None:
+def test_symlink_is_written_through(tmp_path: Path, symlink: Symlink) -> None:
     real = tmp_path / "reports" / "latest.json"
     real.parent.mkdir()
     real.write_text(OLD, encoding="utf-8")
     link = tmp_path / "link.json"
-    link.symlink_to(real)
+    symlink(link, real)
     write_atomic(link, "{}\n")
     assert link.is_symlink() and link.resolve() == real.resolve()
     assert real.read_text(encoding="utf-8") == "{}\n"
     assert leftovers(tmp_path) == [] and leftovers(real.parent) == []
 
 
-def test_dangling_symlink_creates_its_target(tmp_path: Path) -> None:
+def test_dangling_symlink_creates_its_target(tmp_path: Path, symlink: Symlink) -> None:
     link, real = tmp_path / "link.json", tmp_path / "real.json"
-    link.symlink_to(real)
+    symlink(link, real)
     write_atomic(link, "{}")
     assert link.is_symlink() and real.read_text(encoding="utf-8") == "{}"
 
 
+@pytest.mark.skipif(not hasattr(os, "mkfifo"), reason="no named pipes (os.mkfifo) on Windows")
 def test_non_regular_file_is_written_in_place(tmp_path: Path) -> None:
     fifo = tmp_path / "pipe"
     os.mkfifo(fifo)

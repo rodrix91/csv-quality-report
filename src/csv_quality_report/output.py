@@ -41,7 +41,7 @@ def _replace(target: Path, text: str, mode: int | None) -> None:
     """Write ``text`` to a temporary file and move it onto ``target``; clean up on failure."""
     temporary, descriptor = _create_temporary(target.parent, target.name)
     try:
-        with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
+        with os.fdopen(descriptor, "w", encoding="utf-8", newline="\n") as handle:
             handle.write(text)
             handle.flush()
             os.fsync(handle.fileno())
@@ -57,6 +57,9 @@ def _replace(target: Path, text: str, mode: int | None) -> None:
 def write_atomic(path: Path, text: str) -> None:
     """Write ``text`` to ``path`` as UTF-8, all or nothing; ``OutputWriteError`` on failure.
 
+    Line endings stay ``\\n`` on every platform, so a report has the same bytes
+    on Windows as on Linux and macOS (#120).
+
     On failure the temporary file is removed and ``path`` keeps its previous
     content, or still does not exist. An existing file keeps its permission
     bits. A symbolic link is written through: its target is replaced and the
@@ -71,7 +74,7 @@ def write_atomic(path: Path, text: str) -> None:
         except FileNotFoundError:
             mode = None
         if mode is not None and not stat.S_ISREG(mode):
-            target.write_text(text, encoding="utf-8")
+            target.write_text(text, encoding="utf-8", newline="\n")
             return
         _replace(target, text, None if mode is None else stat.S_IMODE(mode))
     except OSError as exc:

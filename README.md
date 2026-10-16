@@ -251,6 +251,7 @@ Output (captured from a real run, exit code 0):
 - **Duplicate column names** are made unique deterministically: later repeats get `_2`, `_3`, … suffixes (`a,a,a` → `a`, `a_2`, `a_3`; if a suffixed name already exists, the counter keeps increasing).
 - **Encoding**: files are read as UTF-8 by default. A leading UTF-8 BOM is accepted and removed. Anything else (e.g. Latin-1, UTF-16) fails with exit code 4 rather than guessing. Files in another encoding are read when it is named with `--encoding` (for example `cp1252`, the usual encoding of spreadsheet exports in Spanish and Portuguese locales); the UTF-8 error message points to that option. The encoding is never guessed.
 - Fully blank lines are skipped.
+- **Same output on every platform**: stdout, stderr and the `--json-output` file are always UTF-8 with `\n` line endings, also on Windows and when the output is redirected, and the input path is reported exactly as typed on the command line (`examples/sample.csv` stays `examples/sample.csv` on Windows; `./data.csv` is no longer shortened to `data.csv`), so the same command gives the same bytes on Linux, macOS and Windows. CI runs the test suite on all three. See [ADR 0005](https://github.com/rodrix91/csv-quality-report/blob/main/docs/decisions/0005-portable-output.md).
 
 ### Errors and exit codes
 

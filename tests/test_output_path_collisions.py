@@ -16,6 +16,7 @@ from csv_quality_report.profile import profile_file
 from csv_quality_report.render import render_json
 
 WriteCsv = Callable[..., Path]
+Symlink = Callable[[Path, Path], None]
 
 
 @pytest.mark.parametrize("alias", ["direct", "normalized", "symlink", "hardlink"])
@@ -23,6 +24,7 @@ def test_json_output_never_overwrites_input(
     write_csv: WriteCsv,
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
+    symlink: Symlink,
     alias: str,
 ) -> None:
     source = write_csv("id,value\n1,first\n2,second\n", "source.csv")
@@ -34,7 +36,7 @@ def test_json_output_never_overwrites_input(
         target = tmp_path / "nested" / ".." / source.name
     elif alias == "symlink":
         target = tmp_path / "linked.csv"
-        target.symlink_to(source)
+        symlink(target, source)
     else:
         target = tmp_path / "linked.csv"
         target.hardlink_to(source)
@@ -52,6 +54,7 @@ def test_json_output_never_overwrites_baseline(
     write_csv: WriteCsv,
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
+    symlink: Symlink,
     alias: str,
 ) -> None:
     source = write_csv("id,value\n1,first\n", "source.csv")
@@ -62,7 +65,7 @@ def test_json_output_never_overwrites_baseline(
         target = baseline
     elif alias == "symlink":
         target = tmp_path / "linked.json"
-        target.symlink_to(baseline)
+        symlink(target, baseline)
     else:
         target = tmp_path / "linked.json"
         target.hardlink_to(baseline)
