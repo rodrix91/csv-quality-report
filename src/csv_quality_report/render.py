@@ -7,7 +7,7 @@ from collections.abc import Sequence
 from datetime import date
 from typing import Any
 
-from .checks import CHECK_MAX_AFFIXES, CHECK_VALUE_RANGE, CheckResult
+from .checks import CHECK_MAX_AFFIXES, CHECK_UNIQUE, CHECK_VALUE_RANGE, CheckResult
 from .compare import Comparison
 from .profile import ColumnProfile, Report
 from .reader import DEFAULT_ENCODING, DELIMITER_NAMES, delimiter_name
@@ -292,6 +292,7 @@ def render_json(
                 **({"expected": c.expected, "actual": c.actual} if c.expected else {}),
                 **({"found": dict(c.found)} if c.check == CHECK_MAX_AFFIXES else {}),
                 **(_range_fields(c) if c.check == CHECK_VALUE_RANGE else {}),
+                **({"repeated": dict(c.repeated)} if c.check == CHECK_UNIQUE else {}),
             }
             for c in checks
         ],
