@@ -18,7 +18,7 @@ __version__ = "0.15.0"
 from .checks import CheckResult, evaluate
 from .compare import Comparison, compare_reports
 from .errors import CsvQualityError
-from .profile import ColumnProfile, Report, build_report, profile_file
+from .profile import ColumnProfile, KeyProfile, Report, build_report, profile_file
 from .reader import read_table
 from .render import render_json, render_markdown
 
@@ -27,6 +27,7 @@ __all__ = [
     "ColumnProfile",
     "Comparison",
     "CsvQualityError",
+    "KeyProfile",
     "Report",
     "__version__",
     "build_report",

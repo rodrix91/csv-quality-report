@@ -15,7 +15,7 @@ from typing import Any
 
 from .compare import Comparison
 from .inference import parse_datetime
-from .profile import ColumnProfile, Report
+from .profile import ColumnProfile, KeyProfile, Report, key_columns
 
 CHECK_MAX_MISSING = "max_missing"
 CHECK_MAX_DUPLICATES = "max_duplicates"
@@ -27,6 +27,7 @@ CHECK_SCHEMA_CHANGE = "schema_change"
 CHECK_ROW_DROP = "row_drop"
 CHECK_MISSING_INCREASE = "missing_increase"
 CHECK_UNIQUE = "unique"
+CHECK_UNIQUE_KEY = "unique_key"
 # A bound of a --range check: a number for int/float columns, a date for date
 # and datetime columns, a datetime for date and datetime columns, None for an
 # open side.
@@ -69,6 +70,9 @@ class CheckResult:
     bounds: ValueRange = (None, None)  # value_range checks: the allowed range
     observed: Observed = (None, None)  # value_range checks: the column's min and max
     repeated: tuple[tuple[str, int], ...] = ()  # unique checks: most repeated (value, cells)
+    key: tuple[str, ...] = ()  # unique_key checks: the key's columns
+    repeated_keys: tuple[tuple[tuple[str, ...], int], ...] = ()  # unique_key: (values, rows)
+    skipped: int = 0  # unique_key checks: rows with a missing key cell, not checked
 
     def describe(self) -> str:
         """One-line, human-readable explanation used on stderr and in Markdown."""
@@ -112,6 +116,8 @@ class CheckResult:
             return self._describe_missing_increase()
         if self.check == CHECK_UNIQUE:
             return self._describe_unique()
+        if self.check == CHECK_UNIQUE_KEY:
+            return self._describe_unique_key()
         return f"{_fmt(self.value)} duplicate rows (limit {_fmt(self.limit)})"
 
     def _describe_unique(self) -> str:
@@ -122,6 +128,30 @@ class CheckResult:
         examples = ", ".join(f'"{value}" in {cells} cells' for value, cells in self.repeated)
         return f"column '{self.column}' is not unique: {count} {verb} an earlier value" + (
             f" ({examples})" if examples else ""
+        )
+
+    def _describe_unique_key(self) -> str:
+        names = " + ".join(f"'{name}'" for name in self.key)
+        skipped = ""
+        if self.skipped:
+            noun = (
+                "row with a missing key cell was"
+                if self.skipped == 1
+                else ("rows with a missing key cell were")
+            )
+            skipped = f"; {self.skipped} {noun} skipped"
+        if self.passed:
+            return f"key {names} has no repeated values{skipped}"
+        count = int(self.value)
+        verb = "row repeats" if count == 1 else "rows repeat"
+        examples = ", ".join(
+            " + ".join(f'"{value}"' for value in values) + f" in {rows} rows"
+            for values, rows in self.repeated_keys
+        )
+        return (
+            f"key {names} is not unique: {count} {verb} an earlier key"
+            + (f" ({examples})" if examples else "")
+            + skipped
         )
 
     def _describe_missing_increase(self) -> str:
@@ -412,6 +442,20 @@ def _unique_check(name: str, column: ColumnProfile, rows: int) -> CheckResult:
     )
 
 
+def _unique_key_check(key: KeyProfile) -> CheckResult:
+    """A check that fails when two checked rows share the values of ``key``'s columns."""
+    return CheckResult(
+        check=CHECK_UNIQUE_KEY,
+        column=None,
+        limit=0,
+        value=key.repeated,
+        passed=key.repeated == 0,
+        key=key.columns,
+        repeated_keys=key.examples,
+        skipped=key.skipped,
+    )
+
+
 def _moment(value: int | float | str | None) -> datetime:
     """The date-time of a date or datetime column's min or max (a date is midnight)."""
     moment = parse_datetime(str(value))
@@ -429,6 +473,7 @@ def evaluate(
     column_max_affixes: Mapping[str, int] | None = None,
     column_ranges: Mapping[str, ValueRange] | None = None,
     unique_columns: Iterable[str] = (),
+    unique_keys: Iterable[Iterable[str]] = (),
 ) -> list[CheckResult]:
     """Evaluate the requested thresholds; a value equal to its limit passes.
 
@@ -472,6 +517,18 @@ def evaluate(
     earlier value, exact also when they are not among the top values, and
     ``repeated`` lists the repeated top values. Unknown names fail as
     ``required_column``.
+
+    ``unique_keys`` are composite keys, each a sequence of column names (an
+    invoice number and a line number): two rows must not share the values of
+    all of them. The report must have been built with the same keys
+    (``profile_file(..., unique_keys=...)``), which measures them in the
+    single pass (``Report.keys``); a key it lacks raises ``ValueError``. Key
+    cells compare like ``unique_columns`` values; a row with a missing key
+    cell is not checked and is counted in the check's ``skipped``. The
+    check's ``value`` is the number of rows that repeat an earlier row's key,
+    exact, and ``repeated_keys`` lists the first keys found repeated. A key
+    may use columns left out of the profile by ``columns``, since rows are
+    read whole. Unknown names fail as ``required_column``.
 
     ``required_columns`` are matched exactly (case-sensitive) against the
     file's whole header (``Report.header``, after duplicate-name suffixes),
@@ -580,9 +637,20 @@ def evaluate(
         if column is None:
             continue  # reported below as a missing required column
         results.append(_unique_check(name, column, report.rows))
+    keys = list(dict.fromkeys(key_columns(key) for key in unique_keys))
+    measured = {key.columns: key for key in report.keys}
+    for columns in keys:
+        if not present.issuperset(columns):
+            continue  # the unknown names are reported below as missing required columns
+        key = measured.get(columns)
+        if key is None:
+            names = ", ".join(columns)
+            raise ValueError(f"key ({names}) has a unique_key check but was not profiled")
+        results.append(_unique_key_check(key))
+    key_names = [name for columns in keys for name in columns]
     unknown_limited = (
         name
-        for name in [*column_limits, *required_types, *affix_limits, *ranges, *unique]
+        for name in [*column_limits, *required_types, *affix_limits, *ranges, *unique, *key_names]
         if name not in present
     )
     for name in dict.fromkeys([*required_columns, *unknown_limited]):

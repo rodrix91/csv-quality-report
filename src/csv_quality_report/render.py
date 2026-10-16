@@ -7,7 +7,13 @@ from collections.abc import Sequence
 from datetime import date
 from typing import Any
 
-from .checks import CHECK_MAX_AFFIXES, CHECK_UNIQUE, CHECK_VALUE_RANGE, CheckResult
+from .checks import (
+    CHECK_MAX_AFFIXES,
+    CHECK_UNIQUE,
+    CHECK_UNIQUE_KEY,
+    CHECK_VALUE_RANGE,
+    CheckResult,
+)
 from .compare import Comparison
 from .profile import ColumnProfile, Report
 from .reader import DEFAULT_ENCODING, DELIMITER_NAMES, delimiter_name
@@ -218,6 +224,15 @@ def _json_value(value: int | float | str | date | None) -> int | float | str | N
     return value.isoformat() if isinstance(value, date) else value
 
 
+def _unique_key_fields(check: CheckResult) -> dict[str, Any]:
+    """JSON fields of a unique_key check: the key, the skipped rows and repeated keys."""
+    return {
+        "columns": list(check.key),
+        "skipped": check.skipped,
+        "repeated": [{"key": list(values), "rows": rows} for values, rows in check.repeated_keys],
+    }
+
+
 def _range_fields(check: CheckResult) -> dict[str, Any]:
     """JSON fields of a value_range check: the allowed range and the observed one."""
     (low, high), (first, last) = check.bounds, check.observed
@@ -293,6 +308,7 @@ def render_json(
                 **({"found": dict(c.found)} if c.check == CHECK_MAX_AFFIXES else {}),
                 **(_range_fields(c) if c.check == CHECK_VALUE_RANGE else {}),
                 **({"repeated": dict(c.repeated)} if c.check == CHECK_UNIQUE else {}),
+                **(_unique_key_fields(c) if c.check == CHECK_UNIQUE_KEY else {}),
             }
             for c in checks
         ],

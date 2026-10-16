@@ -9,6 +9,7 @@ from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass
 from itertools import compress, islice, repeat
 from operator import itemgetter
+from typing import Any
 
 from .errors import ColumnSelectionError
 from .inference import (
@@ -90,6 +91,27 @@ class ColumnProfile:
 
 
 @dataclass(frozen=True)
+class KeyProfile:
+    """How unique a composite key (``--unique-key``) is over the rows read.
+
+    Key cells compare as the report counts values: stripped of surrounding
+    whitespace, case-sensitive, as text. A row with a missing key cell (empty
+    or an ``na_tokens`` text) is not checked and counts as ``skipped``.
+    ``repeated`` is the number of checked rows whose key equals an earlier
+    row's key, exact for any number of rows. ``examples`` are the first
+    ``top_n`` keys found repeated, with the rows that have each one, most
+    rows first (first repeated first on ties); they are only a sample of the
+    repeated keys, not the most repeated ones.
+    """
+
+    columns: tuple[str, ...]
+    checked: int  # rows whose key cells are all present
+    skipped: int  # rows with a missing key cell
+    repeated: int  # checked rows whose key equals an earlier row's key
+    examples: tuple[tuple[tuple[str, ...], int], ...] = ()  # (key values, rows)
+
+
+@dataclass(frozen=True)
 class Report:
     rows: int
     duplicate_rows: int
@@ -112,6 +134,7 @@ class Report:
     # holds only the selected ones when ``selected_columns`` is set.
     header: tuple[str, ...] = ()
     selected_columns: tuple[str, ...] | None = None  # --columns, in the order given
+    keys: tuple[KeyProfile, ...] = ()  # --unique-key: one per key whose columns all exist
 
 
 def _untrimmed_names(header: list[str]) -> tuple[str, ...]:
@@ -119,7 +142,7 @@ def _untrimmed_names(header: list[str]) -> tuple[str, ...]:
     return tuple(name for name in header if name != name.strip())
 
 
-def _row_digest(row: list[str]) -> bytes:
+def _row_digest(row: Sequence[str]) -> bytes:
     """128-bit fingerprint of a row's exact cell texts.
 
     The cell lengths are written first, so cell boundaries are unambiguous:
@@ -413,11 +436,93 @@ class _ColumnAccumulator:
         )
 
 
+class _KeyAccumulator:
+    """Uniqueness of one composite key, updated batch by batch.
+
+    Each checked row adds one 128-bit fingerprint of its stripped key cells
+    (lengths first, as for duplicate rows), so memory grows with the number of
+    distinct keys, not with the size of the values. The texts of the first
+    ``limit`` repeated keys are kept, since a fingerprint cannot be read back.
+    """
+
+    __slots__ = ("columns", "examples", "limit", "positions", "repeated", "seen", "skipped")
+
+    def __init__(self, columns: tuple[str, ...], positions: list[int], limit: int) -> None:
+        self.columns = columns
+        self.positions = positions
+        self.limit = limit
+        self.seen: set[bytes] = set()
+        self.skipped = 0
+        self.repeated = 0
+        self.examples: dict[bytes, list[Any]] = {}  # fingerprint -> [key, rows]
+
+    def update(self, batch: list[list[str]], na: set[str]) -> None:
+        # Hashing the keys is most of the cost; a C-level fast path for
+        # batches without repeats measured within 5% of this loop.
+        cells = [[row[position].strip() for row in batch] for position in self.positions]
+        keys = [key for key in zip(*cells, strict=True) if na.isdisjoint(key)]
+        self.skipped += len(batch) - len(keys)
+        seen, examples = self.seen, self.examples
+        for key in keys:
+            digest = _row_digest(key)
+            if digest not in seen:
+                seen.add(digest)
+                continue
+            self.repeated += 1
+            example = examples.get(digest)
+            if example is not None:
+                example[1] += 1
+            elif len(examples) < self.limit:
+                examples[digest] = [key, 2]
+
+    def finish(self, total: int) -> KeyProfile:
+        examples = sorted(self.examples.values(), key=lambda item: -item[1])  # stable
+        return KeyProfile(
+            columns=self.columns,
+            checked=total - self.skipped,
+            skipped=self.skipped,
+            repeated=self.repeated,
+            examples=tuple((tuple(key), rows) for key, rows in examples),
+        )
+
+
+def key_columns(names: Iterable[str]) -> tuple[str, ...]:
+    """The columns of a composite key, repeated names once; ``ValueError`` when empty.
+
+    A key is a sequence of names: one string would be read letter by letter,
+    so it raises ``ValueError`` too.
+    """
+    if isinstance(names, str):
+        raise ValueError(f"a unique key is a sequence of column names, not a string: {names!r}")
+    columns = tuple(dict.fromkeys(names))
+    if not columns:
+        raise ValueError("a unique key needs at least one column")
+    return columns
+
+
+def _key_accumulators(
+    header: list[str], unique_keys: Iterable[Iterable[str]], limit: int
+) -> list[_KeyAccumulator]:
+    """One accumulator per distinct key whose columns are all in ``header``.
+
+    Keys naming an unknown column are left out here: ``evaluate`` reports
+    those names as missing required columns.
+    """
+    position = {name: i for i, name in enumerate(header)}
+    keys = dict.fromkeys(key_columns(key) for key in unique_keys)
+    return [
+        _KeyAccumulator(key, [position[name] for name in key], limit)
+        for key in keys
+        if all(name in position for name in key)
+    ]
+
+
 @dataclass(frozen=True)
 class _Profiled:
     columns: list[ColumnProfile]
     rows: int
     duplicate_rows: int
+    keys: tuple[KeyProfile, ...] = ()
 
 
 def _columns(
@@ -473,6 +578,7 @@ def profile_rows(
     number_affixes: tuple[str, ...] = (),
     accounting_negatives: bool = False,
     columns: Sequence[str] | None = None,
+    unique_keys: Iterable[Iterable[str]] = (),
 ) -> _Profiled:
     """Profile ``rows`` in a single pass; each row must have ``len(header)`` cells.
 
@@ -492,6 +598,12 @@ def profile_rows(
     ``columns`` limits the profile to those header names, in that order; a
     name that is not in the header raises ``ColumnSelectionError`` before any
     row is read. Duplicate rows still compare whole rows.
+
+    ``unique_keys`` are composite keys, each a sequence of column names, whose
+    uniqueness is measured in the same pass (see ``KeyProfile``). Rows are
+    read whole, so a key may use columns that ``columns`` leaves out. A key
+    with an unknown name is skipped (``evaluate`` reports it); an empty key
+    raises ``ValueError``. Without keys the pass does no extra work.
     """
     rules = _reading_rules(
         decimal_comma, thousands, date_order, bool_words, number_affixes, accounting_negatives
@@ -506,6 +618,8 @@ def profile_rows(
     # for one position, hence the one-element case).
     pick = None if selected is None or len(selected) < 2 else itemgetter(*selected)
     seen: set[bytes] = set()
+    na = {token.strip() for token in na_tokens} | {""}
+    keys = _key_accumulators(header, unique_keys, top_n)
     total = 0
     # Work on batches of rows transposed into columns, so counting runs inside
     # Counter.update (implemented in C) instead of one Python step per cell.
@@ -516,17 +630,19 @@ def profile_rows(
     while batch := list(islice(it, _BATCH_ROWS)):
         total += len(batch)
         seen.update(map(_row_digest, batch))
+        for key in keys:
+            key.update(batch, na)
         # The transposed batch is built inside the loop header, so nothing keeps
         # it alive while the next batch is read (one batch in memory at a time).
         for counter, column in zip(counters, _columns(batch, selected, pick), strict=True):
             counter.update(column)
-    na = {token.strip() for token in na_tokens} | {""}
     for acc in accumulators:
         acc.strip_counts(na)
     return _Profiled(
         columns=[acc.finish(total, top_n, rules) for acc in accumulators],
         rows=total,
         duplicate_rows=total - len(seen),
+        keys=tuple(key.finish(total) for key in keys),
     )
 
 
@@ -563,6 +679,7 @@ def _report(
         accounting_negatives=accounting_negatives,
         header=tuple(source.header),
         selected_columns=None if columns is None else tuple(dict.fromkeys(columns)),
+        keys=result.keys,
     )
 
 
@@ -577,6 +694,7 @@ def build_report(
     number_affixes: tuple[str, ...] = (),
     accounting_negatives: bool = False,
     columns: Sequence[str] | None = None,
+    unique_keys: Iterable[Iterable[str]] = (),
 ) -> Report:
     """Profile every column of an in-memory ``table``.
 
@@ -589,7 +707,8 @@ def build_report(
     ``("sí", "no")``; ``number_affixes`` are texts such as ``"$"`` or ``"kg"``
     removed from around numbers; ``accounting_negatives`` reads ``(1.234,56)``
     and ``1.234,56-`` as negative numbers; ``columns`` profiles only those
-    header names, in that order.
+    header names, in that order; ``unique_keys`` are composite keys whose
+    uniqueness is measured (``Report.keys``).
     """
     result = profile_rows(
         table.header,
@@ -603,6 +722,7 @@ def build_report(
         number_affixes,
         accounting_negatives,
         columns,
+        unique_keys,
     )
     return _report(
         result,
@@ -633,6 +753,7 @@ def profile_file(
     number_affixes: tuple[str, ...] = (),
     accounting_negatives: bool = False,
     columns: Sequence[str] | None = None,
+    unique_keys: Iterable[Iterable[str]] = (),
 ) -> Report:
     """Stream ``path`` and profile it without loading the whole file into memory.
 
@@ -660,6 +781,7 @@ def profile_file(
             number_affixes,
             accounting_negatives,
             columns,
+            unique_keys,
         )
         return _report(
             result,

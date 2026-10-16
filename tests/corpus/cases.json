@@ -131,5 +131,12 @@
     "args": ["--delimiter", "auto", "--decimal-comma", "--na", "s/d", "--date-order", "dmy", "--max-duplicates", "0", "--unique", "Guía", "--unique", "Pedido"],
     "exit_code": 8,
     "about": "Courier export where tracking codes repeat in rows that differ elsewhere (a re-sent parcel, a padded code): --max-duplicates passes, --unique Guía fails with 3 repeated cells, Pedido is unique; the s/d and empty codes are missing, not repeats."
+  },
+  {
+    "name": "erp_invoice_lines_unique_key",
+    "file": "erp_invoice_lines.csv",
+    "args": ["--delimiter", "auto", "--decimal-comma", "--max-duplicates", "0", "--unique-key", "Factura,Línea", "--unique-key", "Sucursal,Factura,Línea"],
+    "exit_code": 8,
+    "about": "ERP invoice lines whose invoice numbers restart in each branch: no row repeats and every column repeats on its own. Factura,Línea fails with 5 rows because branches share numbers; Sucursal,Factura,Línea finds the one line exported twice with another amount (and a padded invoice number); the row without a line number is skipped."
   }
 ]
