@@ -11,6 +11,11 @@ All notable changes to this project are documented here. The format follows [Kee
 ### Changed
 
 - The GitHub Action example in the README pins the latest release tag, `@v0.14.0`, instead of `@main`; the note on pinning a tag or commit SHA is kept.
+- CI also runs the test suite on Windows and macOS with Python 3.11 and 3.13 (job `platforms`), for the atomic `--json-output` write (`os.replace`), file identity through symbolic and hard links (`os.path.samefile`), paths and line endings. Tests of what Windows lacks are skipped there with the reason: POSIX permission bits, named pipes, and symbolic links without the privilege to create them. `.gitattributes` keeps the test corpus and the examples byte-exact on checkout (#116).
+
+### Fixed
+
+- Windows: stdout and stderr are now always UTF-8 with `\n` line endings. When the output was redirected (`> report.json`, a pipe, a CI log), Python on Windows wrote the report in the ANSI code page, so a JSON report with `guaraníes` was not UTF-8 and differed from `--json-output`, and a name outside the code page (`東京`) crashed with `UnicodeEncodeError`; every line also ended in `\r\n`. The `--json-output` file is written with `\n` too, and the input path is reported as typed (`examples/sample.csv` was `examples\sample.csv` on Windows), in the report's `source` and in error messages, so the same command gives the same bytes on every platform. As a side effect the CLI no longer shortens the path it shows on any platform: `./data.csv` is reported as `./data.csv` instead of `data.csv` (#120, ADR 0005).
 
 ## [0.14.0] - 2026-10-15
 

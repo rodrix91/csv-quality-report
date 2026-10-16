@@ -23,6 +23,25 @@ def write_csv(tmp_path: Path) -> Callable[..., Path]:
 
 
 @pytest.fixture
+def symlink() -> Callable[[Path, Path], None]:
+    """Create a symbolic link ``link`` -> ``target``, or skip where the OS forbids it.
+
+    Windows only lets administrators, or accounts in Developer Mode, create
+    symbolic links; elsewhere a failure is a real error and is raised (#116).
+    """
+
+    def _symlink(link: Path, target: Path) -> None:
+        try:
+            link.symlink_to(target)
+        except OSError as exc:
+            if os.name != "nt":
+                raise
+            pytest.skip(f"cannot create symbolic links here: {exc}")
+
+    return _symlink
+
+
+@pytest.fixture
 def cli_env() -> dict[str, str]:
     """Environment for ``python -m csv_quality_report`` subprocesses.
 
