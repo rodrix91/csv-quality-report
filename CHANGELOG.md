@@ -4,6 +4,10 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Added
+
+- `--allow-added-column NAME` and `--allow-removed-column NAME` (repeatable, need `--fail-on-schema-change`): an added or removed column with that exact, case-sensitive name is not counted as a schema change, for column changes consumers handle, such as an ERP upgrade that adds a `Unidad` column or a lot column that moves to another export; a rename is accepted by allowing both names. Type changes and other columns still count. The check says what it allowed (`1 schema change since the baseline: removed 'Lote' (allowed: added 'Unidad')`), `value` counts only the changes not allowed, and the JSON `schema_change` item gains `allowed_added_columns` and `tolerated_added_columns`, or `allowed_removed_columns` and `tolerated_removed_columns`, only when the matching option is given, so reports without them are byte-identical. A name left out by `--columns`, an empty name, and the options without `--fail-on-schema-change` are usage errors (exit code 2). `schema_change_check()` gains `allowed_added_columns` and `allowed_removed_columns`. The corpus gains a third weekly stock count (#134, ADR 0007).
+
 ## [0.18.0] - 2026-10-16
 
 ### Added

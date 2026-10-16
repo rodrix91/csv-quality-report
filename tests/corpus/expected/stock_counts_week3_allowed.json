@@ -1,0 +1,192 @@
+{
+  "source": "tests/corpus/stock_counts_week3.csv",
+  "rows": 8,
+  "truncated": false,
+  "delimiter": ";",
+  "delimiter_detected": true,
+  "sep_line": false,
+  "na_tokens": [],
+  "top_n": 3,
+  "compressed": false,
+  "encoding": "utf-8",
+  "thousands": null,
+  "date_order": null,
+  "bool_words": [],
+  "number_affixes": [],
+  "accounting_negatives": false,
+  "selected_columns": null,
+  "header_columns": 5,
+  "duplicate_rows": 0,
+  "untrimmed_columns": [],
+  "columns": [
+    {
+      "name": "Depósito",
+      "type": "string",
+      "type_hint": null,
+      "missing": 0,
+      "missing_pct": 0.0,
+      "distinct": 3,
+      "min": null,
+      "max": null,
+      "mean": null,
+      "min_length": 3,
+      "max_length": 3,
+      "top_values": [
+        {
+          "value": "CEN",
+          "count": 3
+        },
+        {
+          "value": "NOR",
+          "count": 3
+        },
+        {
+          "value": "SUR",
+          "count": 2
+        }
+      ],
+      "untrimmed": 0,
+      "affixes": {}
+    },
+    {
+      "name": "SKU",
+      "type": "string",
+      "type_hint": null,
+      "missing": 0,
+      "missing_pct": 0.0,
+      "distinct": 5,
+      "min": null,
+      "max": null,
+      "mean": null,
+      "min_length": 7,
+      "max_length": 7,
+      "top_values": [
+        {
+          "value": "ARZ-1KG",
+          "count": 2
+        },
+        {
+          "value": "ACE-900",
+          "count": 2
+        },
+        {
+          "value": "YER-500",
+          "count": 2
+        }
+      ],
+      "untrimmed": 0,
+      "affixes": {}
+    },
+    {
+      "name": "Cantidad",
+      "type": "int",
+      "type_hint": null,
+      "missing": 0,
+      "missing_pct": 0.0,
+      "distinct": 8,
+      "min": 28,
+      "max": 290,
+      "mean": 103.75,
+      "min_length": 2,
+      "max_length": 3,
+      "top_values": [
+        {
+          "value": "115",
+          "count": 1
+        },
+        {
+          "value": "44",
+          "count": 1
+        },
+        {
+          "value": "290",
+          "count": 1
+        }
+      ],
+      "untrimmed": 0,
+      "affixes": {}
+    },
+    {
+      "name": "Unidad",
+      "type": "string",
+      "type_hint": null,
+      "missing": 0,
+      "missing_pct": 0.0,
+      "distinct": 1,
+      "min": null,
+      "max": null,
+      "mean": null,
+      "min_length": 2,
+      "max_length": 2,
+      "top_values": [
+        {
+          "value": "un",
+          "count": 8
+        }
+      ],
+      "untrimmed": 0,
+      "affixes": {}
+    },
+    {
+      "name": "Fecha conteo",
+      "type": "date",
+      "type_hint": null,
+      "missing": 0,
+      "missing_pct": 0.0,
+      "distinct": 2,
+      "min": "2026-10-19",
+      "max": "2026-10-20",
+      "mean": null,
+      "min_length": 10,
+      "max_length": 10,
+      "top_values": [
+        {
+          "value": "2026-10-20",
+          "count": 5
+        },
+        {
+          "value": "2026-10-19",
+          "count": 3
+        }
+      ],
+      "untrimmed": 0,
+      "affixes": {}
+    }
+  ],
+  "baseline": {
+    "source": "tests/corpus/stock_counts_week1.csv",
+    "rows": {
+      "before": 8,
+      "after": 8
+    },
+    "added_columns": [
+      "Unidad"
+    ],
+    "removed_columns": [
+      "Lote"
+    ],
+    "type_changes": [],
+    "missing_changes": []
+  },
+  "checks": [
+    {
+      "check": "schema_change",
+      "column": null,
+      "limit": 0,
+      "value": 0,
+      "passed": true,
+      "allowed_added_columns": [
+        "Unidad"
+      ],
+      "tolerated_added_columns": [
+        "Unidad"
+      ],
+      "allowed_removed_columns": [
+        "Lote"
+      ],
+      "tolerated_removed_columns": [
+        "Lote"
+      ]
+    }
+  ]
+}

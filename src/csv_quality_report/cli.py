@@ -275,10 +275,10 @@ def _column_names(text: str, option: str = "--require-columns") -> tuple[str, ..
     return names
 
 
-def _column_name(text: str) -> str:
+def _column_name(text: str, option: str = "--unique") -> str:
     """One column name, exactly as written (commas and ``=`` are part of it)."""
     if not text.strip():
-        raise argparse.ArgumentTypeError(f"invalid --unique value: {text!r} (no name)")
+        raise argparse.ArgumentTypeError(f"invalid {option} value: {text!r} (no name)")
     return text
 
 
@@ -509,6 +509,24 @@ def build_parser() -> argparse.ArgumentParser:
         "bool, date, datetime, string); repeatable",
     )
     gates.add_argument(
+        "--allow-added-column",
+        type=lambda text: _column_name(text, "--allow-added-column"),
+        action="append",
+        default=[],
+        metavar="NAME",
+        help="with --fail-on-schema-change: do not count column NAME as added since the "
+        "baseline (exact, case-sensitive name); repeatable",
+    )
+    gates.add_argument(
+        "--allow-removed-column",
+        type=lambda text: _column_name(text, "--allow-removed-column"),
+        action="append",
+        default=[],
+        metavar="NAME",
+        help="with --fail-on-schema-change: do not count column NAME as removed since the "
+        "baseline (exact, case-sensitive name); repeatable",
+    )
+    gates.add_argument(
         "--max-row-drop",
         type=_percentage,
         default=None,
@@ -564,6 +582,8 @@ def _check_selected(args: argparse.Namespace) -> None:
         ("--max-missing-increase-column", [name for name, _ in args.max_missing_increase_column]),
         ("--unique", args.unique),
         ("--allow-type-change", [r.column for r in args.allow_type_change if r.column]),
+        ("--allow-added-column", args.allow_added_column),
+        ("--allow-removed-column", args.allow_removed_column),
     )
     for option, names in gates:
         for name in names:
@@ -636,15 +656,23 @@ def main(argv: Sequence[str] | None = None) -> int:
                 ("--max-missing-increase", args.max_missing_increase is not None),
                 ("--max-missing-increase-column", bool(args.max_missing_increase_column)),
                 ("--allow-type-change", bool(args.allow_type_change)),
+                ("--allow-added-column", bool(args.allow_added_column)),
+                ("--allow-removed-column", bool(args.allow_removed_column)),
                 ("--max-baseline-age", args.max_baseline_age is not None),
             ):
                 if given:
                     raise ValueError(f"{option} needs --baseline")
-        if args.allow_type_change and not args.fail_on_schema_change:
-            raise ValueError(
-                "--allow-type-change needs --fail-on-schema-change "
-                "(type changes only fail the run with that gate)"
-            )
+        if not args.fail_on_schema_change:
+            for option, given, what in (
+                ("--allow-type-change", args.allow_type_change, "type changes"),
+                ("--allow-added-column", args.allow_added_column, "added columns"),
+                ("--allow-removed-column", args.allow_removed_column, "removed columns"),
+            ):
+                if given:
+                    raise ValueError(
+                        f"{option} needs --fail-on-schema-change "
+                        f"({what} only fail the run with that gate)"
+                    )
         if args.record_time and args.format != "json" and args.json_output is None:
             raise ValueError("--record-time needs a JSON report (--format json or --json-output)")
         # One reading of the clock: the stamp and the age check agree, and a
@@ -690,7 +718,14 @@ def main(argv: Sequence[str] | None = None) -> int:
     comparison = None if baseline is None else compare_reports(baseline, report)
     if comparison is not None:
         if args.fail_on_schema_change:
-            checks.append(schema_change_check(comparison, args.allow_type_change))
+            checks.append(
+                schema_change_check(
+                    comparison,
+                    args.allow_type_change,
+                    args.allow_added_column,
+                    args.allow_removed_column,
+                )
+            )
         if args.max_row_drop is not None:
             checks.append(row_drop_check(comparison, args.max_row_drop))
         if args.max_missing_increase is not None or args.max_missing_increase_column:

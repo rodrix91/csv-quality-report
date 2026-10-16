@@ -198,5 +198,26 @@
     "env": {"SOURCE_DATE_EPOCH": "1791806400"},
     "exit_code": 8,
     "about": "The age gate on a baseline written without --record-time: its age cannot be known (the file's modification time is never used), so the check fails and says how to stamp it."
+  },
+  {
+    "name": "stock_counts_week3_schema",
+    "file": "stock_counts_week3.csv",
+    "args": ["--delimiter", "auto", "--decimal-comma", "--baseline", "tests/corpus/expected/stock_counts_week1.json", "--fail-on-schema-change"],
+    "exit_code": 8,
+    "about": "Three weeks later the ERP export was upgraded: it adds a Unidad column and lot codes moved to another export (Lote is gone); compared with the first count, --fail-on-schema-change counts 2 changes."
+  },
+  {
+    "name": "stock_counts_week3_allowed_added",
+    "file": "stock_counts_week3.csv",
+    "args": ["--delimiter", "auto", "--decimal-comma", "--baseline", "tests/corpus/expected/stock_counts_week1.json", "--fail-on-schema-change", "--allow-added-column", "Unidad"],
+    "exit_code": 8,
+    "about": "The same pair with --allow-added-column Unidad: the new column is tolerated and listed, while the removed Lote still fails the run."
+  },
+  {
+    "name": "stock_counts_week3_allowed",
+    "file": "stock_counts_week3.csv",
+    "args": ["--delimiter", "auto", "--decimal-comma", "--baseline", "tests/corpus/expected/stock_counts_week1.json", "--fail-on-schema-change", "--allow-added-column", "Unidad", "--allow-removed-column", "Lote"],
+    "exit_code": 0,
+    "about": "Both column changes allowed by name (--allow-added-column Unidad, --allow-removed-column Lote): nothing else changed, so the schema gate passes and lists what it tolerated; the baseline comparison still shows both columns."
   }
 ]

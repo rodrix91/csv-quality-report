@@ -82,6 +82,12 @@ class CheckResult:
     # type changes they tolerated (not counted in ``value``).
     allowed_rules: tuple[TypeChangeRule, ...] = ()
     tolerated: tuple[TypeChange, ...] = ()
+    # schema_change checks with --allow-added-column / --allow-removed-column:
+    # the names given and the added or removed columns they tolerated.
+    allowed_added: tuple[str, ...] = ()
+    tolerated_added: tuple[str, ...] = ()
+    allowed_removed: tuple[str, ...] = ()
+    tolerated_removed: tuple[str, ...] = ()
     generated_at: str | None = None  # baseline_age checks: the baseline's stamp
 
     def describe(self) -> str:
@@ -131,10 +137,15 @@ class CheckResult:
 
     def _describe_schema_change(self) -> str:
         allowed = ""
-        if self.tolerated:
-            allowed = " (allowed: " + "; ".join(_type_change(t) for t in self.tolerated) + ")"
+        tolerated = [
+            *(f"added '{name}'" for name in self.tolerated_added),
+            *(f"removed '{name}'" for name in self.tolerated_removed),
+            *(_type_change(t) for t in self.tolerated),
+        ]
+        if tolerated:
+            allowed = " (allowed: " + "; ".join(tolerated) + ")"
         if self.passed:
-            if self.tolerated:
+            if tolerated:
                 return "no schema changes since the baseline" + allowed
             return "no columns added, removed or retyped since the baseline"
         noun = "change" if self.value == 1 else "changes"
@@ -268,30 +279,59 @@ def _type_change(change: TypeChange) -> str:
     return f"'{change.column}' {change.before} -> {change.after}"
 
 
+def _column_names(names: Iterable[str], parameter: str) -> tuple[str, ...]:
+    """Validated, unique column names for ``schema_change_check`` (order kept)."""
+    if isinstance(names, str):
+        raise TypeError(f"{parameter} takes column names, not one string {names!r}")
+    unique = tuple(dict.fromkeys(names))
+    for name in unique:
+        if not isinstance(name, str):
+            raise TypeError(f"{parameter} takes column names, not {name!r}")
+        if not name:
+            raise ValueError(f"{parameter} takes non-empty column names")
+    return unique
+
+
 def schema_change_check(
-    comparison: Comparison, allowed_type_changes: Iterable[TypeChangeRule] = ()
+    comparison: Comparison,
+    allowed_type_changes: Iterable[TypeChangeRule] = (),
+    allowed_added_columns: Iterable[str] = (),
+    allowed_removed_columns: Iterable[str] = (),
 ) -> CheckResult:
     """A check that fails when columns were added, removed or changed type since the baseline.
 
     A type change matched by one of ``allowed_type_changes`` is tolerated:
-    it is not counted in ``value`` and is listed in ``tolerated``. Added
-    and removed columns always count. Repeated rules count once.
+    it is not counted in ``value`` and is listed in ``tolerated``. Likewise an
+    added column named in ``allowed_added_columns`` (``tolerated_added``) and
+    a removed column named in ``allowed_removed_columns``
+    (``tolerated_removed``); names match exactly. Repeated rules and names
+    count once.
     """
     rules = tuple(dict.fromkeys(allowed_type_changes))
     for rule in rules:
         if not isinstance(rule, TypeChangeRule):
             raise TypeError(f"allowed_type_changes takes TypeChangeRule items, not {rule!r}")
+    allowed_added = _column_names(allowed_added_columns, "allowed_added_columns")
+    allowed_removed = _column_names(allowed_removed_columns, "allowed_removed_columns")
     tolerated = tuple(
         change for change in comparison.type_changes if any(rule.matches(change) for rule in rules)
     )
     counted = [change for change in comparison.type_changes if change not in tolerated]
+    tolerated_added = tuple(name for name in comparison.added_columns if name in allowed_added)
+    tolerated_removed = tuple(
+        name for name in comparison.removed_columns if name in allowed_removed
+    )
+    added = [name for name in comparison.added_columns if name not in tolerated_added]
+    removed = [name for name in comparison.removed_columns if name not in tolerated_removed]
     parts = []
-    if comparison.added_columns:
-        parts.append("added " + ", ".join(f"'{name}'" for name in comparison.added_columns))
-    if comparison.removed_columns:
-        parts.append("removed " + ", ".join(f"'{name}'" for name in comparison.removed_columns))
+    if added:
+        parts.append("added " + ", ".join(f"'{name}'" for name in added))
+    if removed:
+        parts.append("removed " + ", ".join(f"'{name}'" for name in removed))
     parts.extend(_type_change(change) for change in counted)
-    changes = comparison.schema_changes - len(tolerated)
+    changes = (
+        comparison.schema_changes - len(tolerated) - len(tolerated_added) - len(tolerated_removed)
+    )
     return CheckResult(
         check=CHECK_SCHEMA_CHANGE,
         column=None,
@@ -301,6 +341,10 @@ def schema_change_check(
         detail="; ".join(parts),
         allowed_rules=rules,
         tolerated=tolerated,
+        allowed_added=allowed_added,
+        tolerated_added=tolerated_added,
+        allowed_removed=allowed_removed,
+        tolerated_removed=tolerated_removed,
     )
 
 
