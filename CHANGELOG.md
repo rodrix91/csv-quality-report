@@ -8,6 +8,10 @@ All notable changes to this project are documented here. The format follows [Kee
 
 - `--unique NAME` quality gate (repeatable): fails with exit code 8 when a key column (an invoice number, a tracking code) has a non-missing value more than once, which `--max-duplicates` misses when the rows differ elsewhere. Values compare stripped, case-sensitive and as text (`007` and `7` differ); missing cells never repeat. The message gives the exact number of cells that repeat an earlier value and names the most repeated top values; JSON items of the `unique` check carry `repeated`. No extra memory or time: the count is the non-missing cells minus the distinct values each column already tracks. An unknown name fails as `required_column`, a name left out by `--columns` is a usage error, and `evaluate()` gains `unique_columns`. The corpus gains a courier export with a re-sent parcel (#112).
 
+### Changed
+
+- The GitHub Action example in the README pins the latest release tag, `@v0.14.0`, instead of `@main`; the note on pinning a tag or commit SHA is kept.
+
 ## [0.14.0] - 2026-10-15
 
 ### Added
