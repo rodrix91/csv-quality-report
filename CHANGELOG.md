@@ -4,6 +4,10 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Added
+
+- `--unique-key NAMES` quality gate (repeatable): fails with exit code 8 when two rows share the values of all the comma-separated key columns, such as invoice number and line number, where each column repeats on its own and `--unique` cannot be used. Key cells compare stripped, case-sensitive and as text; a row with a missing key cell (empty or `--na`) is skipped and counted. The message gives the exact number of rows that repeat an earlier key and the first `--top` keys found repeated with their rows; JSON items of the `unique_key` check carry `columns`, `skipped` and `repeated`. The pass keeps one 128-bit fingerprint per distinct key (on 1,000,000 rows with as many distinct keys: about 6.2 s instead of 4.4 s and about 90 MB more); without the option nothing changes. Names are split at every comma like `--require-columns`; unknown names fail as `required_column`; key columns may be left out by `--columns`. `profile_file()` and `build_report()` gain `unique_keys`, `Report` gains `keys` (`KeyProfile`, exported), and `evaluate()` gains `unique_keys`. The corpus gains ERP invoice lines whose numbers restart per branch (#115, ADR 0006).
+
 ## [0.15.0] - 2026-10-15
 
 ### Added

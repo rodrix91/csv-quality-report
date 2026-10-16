@@ -22,6 +22,7 @@ def test_public_names_are_exported_and_listed() -> None:
         "ColumnProfile",
         "Comparison",
         "CsvQualityError",
+        "KeyProfile",
         "Report",
         "__version__",
         "build_report",

@@ -248,6 +248,11 @@ def _column_name(text: str) -> str:
     return text
 
 
+def _key_names(text: str) -> tuple[str, ...]:
+    """Parse the columns of one --unique-key, split at every comma like --require-columns."""
+    return _column_names(text, "--unique-key")
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="python -m csv_quality_report",
@@ -438,6 +443,16 @@ def build_parser() -> argparse.ArgumentParser:
         "repeated invoice number (stripped text, case-sensitive); repeatable",
     )
     gates.add_argument(
+        "--unique-key",
+        type=_key_names,
+        action="append",
+        default=[],
+        metavar="NAMES",
+        help="fail if two rows share the values of all the comma-separated columns NAMES, "
+        "such as invoice number and line (stripped text, case-sensitive; rows with a "
+        "missing key cell are skipped); repeatable",
+    )
+    gates.add_argument(
         "--fail-on-schema-change",
         action="store_true",
         help="with --baseline: fail if columns were added or removed or changed type",
@@ -582,6 +597,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             number_affixes=tuple(args.number_affix),
             accounting_negatives=args.accounting_negatives,
             columns=args.columns,
+            unique_keys=args.unique_key,
         )
     except CsvQualityError as exc:
         print(f"error: {exc.message}", file=sys.stderr)
@@ -596,6 +612,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         column_max_affixes=dict(args.max_affixes),  # the last limit for a name wins
         column_ranges=dict(args.range),  # the last range for a name wins
         unique_columns=args.unique,  # a repeated name gives one check
+        unique_keys=args.unique_key,  # a repeated key gives one check
     )
     comparison = None if baseline is None else compare_reports(baseline, report)
     if comparison is not None:
