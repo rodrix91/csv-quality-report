@@ -11,6 +11,7 @@ All notable changes to this project are documented here. The format follows [Kee
 ### Changed
 
 - The GitHub Action example in the README pins the latest release tag, `@v0.14.0`, instead of `@main`; the note on pinning a tag or commit SHA is kept.
+- The usage synopsis in the README lists every option of `--help` again: the newer quality gates (`--max-affixes`, `--range`, `--unique`) and the `--baseline` gates (`--fail-on-schema-change`, `--max-row-drop`, `--max-missing-increase`, `--max-missing-increase-column`), which it had left out, grouped under `--baseline`, which they need. A test now fails when an option of the parser is missing from the synopsis (#117).
 - CI also runs the test suite on Windows and macOS with Python 3.11 and 3.13 (job `platforms`), for the atomic `--json-output` write (`os.replace`), file identity through symbolic and hard links (`os.path.samefile`), paths and line endings. Tests of what Windows lacks are skipped there with the reason: POSIX permission bits, named pipes, and symbolic links without the privilege to create them. `.gitattributes` keeps the test corpus and the examples byte-exact on checkout (#116).
 
 ### Fixed
