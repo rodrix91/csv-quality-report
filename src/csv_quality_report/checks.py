@@ -13,7 +13,7 @@ from datetime import date, datetime
 from fractions import Fraction
 from typing import Any
 
-from .compare import Comparison
+from .compare import Comparison, TypeChange
 from .inference import parse_datetime
 from .profile import ColumnProfile, KeyProfile, Report, key_columns
 
@@ -73,6 +73,10 @@ class CheckResult:
     key: tuple[str, ...] = ()  # unique_key checks: the key's columns
     repeated_keys: tuple[tuple[tuple[str, ...], int], ...] = ()  # unique_key: (values, rows)
     skipped: int = 0  # unique_key checks: rows with a missing key cell, not checked
+    # schema_change checks with --allow-type-change: the rules given and the
+    # type changes they tolerated (not counted in ``value``).
+    allowed_rules: tuple[TypeChangeRule, ...] = ()
+    tolerated: tuple[TypeChange, ...] = ()
 
     def describe(self) -> str:
         """One-line, human-readable explanation used on stderr and in Markdown."""
@@ -102,10 +106,7 @@ class CheckResult:
         if self.check == CHECK_VALUE_RANGE:
             return self._describe_range()
         if self.check == CHECK_SCHEMA_CHANGE:
-            if self.passed:
-                return "no columns added, removed or retyped since the baseline"
-            noun = "change" if self.value == 1 else "changes"
-            return f"{int(self.value)} schema {noun} since the baseline: {self.detail}"
+            return self._describe_schema_change()
         if self.check == CHECK_ROW_DROP:
             change = f"fell {_fmt(self.value)}%" if self.value > 0 else "did not fall"
             return (
@@ -119,6 +120,17 @@ class CheckResult:
         if self.check == CHECK_UNIQUE_KEY:
             return self._describe_unique_key()
         return f"{_fmt(self.value)} duplicate rows (limit {_fmt(self.limit)})"
+
+    def _describe_schema_change(self) -> str:
+        allowed = ""
+        if self.tolerated:
+            allowed = " (allowed: " + "; ".join(_type_change(t) for t in self.tolerated) + ")"
+        if self.passed:
+            if self.tolerated:
+                return "no schema changes since the baseline" + allowed
+            return "no columns added, removed or retyped since the baseline"
+        noun = "change" if self.value == 1 else "changes"
+        return f"{int(self.value)} schema {noun} since the baseline: {self.detail}" + allowed
 
     def _describe_unique(self) -> str:
         if self.passed:
@@ -206,23 +218,81 @@ def _fmt(number: float) -> str:
     return f"{number:g}" if number == int(number) else f"{number:.4g}"
 
 
-def schema_change_check(comparison: Comparison) -> CheckResult:
-    """A check that fails when columns were added, removed or changed type since the baseline."""
+@dataclass(frozen=True)
+class TypeChangeRule:
+    """A type change that ``schema_change_check`` tolerates (``--allow-type-change``).
+
+    ``before`` and ``after`` are inferred column types (``COLUMN_TYPES``);
+    ``column`` limits the rule to one column, ``None`` applies it to every
+    column. The pair is matched exactly: ``int -> float`` says nothing about
+    ``int -> string``.
+    """
+
+    before: str
+    after: str
+    column: str | None = None
+
+    def __post_init__(self) -> None:
+        for kind in (self.before, self.after):
+            if kind not in COLUMN_TYPES:
+                raise ValueError(
+                    f"unknown column type {kind!r}; use one of {', '.join(COLUMN_TYPES)}"
+                )
+        if self.before == self.after:
+            raise ValueError(f"{self.before}:{self.after} is not a type change")
+        if self.column is not None and not self.column:
+            raise ValueError("a type change rule needs a column name or None")
+
+    def matches(self, change: TypeChange) -> bool:
+        """Whether this rule tolerates ``change``."""
+        return (
+            change.before == self.before
+            and change.after == self.after
+            and (self.column is None or change.column == self.column)
+        )
+
+    def __str__(self) -> str:
+        rule = f"{self.before}:{self.after}"
+        return rule if self.column is None else f"{self.column}={rule}"
+
+
+def _type_change(change: TypeChange) -> str:
+    return f"'{change.column}' {change.before} -> {change.after}"
+
+
+def schema_change_check(
+    comparison: Comparison, allowed_type_changes: Iterable[TypeChangeRule] = ()
+) -> CheckResult:
+    """A check that fails when columns were added, removed or changed type since the baseline.
+
+    A type change matched by one of ``allowed_type_changes`` is tolerated:
+    it is not counted in ``value`` and is listed in ``tolerated``. Added
+    and removed columns always count. Repeated rules count once.
+    """
+    rules = tuple(dict.fromkeys(allowed_type_changes))
+    for rule in rules:
+        if not isinstance(rule, TypeChangeRule):
+            raise TypeError(f"allowed_type_changes takes TypeChangeRule items, not {rule!r}")
+    tolerated = tuple(
+        change for change in comparison.type_changes if any(rule.matches(change) for rule in rules)
+    )
+    counted = [change for change in comparison.type_changes if change not in tolerated]
     parts = []
     if comparison.added_columns:
         parts.append("added " + ", ".join(f"'{name}'" for name in comparison.added_columns))
     if comparison.removed_columns:
         parts.append("removed " + ", ".join(f"'{name}'" for name in comparison.removed_columns))
-    parts.extend(
-        f"'{change.column}' {change.before} -> {change.after}" for change in comparison.type_changes
-    )
+    parts.extend(_type_change(change) for change in counted)
+    changes = comparison.schema_changes - len(tolerated)
     return CheckResult(
         check=CHECK_SCHEMA_CHANGE,
         column=None,
         limit=0,
-        value=comparison.schema_changes,
-        passed=comparison.schema_changes == 0,
+        value=changes,
+        passed=changes == 0,
         detail="; ".join(parts),
+        allowed_rules=rules,
+        tolerated=tolerated,
     )
 
 

@@ -4,6 +4,10 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Added
+
+- `--allow-type-change [NAME=]FROM:TO` (repeatable, needs `--fail-on-schema-change`): a change of a column's inferred type from `FROM` to `TO` is not counted as a schema change, in every column or only in `NAME`, for widenings consumers handle such as `int:float` (quantities that gain decimals) or `date:datetime` (counts that gain a time). Pairs are exact and one-way; added and removed columns always count. The check says what it allowed (`1 schema change since the baseline: 'Lote' int -> string (allowed: 'Cantidad' int -> float; 'Fecha conteo' date -> datetime)`), `value` counts only the changes not allowed, and the JSON `schema_change` item gains `allowed_type_changes` and `tolerated` only when the option is given, so reports without it are byte-identical. Unknown types, `FROM` equal to `TO` and a `NAME` left out by `--columns` are usage errors. `schema_change_check()` gains `allowed_type_changes` (`TypeChangeRule` in `csv_quality_report.checks`). The corpus gains two weekly stock counts (#127, ADR 0007).
+
 ### Changed
 
 - The GitHub Action example in the README pins the latest release tag, `@v0.16.0` (it still named `@v0.14.0` after 0.15.0 was released).

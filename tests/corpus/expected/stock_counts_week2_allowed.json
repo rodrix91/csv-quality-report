@@ -1,0 +1,228 @@
+{
+  "source": "tests/corpus/stock_counts_week2.csv",
+  "rows": 10,
+  "truncated": false,
+  "delimiter": ";",
+  "delimiter_detected": true,
+  "sep_line": false,
+  "na_tokens": [],
+  "top_n": 3,
+  "compressed": false,
+  "encoding": "utf-8",
+  "thousands": null,
+  "date_order": null,
+  "bool_words": [],
+  "number_affixes": [],
+  "accounting_negatives": false,
+  "selected_columns": null,
+  "header_columns": 5,
+  "duplicate_rows": 0,
+  "untrimmed_columns": [],
+  "columns": [
+    {
+      "name": "Depósito",
+      "type": "string",
+      "type_hint": null,
+      "missing": 0,
+      "missing_pct": 0.0,
+      "distinct": 3,
+      "min": null,
+      "max": null,
+      "mean": null,
+      "min_length": 3,
+      "max_length": 3,
+      "top_values": [
+        {
+          "value": "CEN",
+          "count": 4
+        },
+        {
+          "value": "NOR",
+          "count": 3
+        },
+        {
+          "value": "SUR",
+          "count": 3
+        }
+      ],
+      "untrimmed": 0,
+      "affixes": {}
+    },
+    {
+      "name": "SKU",
+      "type": "string",
+      "type_hint": null,
+      "missing": 0,
+      "missing_pct": 0.0,
+      "distinct": 7,
+      "min": null,
+      "max": null,
+      "mean": null,
+      "min_length": 7,
+      "max_length": 10,
+      "top_values": [
+        {
+          "value": "ARZ-1KG",
+          "count": 2
+        },
+        {
+          "value": "ACE-900",
+          "count": 2
+        },
+        {
+          "value": "YER-500",
+          "count": 2
+        }
+      ],
+      "untrimmed": 0,
+      "affixes": {}
+    },
+    {
+      "name": "Lote",
+      "type": "string",
+      "type_hint": null,
+      "missing": 0,
+      "missing_pct": 0.0,
+      "distinct": 7,
+      "min": null,
+      "max": null,
+      "mean": null,
+      "min_length": 4,
+      "max_length": 6,
+      "top_values": [
+        {
+          "value": "4102",
+          "count": 2
+        },
+        {
+          "value": "4107",
+          "count": 2
+        },
+        {
+          "value": "4110",
+          "count": 2
+        }
+      ],
+      "untrimmed": 0,
+      "affixes": {}
+    },
+    {
+      "name": "Cantidad",
+      "type": "float",
+      "type_hint": null,
+      "missing": 0,
+      "missing_pct": 0.0,
+      "distinct": 10,
+      "min": 3.75,
+      "max": 295.0,
+      "mean": 85.625,
+      "min_length": 2,
+      "max_length": 4,
+      "top_values": [
+        {
+          "value": "118",
+          "count": 1
+        },
+        {
+          "value": "40",
+          "count": 1
+        },
+        {
+          "value": "295",
+          "count": 1
+        }
+      ],
+      "untrimmed": 0,
+      "affixes": {}
+    },
+    {
+      "name": "Fecha conteo",
+      "type": "datetime",
+      "type_hint": null,
+      "missing": 0,
+      "missing_pct": 0.0,
+      "distinct": 10,
+      "min": "2026-10-12 08:10",
+      "max": "2026-10-13 09:30",
+      "mean": null,
+      "min_length": 16,
+      "max_length": 16,
+      "top_values": [
+        {
+          "value": "2026-10-12 08:10",
+          "count": 1
+        },
+        {
+          "value": "2026-10-12 08:25",
+          "count": 1
+        },
+        {
+          "value": "2026-10-12 08:40",
+          "count": 1
+        }
+      ],
+      "untrimmed": 0,
+      "affixes": {}
+    }
+  ],
+  "baseline": {
+    "source": "tests/corpus/stock_counts_week1.csv",
+    "rows": {
+      "before": 8,
+      "after": 10
+    },
+    "added_columns": [],
+    "removed_columns": [],
+    "type_changes": [
+      {
+        "column": "Lote",
+        "before": "int",
+        "after": "string"
+      },
+      {
+        "column": "Cantidad",
+        "before": "int",
+        "after": "float"
+      },
+      {
+        "column": "Fecha conteo",
+        "before": "date",
+        "after": "datetime"
+      }
+    ],
+    "missing_changes": []
+  },
+  "checks": [
+    {
+      "check": "schema_change",
+      "column": null,
+      "limit": 0,
+      "value": 1,
+      "passed": false,
+      "allowed_type_changes": [
+        {
+          "column": "Cantidad",
+          "before": "int",
+          "after": "float"
+        },
+        {
+          "column": null,
+          "before": "date",
+          "after": "datetime"
+        }
+      ],
+      "tolerated": [
+        {
+          "column": "Cantidad",
+          "before": "int",
+          "after": "float"
+        },
+        {
+          "column": "Fecha conteo",
+          "before": "date",
+          "after": "datetime"
+        }
+      ]
+    }
+  ]
+}
