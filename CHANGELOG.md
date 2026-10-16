@@ -4,6 +4,10 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Fixed
+
+- A read-only `--json-output` file is refused again, on every platform, with exit code 9 and `cannot write 'FILE': the file is read-only`, and keeps its content. Since the atomic write of 0.14.0 it was silently replaced on Linux and macOS (a rename only needs a writable directory) and failed on Windows with `Access is denied`; the in-place write before 0.14.0 refused it everywhere. Found by a new test on the Windows CI (#122, ADR 0004).
+
 ## [0.15.0] - 2026-10-15
 
 ### Added

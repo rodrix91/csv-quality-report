@@ -230,16 +230,45 @@ def test_cli_replaces_previous_report(
     assert leftovers(tmp_path) == []
 
 
-def test_read_only_target_is_replaced_and_stays_read_only(tmp_path: Path) -> None:
-    # A read-only report in a writable directory: the new report replaces it
-    # and keeps the read-only flag, on every platform, with no temporary left.
+# Root may write any file, so os.access never reports one as read-only for it.
+not_root = pytest.mark.skipif(
+    getattr(os, "geteuid", lambda: -1)() == 0, reason="root may write read-only files"
+)
+
+
+@not_root
+def test_read_only_target_is_refused_and_kept(tmp_path: Path) -> None:
+    # A read-only report in a writable directory: os.replace would replace it
+    # on POSIX and fails with "Access is denied" on Windows (#122). It is
+    # refused on every platform, as the in-place write before 0.14.0 did.
     target = tmp_path / "report.json"
     target.write_text(OLD, encoding="utf-8")
     target.chmod(stat.S_IREAD)
     try:
-        write_atomic(target, "{}\n")
-        assert target.read_text(encoding="utf-8") == "{}\n"
+        with pytest.raises(OutputWriteError) as info:
+            write_atomic(target, "{}\n")
+        assert info.value.message == f"cannot write '{target}': the file is read-only"
+        assert target.read_text(encoding="utf-8") == OLD
         assert not os.access(target, os.W_OK)
         assert leftovers(tmp_path) == []
+    finally:
+        target.chmod(stat.S_IREAD | stat.S_IWRITE)
+
+
+@not_root
+def test_cli_read_only_target_exits_with_write_error(
+    write_csv: WriteCsv, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    target = tmp_path / "report.json"
+    target.write_text(OLD, encoding="utf-8")
+    target.chmod(stat.S_IREAD)
+    try:
+        assert main([str(write_csv(DATA)), "--json-output", str(target)]) == EXIT_WRITE
+        captured = capsys.readouterr()
+        assert (captured.out, captured.err) == (
+            "",
+            f"error: cannot write '{target}': the file is read-only\n",
+        )
+        assert target.read_text(encoding="utf-8") == OLD
     finally:
         target.chmod(stat.S_IREAD | stat.S_IWRITE)
