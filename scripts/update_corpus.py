@@ -48,7 +48,8 @@ def run_case(case: dict[str, Any]) -> tuple[int, str]:
     previous = Path.cwd()
     os.chdir(ROOT)
     try:
-        path = str(Path("tests") / "corpus" / case["file"])
+        # Typed with "/" as on a command line, so the reports are the same on Windows (#120).
+        path = f"tests/corpus/{case['file']}"
         with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
             code = cli_main([path, "--format", "json", *case["args"]])
     finally:
