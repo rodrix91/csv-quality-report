@@ -14,7 +14,7 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
 from itertools import chain
-from pathlib import Path
+from pathlib import Path, PurePath
 from typing import Protocol, cast
 
 from .errors import (
@@ -223,14 +223,18 @@ class _CsvReader(Protocol):
     def line_num(self) -> int: ...
 
 
-def is_stdin(path: Path) -> bool:
+def is_stdin(path: PurePath) -> bool:
     """True when ``path`` is ``-``, the conventional name for standard input."""
     return str(path) == STDIN
 
 
-def display_name(path: Path) -> str:
-    """Name used for ``path`` in messages and reports (``<stdin>`` for ``-``)."""
-    return STDIN_NAME if is_stdin(path) else str(path)
+def display_name(path: PurePath) -> str:
+    """Name used for ``path`` in messages and reports (``<stdin>`` for ``-``).
+
+    Separators are always ``/`` (``Path.as_posix``), so the same command gives
+    the same report on Windows as on Linux and macOS (#120).
+    """
+    return STDIN_NAME if is_stdin(path) else path.as_posix()
 
 
 def normalize_encoding(name: str) -> str:

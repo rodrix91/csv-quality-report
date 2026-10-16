@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import io
 import math
 import os
 import re
@@ -520,7 +521,22 @@ def _check_output_path(args: argparse.Namespace) -> None:
             )
 
 
+def _use_utf8_streams() -> None:
+    """Write stdout and stderr as UTF-8 with ``\\n`` line endings on every platform (#120).
+
+    On Windows a redirected stream (a pipe, ``> report.json``) uses the ANSI
+    code page and CRLF: a report would not be UTF-8, a character outside the
+    code page would crash the run, and the bytes would differ from the same
+    run on Linux or macOS. Streams that are not text wrappers (a test's
+    ``StringIO``) are left as they are.
+    """
+    for stream in (sys.stdout, sys.stderr):
+        if isinstance(stream, io.TextIOWrapper):
+            stream.reconfigure(encoding="utf-8", errors=stream.errors, newline="\n")
+
+
 def main(argv: Sequence[str] | None = None) -> int:
+    _use_utf8_streams()
     parser = build_parser()
     args = parser.parse_args(argv)
     bool_words = tuple(dict.fromkeys(args.bool_words))  # repeated pairs count once

@@ -1,0 +1,5 @@
+# Test data and examples are compared byte for byte: keep them exactly as
+# committed on every platform (#120). Git for Windows (core.autocrlf=true)
+# would otherwise check LF out as CRLF, also inside quoted CSV fields.
+tests/corpus/** -text
+examples/** -text
