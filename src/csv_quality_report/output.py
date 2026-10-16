@@ -62,10 +62,11 @@ def write_atomic(path: Path, text: str) -> None:
 
     On failure the temporary file is removed and ``path`` keeps its previous
     content, or still does not exist. An existing file keeps its permission
-    bits. A symbolic link is written through: its target is replaced and the
-    link keeps pointing at it. An existing path that is not a regular file
-    (``/dev/stdout``, a named pipe) cannot be replaced, so it is written in
-    place, as before.
+    bits; a read-only file (one the user may not write, see ``os.access``) is
+    refused and kept, on every platform. A symbolic link is written through:
+    its target is replaced and the link keeps pointing at it. An existing path
+    that is not a regular file (``/dev/stdout``, a named pipe) cannot be
+    replaced, so it is written in place, as before.
     """
     try:
         target = Path(os.path.realpath(path))
@@ -76,6 +77,11 @@ def write_atomic(path: Path, text: str) -> None:
         if mode is not None and not stat.S_ISREG(mode):
             target.write_text(text, encoding="utf-8", newline="\n")
             return
+        if mode is not None and not os.access(target, os.W_OK):
+            # The rename only needs a writable directory on POSIX, but fails on
+            # Windows: refuse a read-only report everywhere, as writing in place
+            # did before the atomic write (#122).
+            raise OutputWriteError(f"cannot write '{path}': the file is read-only")
         _replace(target, text, None if mode is None else stat.S_IMODE(mode))
     except OSError as exc:
         raise OutputWriteError(f"cannot write '{path}': {exc.strerror or exc}") from exc
