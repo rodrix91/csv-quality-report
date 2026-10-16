@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.17.0] - 2026-10-16
+
 ### Added
 
 - `--allow-type-change [NAME=]FROM:TO` (repeatable, needs `--fail-on-schema-change`): a change of a column's inferred type from `FROM` to `TO` is not counted as a schema change, in every column or only in `NAME`, for widenings consumers handle such as `int:float` (quantities that gain decimals) or `date:datetime` (counts that gain a time). Pairs are exact and one-way; added and removed columns always count. The check says what it allowed (`1 schema change since the baseline: 'Lote' int -> string (allowed: 'Cantidad' int -> float; 'Fecha conteo' date -> datetime)`), `value` counts only the changes not allowed, and the JSON `schema_change` item gains `allowed_type_changes` and `tolerated` only when the option is given, so reports without it are byte-identical. Unknown types, `FROM` equal to `TO` and a `NAME` left out by `--columns` are usage errors. `schema_change_check()` gains `allowed_type_changes` (`TypeChangeRule` in `csv_quality_report.checks`). The corpus gains two weekly stock counts (#127, ADR 0007).
@@ -194,7 +196,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 - Initial version: per-column type inference, missing values, distinct counts, min/max and top values, duplicate rows, Markdown and JSON output.
 
-[Unreleased]: https://github.com/rodrix91/csv-quality-report/compare/v0.16.0...HEAD
+[Unreleased]: https://github.com/rodrix91/csv-quality-report/compare/v0.17.0...HEAD
+[0.17.0]: https://github.com/rodrix91/csv-quality-report/compare/v0.16.0...v0.17.0
 [0.16.0]: https://github.com/rodrix91/csv-quality-report/compare/v0.15.0...v0.16.0
 [0.15.0]: https://github.com/rodrix91/csv-quality-report/compare/v0.14.0...v0.15.0
 [0.14.0]: https://github.com/rodrix91/csv-quality-report/compare/v0.13.0...v0.14.0
