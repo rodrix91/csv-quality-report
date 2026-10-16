@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.15.0] - 2026-10-15
+
 ### Added
 
 - `--unique NAME` quality gate (repeatable): fails with exit code 8 when a key column (an invoice number, a tracking code) has a non-missing value more than once, which `--max-duplicates` misses when the rows differ elsewhere. Values compare stripped, case-sensitive and as text (`007` and `7` differ); missing cells never repeat. The message gives the exact number of cells that repeat an earlier value and names the most repeated top values; JSON items of the `unique` check carry `repeated`. No extra memory or time: the count is the non-missing cells minus the distinct values each column already tracks. An unknown name fails as `required_column`, a name left out by `--columns` is a usage error, and `evaluate()` gains `unique_columns`. The corpus gains a courier export with a re-sent parcel (#112).
@@ -174,7 +176,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 - Initial version: per-column type inference, missing values, distinct counts, min/max and top values, duplicate rows, Markdown and JSON output.
 
-[Unreleased]: https://github.com/rodrix91/csv-quality-report/compare/v0.14.0...HEAD
+[Unreleased]: https://github.com/rodrix91/csv-quality-report/compare/v0.15.0...HEAD
+[0.15.0]: https://github.com/rodrix91/csv-quality-report/compare/v0.14.0...v0.15.0
 [0.14.0]: https://github.com/rodrix91/csv-quality-report/compare/v0.13.0...v0.14.0
 [0.13.0]: https://github.com/rodrix91/csv-quality-report/compare/v0.12.0...v0.13.0
 [0.12.0]: https://github.com/rodrix91/csv-quality-report/compare/v0.11.0...v0.12.0
