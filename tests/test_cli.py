@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 import subprocess
 import sys
 from collections.abc import Callable
@@ -11,7 +12,7 @@ from typing import Any
 
 import pytest
 
-from csv_quality_report.cli import main
+from csv_quality_report.cli import build_parser, main
 
 WriteCsv = Callable[..., Path]
 ROOT = Path(__file__).resolve().parent.parent
@@ -101,6 +102,25 @@ def test_sample_json_matches_readme(cli_env: dict[str, str]) -> None:
         check=True,
     )
     assert "```json\n" + proc.stdout + "```" in readme
+
+
+def test_readme_usage_synopsis_lists_every_option() -> None:
+    """The synopsis at the top of the README's Usage section names every option (#117).
+
+    Options are taken from the real parser, so a new option fails here until
+    the synopsis lists it.
+    """
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    synopsis = readme.split("## Usage\n\n```text\n", 1)[1].split("```", 1)[0]
+    options = {
+        option
+        for action in build_parser()._actions
+        for option in action.option_strings
+        if option.startswith("--")
+    }
+    assert {"--baseline", "--max-missing-increase-column", "--help"} <= options
+    missing = sorted(o for o in options if not re.search(re.escape(o) + r"(?![\w-])", synopsis))
+    assert missing == []
 
 
 # --- missing values -------------------------------------------------------

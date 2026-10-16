@@ -42,11 +42,20 @@ You can also run the tool without installing it: `PYTHONPATH=src python3 -m csv_
 ## Usage
 
 ```text
-python -m csv_quality_report PATH [--format markdown|json] [--max-rows N] [--delimiter CHAR] [--decimal-comma] [--thousands SEP] [--date-order dmy|mdy|ymd] [--bool-words TRUE,FALSE] [--number-affix TEXT] [--accounting-negatives] [--columns NAMES] [--baseline REPORT] [--na TOKENS] [--top N] [--encoding NAME] [--max-field-size N] [--json-output FILE]
-                             [--max-missing PCT] [--max-missing-column NAME=PCT ...] [--max-duplicates N] [--require-columns NAMES]
-                             [--require-type NAME=TYPE ...]
+python -m csv_quality_report PATH [--format markdown|json] [--json-output FILE] [--max-rows N] [--columns NAMES] [--top N]
+                             [--delimiter CHAR] [--encoding NAME] [--max-field-size N] [--na TOKENS]
+                             [--decimal-comma] [--thousands SEP] [--date-order dmy|mdy|ymd] [--bool-words TRUE,FALSE ...]
+                             [--number-affix TEXT ...] [--accounting-negatives]
+                             [--max-missing PCT] [--max-missing-column NAME=PCT ...] [--max-duplicates N]
+                             [--require-columns NAMES] [--require-type NAME=TYPE ...] [--max-affixes NAME=N ...]
+                             [--range NAME=MIN:MAX ...] [--unique NAME ...]
+                             [--baseline REPORT [--fail-on-schema-change] [--max-row-drop PCT]
+                                                [--max-missing-increase PCT] [--max-missing-increase-column NAME=PCT ...]]
 python -m csv_quality_report --version
+python -m csv_quality_report --help
 ```
+
+The first lines are reading and output options; the rest are the quality gates described in [Quality gates for pipelines](#quality-gates-for-pipelines), which exit with code 8 when a check fails. The gates nested under `--baseline` compare the run with an earlier report and need `--baseline` (without it they are a usage error, exit code 2). `...` marks a repeatable option. `--help` prints every option with a one-line description.
 
 - `PATH` — the CSV file. Use `-` to read standard input. Gzip-compressed input (`.csv.gz`, or a compressed pipe) is detected from its first bytes and decompressed while streaming; no flag is needed.
 - `--format` — `markdown` (default) or `json`.

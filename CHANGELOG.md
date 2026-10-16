@@ -11,6 +11,7 @@ All notable changes to this project are documented here. The format follows [Kee
 ### Changed
 
 - The GitHub Action example in the README pins the latest release tag, `@v0.14.0`, instead of `@main`; the note on pinning a tag or commit SHA is kept.
+- The usage synopsis in the README lists every option of `--help` again: the newer quality gates (`--max-affixes`, `--range`, `--unique`) and the `--baseline` gates (`--fail-on-schema-change`, `--max-row-drop`, `--max-missing-increase`, `--max-missing-increase-column`), which it had left out, grouped under `--baseline`, which they need. A test now fails when an option of the parser is missing from the synopsis (#117).
 
 ## [0.14.0] - 2026-10-15
 
