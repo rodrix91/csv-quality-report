@@ -228,3 +228,18 @@ def test_cli_replaces_previous_report(
     assert main([str(write_csv(DATA)), "--json-output", str(target)]) == 0
     assert json.loads(target.read_text(encoding="utf-8"))["rows"] == 3
     assert leftovers(tmp_path) == []
+
+
+def test_read_only_target_is_replaced_and_stays_read_only(tmp_path: Path) -> None:
+    # A read-only report in a writable directory: the new report replaces it
+    # and keeps the read-only flag, on every platform, with no temporary left.
+    target = tmp_path / "report.json"
+    target.write_text(OLD, encoding="utf-8")
+    target.chmod(stat.S_IREAD)
+    try:
+        write_atomic(target, "{}\n")
+        assert target.read_text(encoding="utf-8") == "{}\n"
+        assert not os.access(target, os.W_OK)
+        assert leftovers(tmp_path) == []
+    finally:
+        target.chmod(stat.S_IREAD | stat.S_IWRITE)
