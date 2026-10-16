@@ -4,6 +4,10 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Changed
+
+- The GitHub Action example in the README pins the latest release tag, `@v0.19.0` (it still named `@v0.17.0` after 0.18.0 was released).
+
 ## [0.19.0] - 2026-10-16
 
 ### Added
