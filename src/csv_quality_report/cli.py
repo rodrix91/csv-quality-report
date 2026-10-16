@@ -16,6 +16,7 @@ from . import __version__
 from .checks import (
     COLUMN_TYPES,
     Bound,
+    TypeChangeRule,
     ValueRange,
     evaluate,
     missing_increase_checks,
@@ -231,6 +232,22 @@ def _column_type(text: str) -> tuple[str, str]:
             f"invalid type in --require-type: {kind!r} (use one of {', '.join(COLUMN_TYPES)})"
         )
     return name, kind
+
+
+def _type_change_rule(text: str) -> TypeChangeRule:
+    """Parse ``FROM:TO`` (any column) or ``NAME=FROM:TO``; names may contain ``=``."""
+    name, sep, spec = text.rpartition("=")
+    kinds = spec.split(":")
+    if (sep and not name) or len(kinds) != 2:
+        raise argparse.ArgumentTypeError(
+            f"invalid --allow-type-change value: {text!r} (use FROM:TO or NAME=FROM:TO)"
+        )
+    try:
+        return TypeChangeRule(kinds[0], kinds[1], name if sep else None)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError(
+            f"invalid --allow-type-change value: {text!r} ({exc})"
+        ) from None
 
 
 def _column_names(text: str, option: str = "--require-columns") -> tuple[str, ...]:
@@ -458,6 +475,16 @@ def build_parser() -> argparse.ArgumentParser:
         help="with --baseline: fail if columns were added or removed or changed type",
     )
     gates.add_argument(
+        "--allow-type-change",
+        type=_type_change_rule,
+        action="append",
+        default=[],
+        metavar="[NAME=]FROM:TO",
+        help="with --fail-on-schema-change: do not count a change of column type FROM to "
+        "TO, such as int:float, in any column or only in NAME (inferred types: int, float, "
+        "bool, date, datetime, string); repeatable",
+    )
+    gates.add_argument(
         "--max-row-drop",
         type=_percentage,
         default=None,
@@ -503,6 +530,7 @@ def _check_selected(args: argparse.Namespace) -> None:
         ("--range", [name for name, _ in args.range]),
         ("--max-missing-increase-column", [name for name, _ in args.max_missing_increase_column]),
         ("--unique", args.unique),
+        ("--allow-type-change", [r.column for r in args.allow_type_change if r.column]),
     )
     for option, names in gates:
         for name in names:
@@ -574,9 +602,15 @@ def main(argv: Sequence[str] | None = None) -> int:
                 ("--max-row-drop", args.max_row_drop is not None),
                 ("--max-missing-increase", args.max_missing_increase is not None),
                 ("--max-missing-increase-column", bool(args.max_missing_increase_column)),
+                ("--allow-type-change", bool(args.allow_type_change)),
             ):
                 if given:
                     raise ValueError(f"{option} needs --baseline")
+        if args.allow_type_change and not args.fail_on_schema_change:
+            raise ValueError(
+                "--allow-type-change needs --fail-on-schema-change "
+                "(type changes only fail the run with that gate)"
+            )
     except ValueError as exc:
         parser.error(str(exc))
     try:
@@ -617,7 +651,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     comparison = None if baseline is None else compare_reports(baseline, report)
     if comparison is not None:
         if args.fail_on_schema_change:
-            checks.append(schema_change_check(comparison))
+            checks.append(schema_change_check(comparison, args.allow_type_change))
         if args.max_row_drop is not None:
             checks.append(row_drop_check(comparison, args.max_row_drop))
         if args.max_missing_increase is not None or args.max_missing_increase_column:

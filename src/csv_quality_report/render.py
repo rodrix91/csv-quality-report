@@ -9,6 +9,7 @@ from typing import Any
 
 from .checks import (
     CHECK_MAX_AFFIXES,
+    CHECK_SCHEMA_CHANGE,
     CHECK_UNIQUE,
     CHECK_UNIQUE_KEY,
     CHECK_VALUE_RANGE,
@@ -233,6 +234,20 @@ def _unique_key_fields(check: CheckResult) -> dict[str, Any]:
     }
 
 
+def _allowed_fields(check: CheckResult) -> dict[str, Any]:
+    """JSON fields of a schema_change check with --allow-type-change rules."""
+    if not check.allowed_rules:
+        return {}
+    return {
+        "allowed_type_changes": [
+            {"column": r.column, "before": r.before, "after": r.after} for r in check.allowed_rules
+        ],
+        "tolerated": [
+            {"column": t.column, "before": t.before, "after": t.after} for t in check.tolerated
+        ],
+    }
+
+
 def _range_fields(check: CheckResult) -> dict[str, Any]:
     """JSON fields of a value_range check: the allowed range and the observed one."""
     (low, high), (first, last) = check.bounds, check.observed
@@ -309,6 +324,7 @@ def render_json(
                 **(_range_fields(c) if c.check == CHECK_VALUE_RANGE else {}),
                 **({"repeated": dict(c.repeated)} if c.check == CHECK_UNIQUE else {}),
                 **(_unique_key_fields(c) if c.check == CHECK_UNIQUE_KEY else {}),
+                **(_allowed_fields(c) if c.check == CHECK_SCHEMA_CHANGE else {}),
             }
             for c in checks
         ],

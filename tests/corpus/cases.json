@@ -138,5 +138,33 @@
     "args": ["--delimiter", "auto", "--decimal-comma", "--max-duplicates", "0", "--unique-key", "Factura,Línea", "--unique-key", "Sucursal,Factura,Línea"],
     "exit_code": 8,
     "about": "ERP invoice lines whose invoice numbers restart in each branch: no row repeats and every column repeats on its own. Factura,Línea fails with 5 rows because branches share numbers; Sucursal,Factura,Línea finds the one line exported twice with another amount (and a padded invoice number); the row without a line number is skipped."
+  },
+  {
+    "name": "stock_counts_week1",
+    "file": "stock_counts_week1.csv",
+    "args": ["--delimiter", "auto", "--decimal-comma"],
+    "exit_code": 0,
+    "about": "Weekly stock count of a distributor (semicolons, decimal comma): whole-unit quantities, numeric lot codes and count dates; the baseline of the next three cases."
+  },
+  {
+    "name": "stock_counts_week2_schema",
+    "file": "stock_counts_week2.csv",
+    "args": ["--delimiter", "auto", "--decimal-comma", "--baseline", "tests/corpus/expected/stock_counts_week1.json", "--fail-on-schema-change"],
+    "exit_code": 8,
+    "about": "The next week's count, compared with the first: bulk items counted in kilos turn Cantidad into float, counts now carry a time (date -> datetime) and lot codes such as L-0042 turn Lote into text; --fail-on-schema-change counts 3 changes."
+  },
+  {
+    "name": "stock_counts_week2_allowed",
+    "file": "stock_counts_week2.csv",
+    "args": ["--delimiter", "auto", "--decimal-comma", "--baseline", "tests/corpus/expected/stock_counts_week1.json", "--fail-on-schema-change", "--allow-type-change", "Cantidad=int:float", "--allow-type-change", "date:datetime"],
+    "exit_code": 8,
+    "about": "The same pair with --allow-type-change for the two widenings (int:float only in Cantidad, date:datetime in any column): they are tolerated and listed, while Lote int -> string still fails the run."
+  },
+  {
+    "name": "stock_counts_week2_allowed_columns",
+    "file": "stock_counts_week2.csv",
+    "args": ["--delimiter", "auto", "--decimal-comma", "--columns", "Depósito,SKU,Cantidad,Fecha conteo", "--baseline", "tests/corpus/expected/stock_counts_week1.json", "--fail-on-schema-change", "--allow-type-change", "Cantidad=int:float", "--allow-type-change", "date:datetime"],
+    "exit_code": 0,
+    "about": "The same rules on the columns a consumer reads (--columns leaves Lote out): both type changes are allowed, nothing else changed, so the schema gate passes and still lists what it tolerated."
   }
 ]
