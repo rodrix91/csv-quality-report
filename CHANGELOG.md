@@ -4,6 +4,10 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Changed
+
+- ADR 0008 records the decision on its open question: `generated_at` stays opt-in (`--record-time`) and will not become the default, so reports stay byte-identical across runs by default.
+
 ## [0.21.0] - 2026-10-18
 
 ### Added

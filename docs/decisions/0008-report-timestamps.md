@@ -28,14 +28,22 @@ Knowing the age of a baseline needs a time. Two places were available, and both 
 - A scheduled pipeline can fail when its baseline is older than its schedule allows, with a time that survives artifact downloads and cache restores.
 - Stamped reports differ on every run, by one line. Pipelines that diff reports can leave the flag off and still use every other gate.
 - The first run with `--max-baseline-age` fails until the baseline has been rewritten with `--record-time`. This is deliberate: an unknown age is not a fresh one.
-- Whether `generated_at` should become the default in a later minor release (breaking byte-identical reports once) stays open; nothing in this design prevents it.
+- Whether `generated_at` should become the default in a later minor release (breaking byte-identical reports once) stays open; nothing in this design prevents it. (Resolved on 2026-10-18, see the update below.)
 
 ## Alternatives considered
 
 | Alternative | Benefit | Cost / why not |
 |---|---|---|
-| Always write `generated_at` | Every baseline can be checked | Breaks byte-identical reports, the corpus, the guide and report diffs for everyone, for a gate few runs use. Left as an open question for a later release. |
+| Always write `generated_at` | Every baseline can be checked | Breaks byte-identical reports, the corpus, the guide and report diffs for everyone, for a gate few runs use. Left as an open question for a later release (declined on 2026-10-18; see the update below). |
 | Use the baseline file's modification time | No format change | Wrong in exactly the cases the gate is for (downloaded artifacts, restored caches, checkouts). |
 | Accept any ISO 8601 time (offsets, fractions) | Hand-edited baselines work | The stamp is written by this tool; anything else means the report was edited or produced elsewhere, which should be visible. |
 | `--max-baseline-age` stamps the current run too | One flag | Changes the bytes of a report as a side effect of a gate; the two concerns are kept apart. |
 | Fall back to "pass" for unstamped baselines | Smooth adoption | An age gate that passes when it cannot measure the age gives false confidence. |
+
+## Update (2026-10-18): `generated_at` stays opt-in
+
+The open question in Consequences is decided: `generated_at` stays opt-in (`--record-time`), and no future release writes it by default.
+
+- Byte-identical reports remain the default. The corpus, the guide samples, the README samples and pipelines that diff a report against the previous one rely on them.
+- The pipelines that need the stamp now have a documented path. The GitHub Action's `report-path` and `baseline` inputs (#138) keep each day's report as the next baseline, and the README and the guide show `--record-time` with `--max-baseline-age`. The freshness gate `--max-age` (ADR 0009) checks the data itself and needs no stamp.
+- A pipeline that forgets `--record-time` is not silently wrong: `--max-baseline-age` fails on an unstamped baseline and says how to stamp it (decision 4 above).
