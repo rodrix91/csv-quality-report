@@ -31,6 +31,7 @@ CHECK_UNIQUE = "unique"
 CHECK_UNIQUE_KEY = "unique_key"
 CHECK_BASELINE_AGE = "baseline_age"
 CHECK_MAX_AGE = "max_age"
+CHECK_MIN_ROWS = "min_rows"
 # A baseline stamped up to this many seconds after the clock counts as 0
 # seconds old (clocks of two machines differ a little); later is an error.
 CLOCK_SKEW_TOLERANCE = 300
@@ -137,6 +138,10 @@ class CheckResult:
             return self.detail
         if self.check == CHECK_MAX_AGE:
             return self._describe_max_age()
+        if self.check == CHECK_MIN_ROWS:
+            rows = int(self.value)
+            noun = "data row" if rows == 1 else "data rows"
+            return f"the file has {rows} {noun} (at least {int(self.limit)} required)"
         return f"{_fmt(self.value)} duplicate rows (limit {_fmt(self.limit)})"
 
     def _describe_schema_change(self) -> str:
@@ -759,6 +764,7 @@ def evaluate(
     column_max_ages: Mapping[str, int] | None = None,
     now: datetime | None = None,
     utc_offset: timedelta | None = None,
+    min_rows: int | None = None,
 ) -> list[CheckResult]:
     """Evaluate the requested thresholds; a value equal to its limit passes.
 
@@ -825,6 +831,10 @@ def evaluate(
     day counts until its end. A newest value ahead of ``now`` passes, with a
     negative ``value``. Unknown names fail as ``required_column`` (ADR 0009).
 
+    ``min_rows`` is the fewest data rows the file may have (``Report.rows``,
+    the rows analyzed), at least 1: a file with only its header passes every
+    other gate, since nothing in it is missing, repeated or out of range.
+
     ``required_columns`` are matched exactly (case-sensitive) against the
     file's whole header (``Report.header``, after duplicate-name suffixes),
     also when only some columns were profiled; each one gives a check with
@@ -850,6 +860,18 @@ def evaluate(
                 limit=limit,
                 value=round(pct, 4),
                 passed=pct <= limit,
+            )
+        )
+    if min_rows is not None:
+        if isinstance(min_rows, bool) or not isinstance(min_rows, int) or min_rows < 1:
+            raise ValueError(f"min_rows must be a whole number of at least 1, not {min_rows!r}")
+        results.append(
+            CheckResult(
+                check=CHECK_MIN_ROWS,
+                column=None,
+                limit=min_rows,
+                value=report.rows,
+                passed=report.rows >= min_rows,
             )
         )
     if max_duplicates is not None:

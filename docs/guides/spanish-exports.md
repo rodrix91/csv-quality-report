@@ -24,6 +24,7 @@ csv-quality-report never guesses these conventions: each one is turned on with a
 | An export whose columns or types changed since last time | `--baseline yesterday.json --fail-on-schema-change` |
 | A quantity that started carrying decimals (`12,5` kilos) or a date that gained a time, which consumers handle | `--fail-on-schema-change --allow-type-change Cantidad=int:float --allow-type-change date:datetime` |
 | A column added or dropped on purpose (an ERP upgrade adds `Unidad`, lots move to another export), which consumers handle | `--fail-on-schema-change --allow-added-column Unidad --allow-removed-column Lote` |
+| An export that arrived with only its header (an ERP job that failed half-way) | `--min-rows 1` (or the fewest rows a normal day has) |
 | An export that arrived truncated, or a column that came back much emptier than last time | `--baseline yesterday.json --max-row-drop 10 --max-missing-increase 20` |
 | An export that is well formed but stale (the ERP job stopped, last week's file was copied again) | `--max-age Despacho=2d --utc-offset=-04:00` (the offset the export writes its times in) |
 | A comparison with a baseline that stopped being refreshed (an expired cache, a job that kept reading an old report) | `--record-time` on every run, `--baseline yesterday.json --max-baseline-age 36h` on the next |
