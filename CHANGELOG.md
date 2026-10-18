@@ -4,6 +4,10 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Added
+
+- `--allowed-values NAME=VALUES` quality gate (repeatable): fails with exit code 8 when a non-missing cell of a column holds a value outside a comma-separated list, for status, currency or unit columns with a closed set of codes: `column 'Estado' has 1 cell outside the allowed values (Entregado, En tránsito, Pendiente): "Devuelto" in 1 cell`. Values compare stripped, case-sensitive and as text; missing cells are not checked. The count is exact and comes from the value counts the pass already keeps, at no extra cost. Per-column `allowed_values` check in JSON with `allowed` and `unexpected`; reports without the option are unchanged. `profile_file()`, `build_report()` and `evaluate()` gain `allowed_values`, and `Report` gains `domains` (`DomainProfile` in `csv_quality_report.profile`). The corpus gains a check of the courier export's statuses (#153).
+
 ### Changed
 
 - ADR 0008 records the decision on its open question: `generated_at` stays opt-in (`--record-time`) and will not become the default, so reports stay byte-identical across runs by default.

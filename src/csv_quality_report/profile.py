@@ -5,7 +5,7 @@ from __future__ import annotations
 import hashlib
 import math
 from collections import Counter
-from collections.abc import Callable, Iterable, Sequence
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from itertools import compress, islice, repeat
 from operator import itemgetter
@@ -112,6 +112,31 @@ class KeyProfile:
 
 
 @dataclass(frozen=True)
+class DomainProfile:
+    """Which values of a column fall outside an allowed list (``--allowed-values``).
+
+    Values compare as the report counts them: stripped of surrounding
+    whitespace, case-sensitive, as text; missing cells are not checked.
+    ``unexpected`` is the exact number of non-missing cells whose value is
+    not in ``allowed``; ``examples`` are the most frequent of those values,
+    up to ``top_n``, with their cells (first seen on ties).
+    """
+
+    column: str
+    allowed: tuple[str, ...]
+    unexpected: int
+    examples: tuple[tuple[str, int], ...] = ()
+
+
+def allowed_list(values: Iterable[str]) -> tuple[str, ...]:
+    """``values`` stripped, without repeats, in order; ``ValueError`` if one is empty or none."""
+    listed = tuple(dict.fromkeys(value.strip() for value in values))
+    if not listed or "" in listed:
+        raise ValueError("an allowed-values list needs at least one value and no empty ones")
+    return listed
+
+
+@dataclass(frozen=True)
 class Report:
     rows: int
     duplicate_rows: int
@@ -135,6 +160,7 @@ class Report:
     header: tuple[str, ...] = ()
     selected_columns: tuple[str, ...] | None = None  # --columns, in the order given
     keys: tuple[KeyProfile, ...] = ()  # --unique-key: one per key whose columns all exist
+    domains: tuple[DomainProfile, ...] = ()  # --allowed-values: one per profiled column
 
 
 def _untrimmed_names(header: list[str]) -> tuple[str, ...]:
@@ -523,6 +549,7 @@ class _Profiled:
     rows: int
     duplicate_rows: int
     keys: tuple[KeyProfile, ...] = ()
+    domains: tuple[DomainProfile, ...] = ()
 
 
 def _columns(
@@ -579,6 +606,7 @@ def profile_rows(
     accounting_negatives: bool = False,
     columns: Sequence[str] | None = None,
     unique_keys: Iterable[Iterable[str]] = (),
+    allowed_values: Mapping[str, Iterable[str]] | None = None,
 ) -> _Profiled:
     """Profile ``rows`` in a single pass; each row must have ``len(header)`` cells.
 
@@ -604,10 +632,17 @@ def profile_rows(
     read whole, so a key may use columns that ``columns`` leaves out. A key
     with an unknown name is skipped (``evaluate`` reports it); an empty key
     raises ``ValueError``. Without keys the pass does no extra work.
+
+    ``allowed_values`` maps column names to the values their non-missing
+    cells may hold (see ``DomainProfile``). It is checked after the pass,
+    once per distinct value, so it costs neither a pass nor memory. A name
+    that is not profiled is skipped (``evaluate`` reports it); an empty list
+    or value raises ``ValueError`` before any row is read.
     """
     rules = _reading_rules(
         decimal_comma, thousands, date_order, bool_words, number_affixes, accounting_negatives
     )
+    domains = {name: allowed_list(values) for name, values in (allowed_values or {}).items()}
     selected = _selection(header, columns)
     accumulators = [
         _ColumnAccumulator(name)
@@ -643,6 +678,22 @@ def profile_rows(
         rows=total,
         duplicate_rows=total - len(seen),
         keys=tuple(key.finish(total) for key in keys),
+        domains=tuple(
+            _domain(acc, domains[acc.name], top_n) for acc in accumulators if acc.name in domains
+        ),
+    )
+
+
+def _domain(acc: _ColumnAccumulator, allowed: tuple[str, ...], top_n: int) -> DomainProfile:
+    """The cells of ``acc`` (stripped, without missing ones) whose value is not ``allowed``."""
+    permitted = set(allowed)
+    # Counter keeps first-seen order, and most_common is stable on ties.
+    outside = Counter({v: n for v, n in acc.counts.items() if v not in permitted})
+    return DomainProfile(
+        column=acc.name,
+        allowed=allowed,
+        unexpected=outside.total(),
+        examples=tuple(outside.most_common(top_n)),
     )
 
 
@@ -680,6 +731,7 @@ def _report(
         header=tuple(source.header),
         selected_columns=None if columns is None else tuple(dict.fromkeys(columns)),
         keys=result.keys,
+        domains=result.domains,
     )
 
 
@@ -695,6 +747,7 @@ def build_report(
     accounting_negatives: bool = False,
     columns: Sequence[str] | None = None,
     unique_keys: Iterable[Iterable[str]] = (),
+    allowed_values: Mapping[str, Iterable[str]] | None = None,
 ) -> Report:
     """Profile every column of an in-memory ``table``.
 
@@ -708,7 +761,8 @@ def build_report(
     removed from around numbers; ``accounting_negatives`` reads ``(1.234,56)``
     and ``1.234,56-`` as negative numbers; ``columns`` profiles only those
     header names, in that order; ``unique_keys`` are composite keys whose
-    uniqueness is measured (``Report.keys``).
+    uniqueness is measured (``Report.keys``); ``allowed_values`` maps column
+    names to the values they may hold (``Report.domains``).
     """
     result = profile_rows(
         table.header,
@@ -723,6 +777,7 @@ def build_report(
         accounting_negatives,
         columns,
         unique_keys,
+        allowed_values,
     )
     return _report(
         result,
@@ -754,6 +809,7 @@ def profile_file(
     accounting_negatives: bool = False,
     columns: Sequence[str] | None = None,
     unique_keys: Iterable[Iterable[str]] = (),
+    allowed_values: Mapping[str, Iterable[str]] | None = None,
 ) -> Report:
     """Stream ``path`` and profile it without loading the whole file into memory.
 
@@ -782,6 +838,7 @@ def profile_file(
             accounting_negatives,
             columns,
             unique_keys,
+            allowed_values,
         )
         return _report(
             result,
