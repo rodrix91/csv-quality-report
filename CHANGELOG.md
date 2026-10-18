@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.21.0] - 2026-10-18
+
 ### Added
 
 - `--max-age NAME=DURATION` quality gate (repeatable): fails with exit code 8 when the newest value of a `date` or `datetime` column is more than `DURATION` (`36h`, `2d`, `1w`) before the clock, for exports that are well formed but stale: `column 'Despacho' is stale: its newest value 2026-02-14 15:55 is 3 days 4 hours old (limit 2 days)`. The clock is the one of `--max-baseline-age` (`SOURCE_DATE_EPOCH` replaces it). Times are never placed in a guessed time zone: values with a UTC offset are instants, and values without one need `--utc-offset OFFSET` (`Z`, `+HH:MM` or `-HH:MM`, written `--utc-offset=-04:00` when negative), without which the check fails and says so. A `date` column's newest day counts until its end. A newest value ahead of the clock passes; a column with no values, of another type, or mixing values with and without an offset fails. Per-column `max_age` check in JSON, `limit` and `value` in seconds, with `newest`; reports without the option are unchanged. `--utc-offset` without `--max-age` is a usage error. `evaluate()` gains `column_max_ages`, `now` and `utc_offset`. The corpus gains two freshness cases on a fixed clock (#143, ADR 0009).
@@ -235,7 +237,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 - Initial version: per-column type inference, missing values, distinct counts, min/max and top values, duplicate rows, Markdown and JSON output.
 
-[Unreleased]: https://github.com/rodrix91/csv-quality-report/compare/v0.20.0...HEAD
+[Unreleased]: https://github.com/rodrix91/csv-quality-report/compare/v0.21.0...HEAD
+[0.21.0]: https://github.com/rodrix91/csv-quality-report/compare/v0.20.0...v0.21.0
 [0.20.0]: https://github.com/rodrix91/csv-quality-report/compare/v0.19.0...v0.20.0
 [0.19.0]: https://github.com/rodrix91/csv-quality-report/compare/v0.18.0...v0.19.0
 [0.18.0]: https://github.com/rodrix91/csv-quality-report/compare/v0.17.0...v0.18.0
