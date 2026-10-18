@@ -25,6 +25,7 @@ csv-quality-report never guesses these conventions: each one is turned on with a
 | A quantity that started carrying decimals (`12,5` kilos) or a date that gained a time, which consumers handle | `--fail-on-schema-change --allow-type-change Cantidad=int:float --allow-type-change date:datetime` |
 | A column added or dropped on purpose (an ERP upgrade adds `Unidad`, lots move to another export), which consumers handle | `--fail-on-schema-change --allow-added-column Unidad --allow-removed-column Lote` |
 | An export that arrived truncated, or a column that came back much emptier than last time | `--baseline yesterday.json --max-row-drop 10 --max-missing-increase 20` |
+| A comparison with a baseline that stopped being refreshed (an expired cache, a job that kept reading an old report) | `--record-time` on every run, `--baseline yesterday.json --max-baseline-age 36h` on the next |
 | Impossible values: negative weights, dates in 1900 | `--range Peso=0:` or `--range Fecha=2026-01-01:2026-12-31` |
 | Times outside the period or shift | `--range Despacho=2026-01-01:2026-01-31` or `--range Despacho=2026-01-05T06:00:2026-01-05T22:00` |
 | A wide export where only some columns matter | `--columns Remito,Despacho` |
@@ -247,3 +248,93 @@ $ python -m csv_quality_report tests/corpus/erp_day_first.csv --delimiter auto -
 Date-times with a UTC offset (`2026-01-05T08:15-03:00`) are compared as instants, and their bounds need an offset too: a time without one could be in any zone, so the check fails and asks for one instead of guessing.
 
 The same options work in the [GitHub Action](../../README.md#use-as-a-github-action) through its `args` input, and from Python as keyword arguments of `profile_file` (`decimal_comma=True`, `thousands="."`, `date_order="dmy"`, `bool_words=(("sí", "no"),)`, `number_affixes=("$",)`, `accounting_negatives=True`, `columns=("Remito", "Despacho")`), with the gates as arguments of `evaluate` (`column_ranges={"Despacho": (date(2026, 1, 1), date(2026, 1, 31))}`). Add `--json-output report.json` to keep the full report next to the Markdown summary.
+
+## Comparing with last week's export
+
+A scheduled export is best checked against the previous one: the same columns, the same types, about as many rows. The corpus has the weekly stock counts of a distributor's three warehouses. The first count, of 5 and 6 October, was profiled with `--record-time` on a fixed clock (22:00 UTC on 5 October), so its report, [`tests/corpus/expected/stock_counts_week1_stamped.json`](../../tests/corpus/expected/stock_counts_week1_stamped.json), carries `"generated_at": "2026-10-05T22:00:00Z"` and serves as the baseline. A week later the count gained two bulk products, with quantities in kilos (`12,5`) and lot codes like `L-0042`, and the count dates gained a time.
+
+The weekly job compares the new count with the baseline. It accepts the two widenings its consumers handle (a quantity with decimals, `int:float`, and dates with a time, `date:datetime`) and fails on any other schema change. It also fails when the baseline is more than 8 days old, which catches a job that kept comparing with an old report. The guide runs the job on a fixed clock with [`SOURCE_DATE_EPOCH`](https://reproducible-builds.org/specs/source-date-epoch/), here 12:00 UTC on 12 October; a real job leaves it unset and uses the system clock:
+
+```console
+$ SOURCE_DATE_EPOCH=1791806400 python -m csv_quality_report tests/corpus/stock_counts_week2.csv --delimiter auto --decimal-comma --baseline tests/corpus/expected/stock_counts_week1_stamped.json --fail-on-schema-change --allow-type-change Cantidad=int:float --allow-type-change date:datetime --max-baseline-age 8d
+```
+
+```markdown
+# CSV quality report: tests/corpus/stock_counts_week2.csv
+
+- Rows analyzed: 10
+- Columns: 5
+- Delimiter: semicolon (detected)
+- Duplicate rows: 0
+
+| Column | Type | Missing | Missing % | Distinct | Min | Max | Mean | Top 3 values |
+|---|---|---|---|---|---|---|---|---|
+| Depósito | string | 0 | 0.0 | 3 |  |  |  | CEN (4), NOR (3), SUR (3) |
+| SKU | string | 0 | 0.0 | 7 |  |  |  | ARZ-1KG (2), ACE-900 (2), YER-500 (2) |
+| Lote | string | 0 | 0.0 | 7 |  |  |  | 4102 (2), 4107 (2), 4110 (2) |
+| Cantidad | float | 0 | 0.0 | 10 | 3.75 | 295.0 | 85.625 | 118 (1), 40 (1), 295 (1) |
+| Fecha conteo | datetime | 0 | 0.0 | 10 | 2026-10-12 08:10 | 2026-10-13 09:30 |  | 2026-10-12 08:10 (1), 2026-10-12 08:25 (1), 2026-10-12 08:40 (1) |
+
+## Changes since baseline
+
+- Baseline: report of `tests/corpus/stock_counts_week1.csv`
+- Baseline generated: 2026-10-05T22:00:00Z
+- Rows: 8 -> 10
+- Type changes: Lote int -> string; Cantidad int -> float; Fecha conteo date -> datetime
+
+## Checks: FAILED (1 of 2 failed)
+
+- FAIL: 1 schema change since the baseline: 'Lote' int -> string (allowed: 'Cantidad' int -> float; 'Fecha conteo' date -> datetime)
+- pass: the baseline is 6 days 14 hours old (generated 2026-10-05T22:00:00Z; limit 8 days)
+```
+
+The baseline is fresh, but the lot codes are now text (`L-0042` next to `4102`), which the consumers did not expect, so the job fails with exit code 8. The comparison lists every type change, the allowed ones included, and shows when the baseline was generated.
+
+If the job keeps reading the same baseline (because the step that refreshes it stopped running, or a cache returned an old copy), the next week's run fails on the age of the baseline as well, even though the data did not change. Here the same comparison runs on 19 October:
+
+```console
+$ SOURCE_DATE_EPOCH=1792411200 python -m csv_quality_report tests/corpus/stock_counts_week2.csv --delimiter auto --decimal-comma --baseline tests/corpus/expected/stock_counts_week1_stamped.json --fail-on-schema-change --allow-type-change Cantidad=int:float --allow-type-change date:datetime --max-baseline-age 8d
+```
+
+```markdown
+# CSV quality report: tests/corpus/stock_counts_week2.csv
+
+- Rows analyzed: 10
+- Columns: 5
+- Delimiter: semicolon (detected)
+- Duplicate rows: 0
+
+| Column | Type | Missing | Missing % | Distinct | Min | Max | Mean | Top 3 values |
+|---|---|---|---|---|---|---|---|---|
+| Depósito | string | 0 | 0.0 | 3 |  |  |  | CEN (4), NOR (3), SUR (3) |
+| SKU | string | 0 | 0.0 | 7 |  |  |  | ARZ-1KG (2), ACE-900 (2), YER-500 (2) |
+| Lote | string | 0 | 0.0 | 7 |  |  |  | 4102 (2), 4107 (2), 4110 (2) |
+| Cantidad | float | 0 | 0.0 | 10 | 3.75 | 295.0 | 85.625 | 118 (1), 40 (1), 295 (1) |
+| Fecha conteo | datetime | 0 | 0.0 | 10 | 2026-10-12 08:10 | 2026-10-13 09:30 |  | 2026-10-12 08:10 (1), 2026-10-12 08:25 (1), 2026-10-12 08:40 (1) |
+
+## Changes since baseline
+
+- Baseline: report of `tests/corpus/stock_counts_week1.csv`
+- Baseline generated: 2026-10-05T22:00:00Z
+- Rows: 8 -> 10
+- Type changes: Lote int -> string; Cantidad int -> float; Fecha conteo date -> datetime
+
+## Checks: FAILED (2 of 2 failed)
+
+- FAIL: 1 schema change since the baseline: 'Lote' int -> string (allowed: 'Cantidad' int -> float; 'Fecha conteo' date -> datetime)
+- FAIL: the baseline is 13 days 14 hours old (generated 2026-10-05T22:00:00Z; limit 8 days)
+```
+
+The age comes from the baseline's `generated_at`, never from the file's modification time, which a download, a copy or a checkout changes. A baseline written without `--record-time` has no age, so the check fails and says how to stamp it.
+
+In a job, each run writes its own stamped report and keeps it as the next baseline only when every check passed, so a bad export never becomes the reference. `--json-output` cannot write over the `--baseline` file, so the report goes next to it and is moved:
+
+```sh
+python -m csv_quality_report conteo.csv --delimiter auto --decimal-comma \
+  --baseline reports/last.json --fail-on-schema-change \
+  --allow-type-change Cantidad=int:float --allow-type-change date:datetime \
+  --max-baseline-age 8d --record-time --json-output reports/new.json \
+  && mv reports/new.json reports/last.json
+```
+
+The first run has no baseline yet: write it once with `--record-time --json-output reports/last.json`. In the [GitHub Action](../../README.md#use-as-a-github-action), the `baseline`, `baseline-args` and `report-path` inputs do the same, and `if-baseline-missing: skip` lets the first run pass without a baseline.
