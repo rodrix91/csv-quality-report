@@ -219,5 +219,21 @@
     "args": ["--delimiter", "auto", "--decimal-comma", "--baseline", "tests/corpus/expected/stock_counts_week1.json", "--fail-on-schema-change", "--allow-added-column", "Unidad", "--allow-removed-column", "Lote"],
     "exit_code": 0,
     "about": "Both column changes allowed by name (--allow-added-column Unidad, --allow-removed-column Lote): nothing else changed, so the schema gate passes and lists what it tolerated; the baseline comparison still shows both columns."
+  },
+  {
+    "name": "erp_day_first_max_age",
+    "file": "erp_day_first.csv",
+    "args": ["--delimiter", "auto", "--decimal-comma", "--thousands", "dot", "--na", "s/d", "--date-order", "dmy", "--columns", "Remito,Emisión,Despacho", "--max-age", "Despacho=2d", "--max-age", "Emisión=3d", "--utc-offset=-04:00"],
+    "env": {"SOURCE_DATE_EPOCH": "1771372500"},
+    "exit_code": 8,
+    "about": "Freshness of the day-first ERP export on 2026-02-17T23:55:00Z, its times at -04:00: the last dispatch (14/02/2026 15:55, 19:55 UTC) is 3 days 4 hours old and fails --max-age Despacho=2d; the last issue date (14/02/2026, which lasts until 04:00 UTC on the 15th) is 2 days 19 hours 55 minutes old and passes Emisión=3d."
+  },
+  {
+    "name": "stock_counts_week1_max_age_no_offset",
+    "file": "stock_counts_week1.csv",
+    "args": ["--delimiter", "auto", "--decimal-comma", "--max-age", "Fecha conteo=7d"],
+    "env": {"SOURCE_DATE_EPOCH": "1791806400"},
+    "exit_code": 8,
+    "about": "--max-age on dates written without a UTC offset and no --utc-offset: the time zone is never guessed, so the check fails and says how to give the offset."
   }
 ]

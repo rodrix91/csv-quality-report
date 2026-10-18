@@ -9,7 +9,7 @@ import os
 import re
 import sys
 from collections.abc import Sequence
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 
 from . import __version__
@@ -97,15 +97,41 @@ _DURATION = re.compile(r"([0-9]+)([smhdw])")
 _DURATION_SECONDS = {"s": 1, "m": 60, "h": 3600, "d": 86400, "w": 604800}
 
 
-def _duration(text: str) -> int:
+def _duration(text: str, option: str = "--max-baseline-age", shown: str | None = None) -> int:
     """Parse a duration such as ``36h`` or ``7d`` into seconds (a positive whole number)."""
     match = _DURATION.fullmatch(text.strip())
     if match is None or int(match[1]) == 0:
         raise argparse.ArgumentTypeError(
-            f"invalid --max-baseline-age value: {text!r} (use a positive whole number with "
-            "s, m, h, d or w, such as 36h or 7d)"
+            f"invalid {option} value: {text if shown is None else shown!r} (use a positive "
+            "whole number with s, m, h, d or w, such as 36h or 7d)"
         )
     return int(match[1]) * _DURATION_SECONDS[match[2]]
+
+
+def _column_age(text: str) -> tuple[str, int]:
+    """Parse ``NAME=DURATION`` for --max-age (split at the last ``=``)."""
+    name, sep, value = text.rpartition("=")
+    if not sep or not name:
+        raise argparse.ArgumentTypeError(
+            f"invalid --max-age value: {text!r} (use NAME=DURATION, such as Despacho=2d)"
+        )
+    return name, _duration(value, "--max-age", text)
+
+
+_UTC_OFFSET = re.compile(r"([+-])([0-9]{2}):([0-9]{2})")
+
+
+def _utc_offset(text: str) -> timedelta:
+    """Parse ``Z`` or ``±HH:MM`` (up to 14:00, minutes below 60) into a ``timedelta``."""
+    if text.strip() in ("Z", "z"):
+        return timedelta(0)
+    match = _UTC_OFFSET.fullmatch(text.strip())
+    if match is None or int(match[3]) >= 60 or (int(match[2]), int(match[3])) > (14, 0):
+        raise argparse.ArgumentTypeError(
+            f"invalid --utc-offset value: {text!r} (use Z or +HH:MM / -HH:MM, such as -04:00)"
+        )
+    offset = timedelta(hours=int(match[2]), minutes=int(match[3]))
+    return -offset if match[1] == "-" else offset
 
 
 def _non_negative_int(text: str) -> int:
@@ -494,6 +520,24 @@ def build_parser() -> argparse.ArgumentParser:
         "missing key cell are skipped); repeatable",
     )
     gates.add_argument(
+        "--max-age",
+        type=_column_age,
+        action="append",
+        default=[],
+        metavar="NAME=DURATION",
+        help="fail if the newest value of date or datetime column NAME is more than DURATION "
+        "(36h, 2d, 1w) before the clock (SOURCE_DATE_EPOCH when set), for a stale export; "
+        "repeatable",
+    )
+    gates.add_argument(
+        "--utc-offset",
+        type=_utc_offset,
+        metavar="OFFSET",
+        help="with --max-age: the UTC offset (Z, +HH:MM or -HH:MM) of the dates and times "
+        "written without one; write a negative one with =, as --utc-offset=-04:00; without "
+        "it such columns fail the check",
+    )
+    gates.add_argument(
         "--fail-on-schema-change",
         action="store_true",
         help="with --baseline: fail if columns were added or removed or changed type",
@@ -581,6 +625,7 @@ def _check_selected(args: argparse.Namespace) -> None:
         ("--range", [name for name, _ in args.range]),
         ("--max-missing-increase-column", [name for name, _ in args.max_missing_increase_column]),
         ("--unique", args.unique),
+        ("--max-age", [name for name, _ in args.max_age]),
         ("--allow-type-change", [r.column for r in args.allow_type_change if r.column]),
         ("--allow-added-column", args.allow_added_column),
         ("--allow-removed-column", args.allow_removed_column),
@@ -673,11 +718,14 @@ def main(argv: Sequence[str] | None = None) -> int:
                         f"{option} needs --fail-on-schema-change "
                         f"({what} only fail the run with that gate)"
                     )
+        if args.utc_offset is not None and not args.max_age:
+            raise ValueError("--utc-offset needs --max-age (it only places times for that check)")
         if args.record_time and args.format != "json" and args.json_output is None:
             raise ValueError("--record-time needs a JSON report (--format json or --json-output)")
         # One reading of the clock: the stamp and the age check agree, and a
         # bad SOURCE_DATE_EPOCH is a usage error before the file is read.
-        now = current_time() if args.record_time or args.max_baseline_age is not None else None
+        needs_clock = args.record_time or args.max_baseline_age is not None or args.max_age
+        now = current_time() if needs_clock else None
     except ValueError as exc:
         parser.error(str(exc))
     try:
@@ -714,6 +762,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         column_ranges=dict(args.range),  # the last range for a name wins
         unique_columns=args.unique,  # a repeated name gives one check
         unique_keys=args.unique_key,  # a repeated key gives one check
+        column_max_ages=dict(args.max_age),  # the last limit for a name wins
+        now=now,
+        utc_offset=args.utc_offset,
     )
     comparison = None if baseline is None else compare_reports(baseline, report)
     if comparison is not None:

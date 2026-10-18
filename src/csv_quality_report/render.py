@@ -10,6 +10,7 @@ from typing import Any
 from .checks import (
     CHECK_BASELINE_AGE,
     CHECK_MAX_AFFIXES,
+    CHECK_MAX_AGE,
     CHECK_SCHEMA_CHANGE,
     CHECK_UNIQUE,
     CHECK_UNIQUE_KEY,
@@ -339,6 +340,7 @@ def render_json(
                 **(_unique_key_fields(c) if c.check == CHECK_UNIQUE_KEY else {}),
                 **(_allowed_fields(c) if c.check == CHECK_SCHEMA_CHANGE else {}),
                 **({"generated_at": c.generated_at} if c.check == CHECK_BASELINE_AGE else {}),
+                **({"newest": c.newest} if c.check == CHECK_MAX_AGE else {}),
             }
             for c in checks
         ],

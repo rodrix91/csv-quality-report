@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from fractions import Fraction
 from typing import Any
 
@@ -30,6 +30,7 @@ CHECK_MISSING_INCREASE = "missing_increase"
 CHECK_UNIQUE = "unique"
 CHECK_UNIQUE_KEY = "unique_key"
 CHECK_BASELINE_AGE = "baseline_age"
+CHECK_MAX_AGE = "max_age"
 # A baseline stamped up to this many seconds after the clock counts as 0
 # seconds old (clocks of two machines differ a little); later is an error.
 CLOCK_SKEW_TOLERANCE = 300
@@ -89,6 +90,7 @@ class CheckResult:
     allowed_removed: tuple[str, ...] = ()
     tolerated_removed: tuple[str, ...] = ()
     generated_at: str | None = None  # baseline_age checks: the baseline's stamp
+    newest: str | None = None  # max_age checks: the column's newest value, as reported
 
     def describe(self) -> str:
         """One-line, human-readable explanation used on stderr and in Markdown."""
@@ -133,6 +135,8 @@ class CheckResult:
             return self._describe_unique_key()
         if self.check == CHECK_BASELINE_AGE:
             return self.detail
+        if self.check == CHECK_MAX_AGE:
+            return self._describe_max_age()
         return f"{_fmt(self.value)} duplicate rows (limit {_fmt(self.limit)})"
 
     def _describe_schema_change(self) -> str:
@@ -197,6 +201,29 @@ class CheckResult:
             f"({self.detail}; limit {_fmt(self.limit)} points)"
         )
 
+    def _describe_max_age(self) -> str:
+        limit = format_duration(int(self.limit))
+        if self.detail == _NO_VALUES:
+            return f"column '{self.column}' has no values, so it has no newest value to check"
+        if self.actual not in _AGE_TYPES:
+            message = (
+                f"column '{self.column}' is {self.actual}, an age needs date or datetime values"
+            )
+            return message + (f" ({self.detail})" if self.detail else "")
+        if self.detail:  # values whose time cannot be placed without a guess
+            return f"column '{self.column}' cannot be checked for its age ({self.detail})"
+        if self.value < 0:
+            ahead = format_duration(-int(self.value))
+            return (
+                f"column '{self.column}' is fresh: its newest value {self.newest} is {ahead} "
+                f"ahead of the clock (limit {limit})"
+            )
+        state = "is fresh" if self.passed else "is stale"
+        return (
+            f"column '{self.column}' {state}: its newest value {self.newest} is "
+            f"{format_duration(int(self.value))} old (limit {limit})"
+        )
+
     def _describe_range(self) -> str:
         # Open sides stay empty, as in the option: 0.., ..5000, 0..5000.
         span = "..".join("" if bound is None else _exact(bound) for bound in self.bounds)
@@ -213,6 +240,10 @@ class CheckResult:
         first, last = (_exact(v) for v in self.observed)
         return f"column '{self.column}' {verb} {span} (min {first}, max {last})"
 
+
+# Column types a --max-age check applies to.
+_AGE_TYPES = {"date", "datetime"}
+_NO_VALUES = "it has no values"
 
 # Column types a range applies to, by the kind of its bounds. Dates and
 # date-times apply to both temporal types; see docs/decisions/0003.
@@ -621,6 +652,59 @@ def _range_check(name: str, column: ColumnProfile, bounds: ValueRange) -> CheckR
     return result(_within(first, last, low, high), observed=seen)
 
 
+def _max_age_check(
+    name: str, column: ColumnProfile, max_age: int, now: datetime, utc_offset: timedelta | None
+) -> CheckResult:
+    """The ``max_age`` check: the newest value of ``column`` is at most ``max_age`` seconds old.
+
+    The age is ``now`` minus the newest value, in whole seconds. Values with a
+    UTC offset are instants; values without one are placed at ``utc_offset``,
+    and without it the check fails instead of guessing a time zone (ADR 0003,
+    ADR 0009). A ``date`` column's newest day counts until its end; in a
+    ``datetime`` column, a date without a time is midnight, as in ``--range``.
+    A newest value ahead of the clock is ``value`` below 0 and passes.
+    """
+    newest = None if column.max is None else str(column.max)
+
+    def result(passed: bool, value: int = 0, detail: str = "") -> CheckResult:
+        return CheckResult(
+            check=CHECK_MAX_AGE,
+            column=name,
+            limit=max_age,
+            value=value,
+            passed=passed,
+            detail=detail,
+            actual=column.type,
+            newest=newest,
+        )
+
+    if column.distinct == 0:  # an empty column (reported as string): no data at all
+        return result(False, detail=_NO_VALUES)
+    if column.type not in _AGE_TYPES:
+        hint = column.type_hint
+        detail = ""
+        if hint is not None and hint.type in _AGE_TYPES:
+            noun = "value does" if hint.nonconforming == 1 else "values do"
+            examples = ", ".join(f'"{v}"' for v in hint.examples)
+            detail = f"{hint.nonconforming} {noun} not fit: {examples}"
+        return result(False, detail=detail)
+    if newest is None:  # a datetime column mixing values with and without an offset
+        return result(False, detail="it mixes values with and without a UTC offset")
+    moment = _moment(newest)
+    if column.type == "date":
+        moment += timedelta(days=1)  # the day lasts until the next midnight
+    if moment.tzinfo is None:
+        if utc_offset is None:
+            return result(
+                False,
+                detail="its values have no UTC offset; give the offset the export writes its "
+                "times in, such as --utc-offset=-04:00",
+            )
+        moment = moment.replace(tzinfo=timezone(utc_offset))
+    age = (now - moment) // timedelta(seconds=1)
+    return result(age <= max_age, value=age)
+
+
 def _unique_check(name: str, column: ColumnProfile, rows: int) -> CheckResult:
     """A check that fails when ``column`` has a non-missing value more than once.
 
@@ -672,6 +756,9 @@ def evaluate(
     column_ranges: Mapping[str, ValueRange] | None = None,
     unique_columns: Iterable[str] = (),
     unique_keys: Iterable[Iterable[str]] = (),
+    column_max_ages: Mapping[str, int] | None = None,
+    now: datetime | None = None,
+    utc_offset: timedelta | None = None,
 ) -> list[CheckResult]:
     """Evaluate the requested thresholds; a value equal to its limit passes.
 
@@ -728,6 +815,16 @@ def evaluate(
     may use columns left out of the profile by ``columns``, since rows are
     read whole. Unknown names fail as ``required_column``.
 
+    ``column_max_ages`` maps column names to the most seconds their newest
+    value may lie before ``now`` (an aware datetime, required with it), for
+    exports that stopped being refreshed. Only ``date`` and ``datetime``
+    columns qualify; a column of another type, or with no values, fails.
+    Values with a UTC offset are compared as instants; values without one
+    are taken at ``utc_offset`` (a ``timedelta``), and without it their
+    check fails instead of guessing a time zone. A ``date`` column's newest
+    day counts until its end. A newest value ahead of ``now`` passes, with a
+    negative ``value``. Unknown names fail as ``required_column`` (ADR 0009).
+
     ``required_columns`` are matched exactly (case-sensitive) against the
     file's whole header (``Report.header``, after duplicate-name suffixes),
     also when only some columns were profiled; each one gives a check with
@@ -773,7 +870,8 @@ def evaluate(
     by_name = {col.name: col for col in report.columns}
     unique = list(dict.fromkeys(unique_columns))
     gated = [*(column_max_missing or {}), *(column_types or {}), *(column_max_affixes or {})]
-    gated += [*(column_ranges or {}), *unique]
+    max_ages = dict(column_max_ages or {})
+    gated += [*(column_ranges or {}), *unique, *max_ages]
     unprofiled = [name for name in gated if name in present]
     unprofiled = [name for name in unprofiled if name not in by_name]
     if unprofiled:
@@ -835,6 +933,16 @@ def evaluate(
         if column is None:
             continue  # reported below as a missing required column
         results.append(_unique_check(name, column, report.rows))
+    if max_ages:
+        if now is None or now.tzinfo is None:
+            raise ValueError("max_age checks need now, an aware datetime (with a UTC offset)")
+        for name, max_age in max_ages.items():
+            if isinstance(max_age, bool) or not isinstance(max_age, int) or max_age <= 0:
+                raise ValueError(f"max age for column {name!r} must be a positive whole number")
+            column = by_name.get(name)
+            if column is None:
+                continue  # reported below as a missing required column
+            results.append(_max_age_check(name, column, max_age, now, utc_offset))
     keys = list(dict.fromkeys(key_columns(key) for key in unique_keys))
     measured = {key.columns: key for key in report.keys}
     for columns in keys:
@@ -848,7 +956,15 @@ def evaluate(
     key_names = [name for columns in keys for name in columns]
     unknown_limited = (
         name
-        for name in [*column_limits, *required_types, *affix_limits, *ranges, *unique, *key_names]
+        for name in [
+            *column_limits,
+            *required_types,
+            *affix_limits,
+            *ranges,
+            *unique,
+            *key_names,
+            *max_ages,
+        ]
         if name not in present
     )
     for name in dict.fromkeys([*required_columns, *unknown_limited]):
