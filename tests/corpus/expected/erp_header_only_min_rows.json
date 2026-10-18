@@ -1,0 +1,162 @@
+{
+  "source": "tests/corpus/erp_header_only.csv",
+  "rows": 0,
+  "truncated": false,
+  "delimiter": ";",
+  "delimiter_detected": true,
+  "sep_line": false,
+  "na_tokens": [],
+  "top_n": 3,
+  "compressed": false,
+  "encoding": "utf-8",
+  "thousands": null,
+  "date_order": null,
+  "bool_words": [],
+  "number_affixes": [],
+  "accounting_negatives": false,
+  "selected_columns": null,
+  "header_columns": 5,
+  "duplicate_rows": 0,
+  "untrimmed_columns": [],
+  "columns": [
+    {
+      "name": "Remito",
+      "type": "string",
+      "type_hint": null,
+      "missing": 0,
+      "missing_pct": 0.0,
+      "distinct": 0,
+      "min": null,
+      "max": null,
+      "mean": null,
+      "min_length": null,
+      "max_length": null,
+      "top_values": [],
+      "untrimmed": 0,
+      "affixes": {}
+    },
+    {
+      "name": "Emisión",
+      "type": "string",
+      "type_hint": null,
+      "missing": 0,
+      "missing_pct": 0.0,
+      "distinct": 0,
+      "min": null,
+      "max": null,
+      "mean": null,
+      "min_length": null,
+      "max_length": null,
+      "top_values": [],
+      "untrimmed": 0,
+      "affixes": {}
+    },
+    {
+      "name": "Despacho",
+      "type": "string",
+      "type_hint": null,
+      "missing": 0,
+      "missing_pct": 0.0,
+      "distinct": 0,
+      "min": null,
+      "max": null,
+      "mean": null,
+      "min_length": null,
+      "max_length": null,
+      "top_values": [],
+      "untrimmed": 0,
+      "affixes": {}
+    },
+    {
+      "name": "Vencimiento",
+      "type": "string",
+      "type_hint": null,
+      "missing": 0,
+      "missing_pct": 0.0,
+      "distinct": 0,
+      "min": null,
+      "max": null,
+      "mean": null,
+      "min_length": null,
+      "max_length": null,
+      "top_values": [],
+      "untrimmed": 0,
+      "affixes": {}
+    },
+    {
+      "name": "Peso kg",
+      "type": "string",
+      "type_hint": null,
+      "missing": 0,
+      "missing_pct": 0.0,
+      "distinct": 0,
+      "min": null,
+      "max": null,
+      "mean": null,
+      "min_length": null,
+      "max_length": null,
+      "top_values": [],
+      "untrimmed": 0,
+      "affixes": {}
+    }
+  ],
+  "baseline": null,
+  "checks": [
+    {
+      "check": "max_missing",
+      "column": "Remito",
+      "limit": 10.0,
+      "value": 0.0,
+      "passed": true
+    },
+    {
+      "check": "max_missing",
+      "column": "Emisión",
+      "limit": 10.0,
+      "value": 0.0,
+      "passed": true
+    },
+    {
+      "check": "max_missing",
+      "column": "Despacho",
+      "limit": 10.0,
+      "value": 0.0,
+      "passed": true
+    },
+    {
+      "check": "max_missing",
+      "column": "Vencimiento",
+      "limit": 10.0,
+      "value": 0.0,
+      "passed": true
+    },
+    {
+      "check": "max_missing",
+      "column": "Peso kg",
+      "limit": 10.0,
+      "value": 0.0,
+      "passed": true
+    },
+    {
+      "check": "min_rows",
+      "column": null,
+      "limit": 1,
+      "value": 0,
+      "passed": false
+    },
+    {
+      "check": "required_column",
+      "column": "Remito",
+      "limit": 1,
+      "value": 1,
+      "passed": true
+    },
+    {
+      "check": "required_column",
+      "column": "Despacho",
+      "limit": 1,
+      "value": 1,
+      "passed": true
+    }
+  ]
+}

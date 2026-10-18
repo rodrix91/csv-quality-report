@@ -611,6 +611,14 @@ def build_parser() -> argparse.ArgumentParser:
         metavar="N",
         help="fail if the file has more than N duplicate rows (0: none allowed)",
     )
+    gates.add_argument(
+        "--min-rows",
+        type=_positive_int,
+        default=None,
+        metavar="N",
+        help="fail if the file has fewer than N data rows, such as an export that arrived "
+        "with only its header",
+    )
     return parser
 
 
@@ -718,6 +726,12 @@ def main(argv: Sequence[str] | None = None) -> int:
                         f"{option} needs --fail-on-schema-change "
                         f"({what} only fail the run with that gate)"
                     )
+        if args.min_rows is not None and args.max_rows is not None:
+            if args.min_rows > args.max_rows:
+                raise ValueError(
+                    f"--min-rows {args.min_rows} can never pass with --max-rows {args.max_rows} "
+                    "(only that many rows are read)"
+                )
         if args.utc_offset is not None and not args.max_age:
             raise ValueError("--utc-offset needs --max-age (it only places times for that check)")
         if args.record_time and args.format != "json" and args.json_output is None:
@@ -755,6 +769,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         report,
         max_missing=args.max_missing,
         max_duplicates=args.max_duplicates,
+        min_rows=args.min_rows,
         required_columns=args.require_columns,
         column_max_missing=dict(args.max_missing_column),  # the last limit for a name wins
         column_types=dict(args.require_type),  # the last type for a name wins
