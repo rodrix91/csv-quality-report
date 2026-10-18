@@ -287,7 +287,7 @@ Errors are printed to stderr as `error: ...`; nothing is written to stdout.
 | 5 | Empty file (no header row) | `error: '/tmp/empty.csv' is empty (no header row)` |
 | 6 | Ragged row (cell count differs from header) or malformed CSV | `error: row at line 3 has 2 fields, expected 3 (from the header)` |
 | 7 | `--delimiter auto` cannot pick one separator | `error: cannot detect the delimiter: several separators fit every line (comma, semicolon); pass it explicitly with --delimiter` |
-| 8 | A quality gate failed (`--max-missing`, `--max-missing-column`, `--max-duplicates`, `--require-columns`, `--require-type`); the report is still printed | `check failed: column 'weight_kg' has 12.5% missing values (limit 5%)` |
+| 8 | A quality gate failed (`--max-missing`, `--max-missing-column`, `--max-duplicates`, `--require-columns`, `--require-type`, and the later ones: `--min-rows`, `--max-affixes`, `--range`, `--unique`, `--unique-key`, `--max-age` and the `--baseline` gates); the report is still printed | `check failed: column 'weight_kg' has 12.5% missing values (limit 5%)` |
 | 9 | The `--json-output` file cannot be written | `error: cannot write 'out/report.json': No such file or directory` |
 
 For Spanish and Latin American exports (cp1252, `;`, `1.234,56`, `05/10/2026`, `VERDADERO`, `Gs. 50.000`, `(1.234,56)`), the [guide to reading Spanish and Latin American exports](docs/guides/spanish-exports.md) has a table of which option fixes which problem and worked examples on real-looking files; its commands and outputs are checked by the test suite.
@@ -339,7 +339,7 @@ jobs:
 
 `report-json` is `report-path` as given (relative to the workspace) when that input is set. The action never removes an existing `report-path` file: when the run stops before writing the report (exit codes other than 0 and 8), the file keeps its content and `report-json` is empty; like `--json-output`, the report cannot be written over the input file or the baseline (exit code 2). A `report-path` with a line break is an error.
 
-Example: a scheduled workflow that compares each day's export with the report the previous successful run kept, fails when the schema changed, rows dropped by more than half or the kept report is more than 36 hours old (a run that stopped refreshing it), and saves today's report as the next baseline only when every check passed. The first run has no baseline yet; `if-baseline-missing: skip` lets it pass with a warning and keep its report:
+Example: a scheduled workflow that compares each day's export with the report the previous successful run kept, fails when the export arrived with only its header (`--min-rows 1`), when the schema changed, rows dropped by more than half or the kept report is more than 36 hours old (a run that stopped refreshing it), and saves today's report as the next baseline only when every check passed. The first run has no baseline yet; `if-baseline-missing: skip` lets it pass with a warning and keep its report:
 
 ```yaml
 name: Daily export check
@@ -362,7 +362,7 @@ jobs:
         uses: rodrix91/csv-quality-report@v0.19.0  # pin a release tag or commit SHA
         with:
           path: data/export.csv
-          args: --delimiter auto --decimal-comma --na s/d --record-time
+          args: --delimiter auto --decimal-comma --na s/d --min-rows 1 --record-time
           report-path: reports/report.json
           baseline: baseline/report.json
           baseline-args: --fail-on-schema-change --max-row-drop 50 --max-baseline-age 36h

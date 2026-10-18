@@ -13,6 +13,7 @@ All notable changes to this project are documented here. The format follows [Kee
 ### Changed
 
 - The README's module table lists `compare.py`, `clock.py` and every gate in `checks.py`, its design notes link ADRs 0005 to 0009, and it says the ADRs ship in the sdist (they are not in the wheel); it had said they were in neither package.
+- The README's exit-code table names every quality gate under code 8 (it listed the first five), and the daily GitHub Action workflow example adds `--min-rows 1`, so an export with only its header never becomes the next baseline.
 
 ## [0.20.0] - 2026-10-18
 
