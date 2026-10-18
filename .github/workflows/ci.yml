@@ -152,3 +152,104 @@ jobs:
           assert failed == ["max_duplicates"], failed
           print("action outputs OK")
           PY
+
+      # A daily comparison chain: the first run has no baseline yet, the next
+      # one compares with the report the first one kept.
+      - name: First run without a baseline (if-baseline-missing skip)
+        id: first
+        uses: ./
+        with:
+          path: examples/tiny.csv
+          args: --delimiter auto --record-time
+          report-path: reports/day 1.json
+          baseline: reports/missing baseline.json
+          baseline-args: --fail-on-schema-change --max-baseline-age 1d
+          if-baseline-missing: skip
+          summary: "false"
+
+      - name: Second run compared with the first report
+        id: second
+        uses: ./
+        with:
+          path: examples/tiny.csv
+          args: --delimiter auto --record-time
+          report-path: reports/day 2.json
+          baseline: ${{ steps.first.outputs.report-json }}
+          baseline-args: --fail-on-schema-change --max-baseline-age 1d
+
+      - name: Schema gate fails against the baseline
+        id: schema
+        continue-on-error: true
+        uses: ./
+        with:
+          path: examples/sample.csv
+          baseline: reports/day 1.json
+          baseline-args: --fail-on-schema-change
+          summary: "false"
+
+      - name: Missing baseline fails by default
+        id: missing
+        continue-on-error: true
+        uses: ./
+        with:
+          path: examples/tiny.csv
+          args: --delimiter auto
+          baseline: reports/missing baseline.json
+          summary: "false"
+
+      - name: Invalid if-baseline-missing is refused
+        id: invalid
+        continue-on-error: true
+        uses: ./
+        with:
+          path: examples/tiny.csv
+          baseline: reports/day 1.json
+          if-baseline-missing: ignore
+          summary: "false"
+
+      - name: Check the baseline outputs
+        env:
+          FIRST_CODE: ${{ steps.first.outputs.exit-code }}
+          FIRST_USED: ${{ steps.first.outputs.baseline-used }}
+          FIRST_JSON: ${{ steps.first.outputs.report-json }}
+          SECOND_CODE: ${{ steps.second.outputs.exit-code }}
+          SECOND_USED: ${{ steps.second.outputs.baseline-used }}
+          SECOND_JSON: ${{ steps.second.outputs.report-json }}
+          SCHEMA_CODE: ${{ steps.schema.outputs.exit-code }}
+          SCHEMA_USED: ${{ steps.schema.outputs.baseline-used }}
+          SCHEMA_JSON: ${{ steps.schema.outputs.report-json }}
+          MISSING_CODE: ${{ steps.missing.outputs.exit-code }}
+          MISSING_USED: ${{ steps.missing.outputs.baseline-used }}
+          MISSING_JSON: ${{ steps.missing.outputs.report-json }}
+          MISSING_OUTCOME: ${{ steps.missing.outcome }}
+          INVALID_CODE: ${{ steps.invalid.outputs.exit-code }}
+          INVALID_OUTCOME: ${{ steps.invalid.outcome }}
+        run: |
+          set -x
+          test "$FIRST_CODE" = 0
+          test "$FIRST_USED" = false
+          test "$FIRST_JSON" = "reports/day 1.json"
+          test "$SECOND_CODE" = 0
+          test "$SECOND_USED" = true
+          test "$SECOND_JSON" = "reports/day 2.json"
+          test "$SCHEMA_CODE" = 8
+          test "$SCHEMA_USED" = true
+          test "$MISSING_CODE" = 3
+          test "$MISSING_USED" = false
+          test -z "$MISSING_JSON"
+          test "$MISSING_OUTCOME" = failure
+          test "$INVALID_CODE" = 2
+          test "$INVALID_OUTCOME" = failure
+          python - <<'PY'
+          import json, os
+          first = json.load(open(os.environ["FIRST_JSON"], encoding="utf-8"))
+          assert first["baseline"] is None and first["generated_at"], first
+          second = json.load(open(os.environ["SECOND_JSON"], encoding="utf-8"))
+          assert second["baseline"] is not None, second
+          checks = {c["check"]: c["passed"] for c in second["checks"]}
+          assert checks == {"schema_change": True, "baseline_age": True}, checks
+          schema = json.load(open(os.environ["SCHEMA_JSON"], encoding="utf-8"))
+          failed = [c["check"] for c in schema["checks"] if not c["passed"]]
+          assert failed == ["schema_change"], failed
+          print("action baseline outputs OK")
+          PY

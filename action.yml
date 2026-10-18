@@ -24,6 +24,33 @@ inputs:
     description: Write the Markdown report to the job summary ("true" or "false").
     required: false
     default: "true"
+  report-path:
+    description: >-
+      Where to write the JSON report, relative to the workspace (parent
+      directories are created), for example to keep it as the next run's
+      baseline. Empty writes it to a temporary directory.
+    required: false
+    default: ""
+  baseline:
+    description: >-
+      Earlier JSON report of the same source to compare with (--baseline),
+      relative to the workspace. Passed as one argument, so spaces are fine.
+    required: false
+    default: ""
+  baseline-args:
+    description: >-
+      Options that need the baseline, split on whitespace like args, for
+      example "--fail-on-schema-change --max-row-drop 50 --max-baseline-age 36h".
+      Added only when the baseline is used; they need the baseline input.
+    required: false
+    default: ""
+  if-baseline-missing:
+    description: >-
+      What to do when the baseline file does not exist: "fail" (the tool stops
+      with exit code 3) or "skip" (run without the baseline and baseline-args,
+      with a warning; the first run of a daily pipeline has no baseline).
+    required: false
+    default: fail
 
 outputs:
   exit-code:
@@ -35,6 +62,9 @@ outputs:
   report-json:
     description: Path of the JSON report (empty when the file could not be read).
     value: ${{ steps.run.outputs.report-json }}
+  baseline-used:
+    description: '"true" when the run was compared with the baseline, otherwise "false".'
+    value: ${{ steps.run.outputs.baseline-used }}
 
 runs:
   using: composite
@@ -59,20 +89,87 @@ runs:
         INPUT_PATH: ${{ inputs.path }}
         INPUT_ARGS: ${{ inputs.args }}
         INPUT_SUMMARY: ${{ inputs.summary }}
+        INPUT_REPORT_PATH: ${{ inputs.report-path }}
+        INPUT_BASELINE: ${{ inputs.baseline }}
+        INPUT_BASELINE_ARGS: ${{ inputs.baseline-args }}
+        INPUT_IF_BASELINE_MISSING: ${{ inputs.if-baseline-missing }}
       run: |
-        report_dir="${RUNNER_TEMP}/csv-quality-report-${GITHUB_ACTION}"
-        mkdir -p "$report_dir"
-        json="$report_dir/report.json"
-        markdown="$report_dir/report.md"
-        rm -f "$json"
+        # Write the step outputs: exit code, report path (or empty), baseline used.
+        finish() {
+          {
+            echo "exit-code=$1"
+            if [ "$1" -eq 0 ]; then echo "passed=true"; else echo "passed=false"; fi
+            echo "report-json=$2"
+            echo "baseline-used=$3"
+          } >> "$GITHUB_OUTPUT"
+          exit "$1"
+        }
+
+        # Escape a message for a workflow command (::error:: / ::warning::), so
+        # a path cannot end the command early or start another one.
+        annotate() {
+          local message="$2"
+          message="${message//'%'/'%25'}"
+          message="${message//$'\r'/'%0D'}"
+          message="${message//$'\n'/'%0A'}"
+          echo "::$1::$message"
+        }
+
+        case "$INPUT_IF_BASELINE_MISSING" in
+          fail | skip) ;;
+          *)
+            annotate error "if-baseline-missing must be \"fail\" or \"skip\", got \"$INPUT_IF_BASELINE_MISSING\""
+            finish 2 "" false
+            ;;
+        esac
+        if [ -z "$INPUT_BASELINE" ] && [ -n "${INPUT_BASELINE_ARGS//[[:space:]]/}" ]; then
+          annotate error "baseline-args needs the baseline input (the options in it compare with a baseline report)"
+          finish 2 "" false
+        fi
+
+        case "$INPUT_REPORT_PATH" in
+          *$'\n'* | *$'\r'*)
+            # The path becomes the report-json output, one line in GITHUB_OUTPUT.
+            annotate error "report-path must not contain a line break"
+            finish 2 "" false
+            ;;
+        esac
 
         # Split the extra arguments on whitespace without glob expansion.
         set -f
         read -r -a extra <<< "$INPUT_ARGS"
+        read -r -a baseline_extra <<< "$INPUT_BASELINE_ARGS"
         set +f
 
+        baseline_used=false
+        compare=()
+        if [ -n "$INPUT_BASELINE" ]; then
+          if [ -e "$INPUT_BASELINE" ] || [ "$INPUT_IF_BASELINE_MISSING" = fail ]; then
+            # A missing file with "fail" reaches the tool, which stops with exit
+            # code 3 and its own message.
+            compare=(--baseline "$INPUT_BASELINE" "${baseline_extra[@]}")
+            baseline_used=true
+          else
+            annotate warning "baseline '$INPUT_BASELINE' does not exist; comparing skipped (if-baseline-missing: skip)"
+          fi
+        fi
+
+        report_dir="${RUNNER_TEMP}/csv-quality-report-${GITHUB_ACTION}"
+        mkdir -p "$report_dir"
+        markdown="$report_dir/report.md"
+        if [ -n "$INPUT_REPORT_PATH" ]; then
+          # The user's file is never removed here: it may be a report a later
+          # step needs, and the tool refuses to write over the input or the
+          # baseline.
+          json="$INPUT_REPORT_PATH"
+          mkdir -p -- "$(dirname -- "$json")"
+        else
+          json="$report_dir/report.json"
+          rm -f "$json"
+        fi
+
         set +e
-        python -m csv_quality_report "$INPUT_PATH" "${extra[@]}" --json-output "$json" > "$markdown"
+        python -m csv_quality_report "$INPUT_PATH" "${extra[@]}" "${compare[@]}" --json-output "$json" > "$markdown"
         code=$?
         set -e
 
@@ -81,10 +178,15 @@ runs:
           cat "$markdown" >> "$GITHUB_STEP_SUMMARY"
         fi
 
-        {
-          echo "exit-code=$code"
-          if [ "$code" -eq 0 ]; then echo "passed=true"; else echo "passed=false"; fi
-          if [ -f "$json" ]; then echo "report-json=$json"; else echo "report-json="; fi
-        } >> "$GITHUB_OUTPUT"
-
-        exit "$code"
+        # The tool writes the JSON report exactly when it exits with 0 or 8.
+        report=""
+        if { [ "$code" -eq 0 ] || [ "$code" -eq 8 ]; } && [ -f "$json" ]; then
+          report="$json"
+        fi
+        case "$code" in
+          0 | 8 | 9) ;;
+          # Not compared: the run stopped before the comparison (missing or
+          # unreadable baseline, usage error, unreadable file).
+          *) baseline_used=false ;;
+        esac
+        finish "$code" "$report" "$baseline_used"
