@@ -1,0 +1,135 @@
+{
+  "source": "tests/corpus/erp_day_first.csv",
+  "rows": 12,
+  "truncated": false,
+  "delimiter": ";",
+  "delimiter_detected": true,
+  "sep_line": false,
+  "na_tokens": [
+    "s/d"
+  ],
+  "top_n": 3,
+  "compressed": false,
+  "encoding": "utf-8",
+  "thousands": ".",
+  "date_order": "dmy",
+  "bool_words": [],
+  "number_affixes": [],
+  "accounting_negatives": false,
+  "selected_columns": [
+    "Remito",
+    "Emisión",
+    "Despacho"
+  ],
+  "header_columns": 5,
+  "duplicate_rows": 0,
+  "untrimmed_columns": [],
+  "columns": [
+    {
+      "name": "Remito",
+      "type": "string",
+      "type_hint": null,
+      "missing": 0,
+      "missing_pct": 0.0,
+      "distinct": 12,
+      "min": null,
+      "max": null,
+      "mean": null,
+      "min_length": 6,
+      "max_length": 6,
+      "top_values": [
+        {
+          "value": "R-0001",
+          "count": 1
+        },
+        {
+          "value": "R-0002",
+          "count": 1
+        },
+        {
+          "value": "R-0003",
+          "count": 1
+        }
+      ],
+      "untrimmed": 0,
+      "affixes": {}
+    },
+    {
+      "name": "Emisión",
+      "type": "date",
+      "type_hint": null,
+      "missing": 0,
+      "missing_pct": 0.0,
+      "distinct": 11,
+      "min": "2026-01-02",
+      "max": "2026-02-14",
+      "mean": null,
+      "min_length": 8,
+      "max_length": 10,
+      "top_values": [
+        {
+          "value": "02/01/2026",
+          "count": 2
+        },
+        {
+          "value": "5/1/2026",
+          "count": 1
+        },
+        {
+          "value": "12/01/2026",
+          "count": 1
+        }
+      ],
+      "untrimmed": 0,
+      "affixes": {}
+    },
+    {
+      "name": "Despacho",
+      "type": "datetime",
+      "type_hint": null,
+      "missing": 1,
+      "missing_pct": 8.3,
+      "distinct": 11,
+      "min": "2026-01-02 08:15",
+      "max": "2026-02-14 15:55",
+      "mean": null,
+      "min_length": 15,
+      "max_length": 19,
+      "top_values": [
+        {
+          "value": "02/01/2026 8:15",
+          "count": 1
+        },
+        {
+          "value": "02/01/2026 16:40",
+          "count": 1
+        },
+        {
+          "value": "05/01/2026 9:05",
+          "count": 1
+        }
+      ],
+      "untrimmed": 0,
+      "affixes": {}
+    }
+  ],
+  "baseline": null,
+  "checks": [
+    {
+      "check": "max_age",
+      "column": "Despacho",
+      "limit": 172800,
+      "value": 273600,
+      "passed": false,
+      "newest": "2026-02-14 15:55"
+    },
+    {
+      "check": "max_age",
+      "column": "Emisión",
+      "limit": 259200,
+      "value": 244500,
+      "passed": true,
+      "newest": "2026-02-14"
+    }
+  ]
+}
