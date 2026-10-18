@@ -16,7 +16,7 @@ from typing import Any
 from .clock import format_stamp, parse_stamp
 from .compare import Comparison, TypeChange
 from .inference import parse_datetime
-from .profile import ColumnProfile, KeyProfile, Report, key_columns
+from .profile import ColumnProfile, DomainProfile, KeyProfile, Report, allowed_list, key_columns
 
 CHECK_MAX_MISSING = "max_missing"
 CHECK_MAX_DUPLICATES = "max_duplicates"
@@ -32,6 +32,7 @@ CHECK_UNIQUE_KEY = "unique_key"
 CHECK_BASELINE_AGE = "baseline_age"
 CHECK_MAX_AGE = "max_age"
 CHECK_MIN_ROWS = "min_rows"
+CHECK_ALLOWED_VALUES = "allowed_values"
 # A baseline stamped up to this many seconds after the clock counts as 0
 # seconds old (clocks of two machines differ a little); later is an error.
 CLOCK_SKEW_TOLERANCE = 300
@@ -92,6 +93,8 @@ class CheckResult:
     tolerated_removed: tuple[str, ...] = ()
     generated_at: str | None = None  # baseline_age checks: the baseline's stamp
     newest: str | None = None  # max_age checks: the column's newest value, as reported
+    allowed: tuple[str, ...] = ()  # allowed_values checks: the values given
+    unexpected: tuple[tuple[str, int], ...] = ()  # allowed_values: most frequent (value, cells)
 
     def describe(self) -> str:
         """One-line, human-readable explanation used on stderr and in Markdown."""
@@ -138,6 +141,8 @@ class CheckResult:
             return self.detail
         if self.check == CHECK_MAX_AGE:
             return self._describe_max_age()
+        if self.check == CHECK_ALLOWED_VALUES:
+            return self._describe_allowed_values()
         if self.check == CHECK_MIN_ROWS:
             rows = int(self.value)
             noun = "data row" if rows == 1 else "data rows"
@@ -204,6 +209,23 @@ class CheckResult:
         return (
             f"column '{self.column}' missing values {change} since the baseline "
             f"({self.detail}; limit {_fmt(self.limit)} points)"
+        )
+
+    def _describe_allowed_values(self) -> str:
+        listed = ", ".join(self.allowed[:_MAX_LISTED])
+        if len(self.allowed) > _MAX_LISTED:
+            listed += f", ... ({len(self.allowed)} values)"
+        if self.passed:
+            return f"column '{self.column}' has only allowed values ({listed})"
+        count = int(self.value)
+        noun = "cell" if count == 1 else "cells"
+        examples = ", ".join(
+            f'"{value}" in {cells} cell' + ("s" if cells != 1 else "")
+            for value, cells in self.unexpected
+        )
+        return (
+            f"column '{self.column}' has {count} {noun} outside the allowed values ({listed})"
+            + (f": {examples}" if examples else "")
         )
 
     def _describe_max_age(self) -> str:
@@ -729,6 +751,19 @@ def _unique_check(name: str, column: ColumnProfile, rows: int) -> CheckResult:
     )
 
 
+def _allowed_values_check(domain: DomainProfile) -> CheckResult:
+    """A check that fails when a non-missing cell holds a value outside ``domain.allowed``."""
+    return CheckResult(
+        check=CHECK_ALLOWED_VALUES,
+        column=domain.column,
+        limit=0,
+        value=domain.unexpected,
+        passed=domain.unexpected == 0,
+        allowed=domain.allowed,
+        unexpected=domain.examples,
+    )
+
+
 def _unique_key_check(key: KeyProfile) -> CheckResult:
     """A check that fails when two checked rows share the values of ``key``'s columns."""
     return CheckResult(
@@ -765,6 +800,7 @@ def evaluate(
     now: datetime | None = None,
     utc_offset: timedelta | None = None,
     min_rows: int | None = None,
+    allowed_values: Mapping[str, Iterable[str]] | None = None,
 ) -> list[CheckResult]:
     """Evaluate the requested thresholds; a value equal to its limit passes.
 
@@ -835,6 +871,15 @@ def evaluate(
     the rows analyzed), at least 1: a file with only its header passes every
     other gate, since nothing in it is missing, repeated or out of range.
 
+    ``allowed_values`` maps column names to the values their non-missing
+    cells may hold, such as a status or currency code. The report must have
+    been built with the same lists (``profile_file(..., allowed_values=...)``),
+    which counts the cells outside them (``Report.domains``); a list it lacks
+    raises ``ValueError``. Values compare stripped, case-sensitive, as text;
+    the check's ``value`` is the exact number of cells outside the list and
+    ``unexpected`` names the most frequent of their values. Unknown names fail
+    as ``required_column``.
+
     ``required_columns`` are matched exactly (case-sensitive) against the
     file's whole header (``Report.header``, after duplicate-name suffixes),
     also when only some columns were profiled; each one gives a check with
@@ -893,7 +938,8 @@ def evaluate(
     unique = list(dict.fromkeys(unique_columns))
     gated = [*(column_max_missing or {}), *(column_types or {}), *(column_max_affixes or {})]
     max_ages = dict(column_max_ages or {})
-    gated += [*(column_ranges or {}), *unique, *max_ages]
+    domains = {name: allowed_list(values) for name, values in (allowed_values or {}).items()}
+    gated += [*(column_ranges or {}), *unique, *max_ages, *domains]
     unprofiled = [name for name in gated if name in present]
     unprofiled = [name for name in unprofiled if name not in by_name]
     if unprofiled:
@@ -965,6 +1011,17 @@ def evaluate(
             if column is None:
                 continue  # reported below as a missing required column
             results.append(_max_age_check(name, column, max_age, now, utc_offset))
+    measured_domains = {domain.column: domain for domain in report.domains}
+    for name, allowed in domains.items():
+        if name not in by_name:
+            continue  # reported below as a missing required column
+        domain = measured_domains.get(name)
+        if domain is None or domain.allowed != allowed:
+            raise ValueError(
+                f"column {name!r} has an allowed_values check but the report was not "
+                "profiled with the same list"
+            )
+        results.append(_allowed_values_check(domain))
     keys = list(dict.fromkeys(key_columns(key) for key in unique_keys))
     measured = {key.columns: key for key in report.keys}
     for columns in keys:
@@ -986,6 +1043,7 @@ def evaluate(
             *unique,
             *key_names,
             *max_ages,
+            *domains,
         ]
         if name not in present
     )

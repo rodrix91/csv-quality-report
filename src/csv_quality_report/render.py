@@ -8,6 +8,7 @@ from datetime import date
 from typing import Any
 
 from .checks import (
+    CHECK_ALLOWED_VALUES,
     CHECK_BASELINE_AGE,
     CHECK_MAX_AFFIXES,
     CHECK_MAX_AGE,
@@ -341,6 +342,11 @@ def render_json(
                 **(_allowed_fields(c) if c.check == CHECK_SCHEMA_CHANGE else {}),
                 **({"generated_at": c.generated_at} if c.check == CHECK_BASELINE_AGE else {}),
                 **({"newest": c.newest} if c.check == CHECK_MAX_AGE else {}),
+                **(
+                    {"allowed": list(c.allowed), "unexpected": dict(c.unexpected)}
+                    if c.check == CHECK_ALLOWED_VALUES
+                    else {}
+                ),
             }
             for c in checks
         ],

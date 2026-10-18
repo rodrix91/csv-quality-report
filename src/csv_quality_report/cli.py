@@ -36,7 +36,7 @@ from .inference import (
     parse_datetime,
 )
 from .output import write_atomic
-from .profile import TOP_N, profile_file
+from .profile import TOP_N, allowed_list, profile_file
 from .reader import (
     DEFAULT_ENCODING,
     DELIMITER_AUTO,
@@ -106,6 +106,20 @@ def _duration(text: str, option: str = "--max-baseline-age", shown: str | None =
             "whole number with s, m, h, d or w, such as 36h or 7d)"
         )
     return int(match[1]) * _DURATION_SECONDS[match[2]]
+
+
+def _column_allowed(text: str) -> tuple[str, tuple[str, ...]]:
+    """Parse ``NAME=V1,V2`` for --allowed-values (split at the last ``=``, values at commas)."""
+    name, sep, values = text.rpartition("=")
+    usage = f"invalid --allowed-values value: {text!r} (use NAME=VALUE,VALUE, such as "
+    if not sep or not name:
+        raise argparse.ArgumentTypeError(usage + "Moneda=PYG,USD)")
+    try:
+        return name, allowed_list(values.split(","))
+    except ValueError:
+        raise argparse.ArgumentTypeError(
+            usage + "Moneda=PYG,USD; every value must be non-empty)"
+        ) from None
 
 
 def _column_age(text: str) -> tuple[str, int]:
@@ -520,6 +534,16 @@ def build_parser() -> argparse.ArgumentParser:
         "missing key cell are skipped); repeatable",
     )
     gates.add_argument(
+        "--allowed-values",
+        type=_column_allowed,
+        action="append",
+        default=[],
+        metavar="NAME=VALUES",
+        help="fail if a non-missing cell of column NAME holds a value outside the "
+        "comma-separated VALUES, such as Moneda=PYG,USD (stripped text, case-sensitive); "
+        "repeatable",
+    )
+    gates.add_argument(
         "--max-age",
         type=_column_age,
         action="append",
@@ -634,6 +658,7 @@ def _check_selected(args: argparse.Namespace) -> None:
         ("--max-missing-increase-column", [name for name, _ in args.max_missing_increase_column]),
         ("--unique", args.unique),
         ("--max-age", [name for name, _ in args.max_age]),
+        ("--allowed-values", [name for name, _ in args.allowed_values]),
         ("--allow-type-change", [r.column for r in args.allow_type_change if r.column]),
         ("--allow-added-column", args.allow_added_column),
         ("--allow-removed-column", args.allow_removed_column),
@@ -761,6 +786,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             accounting_negatives=args.accounting_negatives,
             columns=args.columns,
             unique_keys=args.unique_key,
+            allowed_values=dict(args.allowed_values),  # the last list for a name wins
         )
     except CsvQualityError as exc:
         print(f"error: {exc.message}", file=sys.stderr)
@@ -770,6 +796,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         max_missing=args.max_missing,
         max_duplicates=args.max_duplicates,
         min_rows=args.min_rows,
+        allowed_values=dict(args.allowed_values),
         required_columns=args.require_columns,
         column_max_missing=dict(args.max_missing_column),  # the last limit for a name wins
         column_types=dict(args.require_type),  # the last type for a name wins

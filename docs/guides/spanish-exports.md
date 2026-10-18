@@ -20,6 +20,7 @@ csv-quality-report never guesses these conventions: each one is turned on with a
 | `(1.234,56)` or `1.234,56-` for negatives | `--accounting-negatives` |
 | A column that mixes currencies or units | `--max-affixes NAME=1` (with `--number-affix`) |
 | An invoice number or tracking code that repeats in rows that differ elsewhere | `--unique Factura` (add `--max-missing-column Factura=0` to also require it) |
+| A status, currency or unit column that gained a value the consumers do not handle (`Devuelto`, a hand-typed `usd`) | `--allowed-values "Estado=Entregado,En tránsito,Pendiente"` |
 | An invoice line or document identified by several columns (branch, invoice, line) that appears twice | `--unique-key Sucursal,Factura,Línea` |
 | An export whose columns or types changed since last time | `--baseline yesterday.json --fail-on-schema-change` |
 | A quantity that started carrying decimals (`12,5` kilos) or a date that gained a time, which consumers handle | `--fail-on-schema-change --allow-type-change Cantidad=int:float --allow-type-change date:datetime` |

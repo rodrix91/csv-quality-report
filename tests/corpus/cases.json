@@ -242,5 +242,12 @@
     "args": ["--delimiter", "auto", "--decimal-comma", "--require-columns", "Remito,Despacho", "--max-missing", "10", "--min-rows", "1"],
     "exit_code": 8,
     "about": "An ERP export that failed half-way and wrote only its header (semicolons, CRLF): nothing is missing, repeated or out of range, so every other gate passes; --min-rows 1 fails it with 0 data rows."
+  },
+  {
+    "name": "courier_shipments_allowed_values",
+    "file": "courier_shipments.csv",
+    "args": ["--delimiter", "auto", "--decimal-comma", "--na", "s/d", "--date-order", "dmy", "--allowed-values", "Estado=Entregado,En tránsito,Pendiente"],
+    "exit_code": 8,
+    "about": "The courier's status column checked against the statuses the consumer handles: the returned parcel (Devuelto) is the one cell outside the list, so the run fails and names it."
   }
 ]
