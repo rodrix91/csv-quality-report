@@ -4,6 +4,10 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Added
+
+- GitHub Action inputs for daily comparisons: `report-path` writes the JSON report to a path in the workspace (parent directories are created; an existing file is never removed by the action), `baseline` passes an earlier report as `--baseline` (one argument, so spaces are fine), `baseline-args` holds the options that need the baseline and is added only when it is used, and `if-baseline-missing` (`fail`, the default, or `skip`) decides what a missing baseline file does: `skip` runs without the baseline, with a warning annotation, so the first run of a scheduled pipeline (or a run after the kept report expired) uses the same step. New output `baseline-used`. `baseline-args` without `baseline`, any other `if-baseline-missing` value and a `report-path` with a line break are errors (exit code 2). Without the new inputs the action runs as before. The README has a daily workflow that keeps the report of the last successful run with `actions/cache` and checks its age with `--max-baseline-age`; the CI `action` job runs a baseline chain, and a test checks that every input and output is documented in the README (with its default) and reaches the script only through an environment variable (#138).
+
 ### Changed
 
 - The GitHub Action example in the README pins the latest release tag, `@v0.19.0` (it still named `@v0.17.0` after 0.18.0 was released).

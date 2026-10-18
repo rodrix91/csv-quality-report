@@ -322,14 +322,59 @@ jobs:
 | `args` | `""` | extra command-line options, split on whitespace (no glob expansion) |
 | `python-version` | `3.12` | Python used to run the tool (3.11 or newer) |
 | `summary` | `true` | write the Markdown report to the job summary |
+| `report-path` | `""` | where to write the JSON report, relative to the workspace (parent directories are created); empty writes it to a temporary directory |
+| `baseline` | `""` | earlier JSON report to compare with (`--baseline`), relative to the workspace; passed as one argument, so spaces are fine |
+| `baseline-args` | `""` | options that need the baseline (`--fail-on-schema-change`, `--max-row-drop`, `--max-baseline-age` ...), split like `args`; added only when the baseline is used, and an error without `baseline` |
+| `if-baseline-missing` | `fail` | when the `baseline` file does not exist: `fail` (the tool stops with exit code 3) or `skip` (run without `--baseline` and `baseline-args`, with a warning annotation); any other value is an error (exit code 2) |
 
 | Output | Meaning |
 |---|---|
 | `exit-code` | the tool's exit code (see "Errors and exit codes") |
 | `passed` | `true` when the file was read and every check passed |
 | `report-json` | path of the JSON report; empty when the file could not be read |
+| `baseline-used` | `true` when the run was compared with the baseline |
 
-Inputs reach the shell only through environment variables, never interpolated into the script, so a crafted `args` value cannot run commands. The action sets up its own Python with `actions/setup-python`. The repository's CI runs the action on the example files, once expecting success and once expecting a failed gate.
+`report-json` is `report-path` as given (relative to the workspace) when that input is set. The action never removes an existing `report-path` file: when the run stops before writing the report (exit codes other than 0 and 8), the file keeps its content and `report-json` is empty; like `--json-output`, the report cannot be written over the input file or the baseline (exit code 2). A `report-path` with a line break is an error.
+
+Example: a scheduled workflow that compares each day's export with the report the previous successful run kept, fails when the schema changed, rows dropped by more than half or the kept report is more than 36 hours old (a run that stopped refreshing it), and saves today's report as the next baseline only when every check passed. The first run has no baseline yet; `if-baseline-missing: skip` lets it pass with a warning and keep its report:
+
+```yaml
+name: Daily export check
+on:
+  schedule:
+    - cron: "15 11 * * *"
+
+jobs:
+  check-export:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Restore the last kept report
+        uses: actions/cache/restore@v4
+        with:
+          path: baseline/report.json
+          key: export-baseline-${{ github.run_id }}
+          restore-keys: export-baseline-
+      - name: Check today's export
+        uses: rodrix91/csv-quality-report@v0.19.0  # pin a release tag or commit SHA
+        with:
+          path: data/export.csv
+          args: --delimiter auto --decimal-comma --na s/d --record-time
+          report-path: reports/report.json
+          baseline: baseline/report.json
+          baseline-args: --fail-on-schema-change --max-row-drop 50 --max-baseline-age 36h
+          if-baseline-missing: skip
+      - name: Keep today's report as the next baseline
+        run: mkdir -p baseline && cp reports/report.json baseline/report.json
+      - uses: actions/cache/save@v4
+        with:
+          path: baseline/report.json
+          key: export-baseline-${{ github.run_id }}
+```
+
+The later steps run only when the check passed (a failed step stops the job), so a bad export never becomes the baseline. `--record-time` stamps the report, which `--max-baseline-age` needs on the next run; the report is written to `reports/` because it cannot replace the baseline it is compared with. Cache entries are immutable, so each run saves under a new key and the next run restores the newest one through `restore-keys`; cache entries unused for 7 days are evicted by GitHub, and then the next run is a first run again (with a warning). To keep the baseline across longer gaps, or to see it in the run, use `actions/upload-artifact` and `actions/download-artifact` instead.
+
+Inputs reach the shell only through environment variables, never interpolated into the script, so a crafted `args` value cannot run commands. The action sets up its own Python with `actions/setup-python`. The repository's CI runs the action on the example files, once expecting success and once expecting a failed gate, and runs a baseline chain: a first run without a baseline (`skip`), a second run compared with the first report, a failed schema gate, a missing baseline with the default `fail`, and an invalid `if-baseline-missing`.
 
 ## Use from Python
 
