@@ -250,6 +250,41 @@ Date-times with a UTC offset (`2026-01-05T08:15-03:00`) are compared as instants
 
 The same options work in the [GitHub Action](../../README.md#use-as-a-github-action) through its `args` input, and from Python as keyword arguments of `profile_file` (`decimal_comma=True`, `thousands="."`, `date_order="dmy"`, `bool_words=(("sí", "no"),)`, `number_affixes=("$",)`, `accounting_negatives=True`, `columns=("Remito", "Despacho")`), with the gates as arguments of `evaluate` (`column_ranges={"Despacho": (date(2026, 1, 1), date(2026, 1, 31))}`). Add `--json-output report.json` to keep the full report next to the Markdown summary.
 
+## Is the export up to date?
+
+An export can be well formed and still old: the ERP job stopped, or the copy step picked up last week's file again. `--max-age` checks how old the newest value of a date or date-time column is when the job runs. ERP exports write local times without a UTC offset, and the tool never guesses one, so give the offset the export writes its times in with `--utc-offset` (written with `=` when negative, as `--utc-offset=-04:00` for La Paz; otherwise `-04:00` is read as an option). A date counts until the end of its day.
+
+Suppose the day-first ERP export above is checked on the evening of 17 February, at 23:55 UTC (fixed here with `SOURCE_DATE_EPOCH`; a real job uses the clock). The job requires a dispatch in the last two days and an issued note in the last three:
+
+```console
+$ SOURCE_DATE_EPOCH=1771372500 python -m csv_quality_report tests/corpus/erp_day_first.csv --delimiter auto --decimal-comma --thousands dot --na s/d --date-order dmy --columns Remito,Emisión,Despacho --max-age Despacho=2d --max-age Emisión=3d --utc-offset=-04:00
+```
+
+```markdown
+# CSV quality report: tests/corpus/erp_day_first.csv
+
+- Rows analyzed: 12
+- Columns: 3 of 5 (selected)
+- Delimiter: semicolon (detected)
+- Also counted as missing: `s/d`
+- Thousands separator: dot
+- Date order: day/month/year
+- Duplicate rows: 0
+
+| Column | Type | Missing | Missing % | Distinct | Min | Max | Mean | Top 3 values |
+|---|---|---|---|---|---|---|---|---|
+| Remito | string | 0 | 0.0 | 12 |  |  |  | R-0001 (1), R-0002 (1), R-0003 (1) |
+| Emisión | date | 0 | 0.0 | 11 | 2026-01-02 | 2026-02-14 |  | 02/01/2026 (2), 5/1/2026 (1), 12/01/2026 (1) |
+| Despacho | datetime | 1 | 8.3 | 11 | 2026-01-02 08:15 | 2026-02-14 15:55 |  | 02/01/2026 8:15 (1), 02/01/2026 16:40 (1), 05/01/2026 9:05 (1) |
+
+## Checks: FAILED (1 of 2 failed)
+
+- FAIL: column 'Despacho' is stale: its newest value 2026-02-14 15:55 is 3 days 4 hours old (limit 2 days)
+- pass: column 'Emisión' is fresh: its newest value 2026-02-14 is 2 days 19 hours 55 minutes old (limit 3 days)
+```
+
+The last dispatch, at 15:55 on 14 February (19:55 UTC), is 3 days 4 hours old, so the job fails with exit code 8. The last note was issued on 14 February, a day that lasts until 04:00 UTC on the 15th at `-04:00`, so it is 2 days 19 hours 55 minutes old and within its limit. Without `--utc-offset` both checks fail and say how to give the offset. Times written with an offset (`2026-02-14T15:55-04:00`) are compared as they are.
+
 ## Comparing with last week's export
 
 A scheduled export is best checked against the previous one: the same columns, the same types, about as many rows. The corpus has the weekly stock counts of a distributor's three warehouses. The first count, of 5 and 6 October, was profiled with `--record-time` on a fixed clock (22:00 UTC on 5 October), so its report, [`tests/corpus/expected/stock_counts_week1_stamped.json`](../../tests/corpus/expected/stock_counts_week1_stamped.json), carries `"generated_at": "2026-10-05T22:00:00Z"` and serves as the baseline. A week later the count gained two bulk products, with quantities in kilos (`12,5`) and lot codes like `L-0042`, and the count dates gained a time.
