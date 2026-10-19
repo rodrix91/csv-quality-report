@@ -1,0 +1,11 @@
+Cliente;CUIT;Código postal;Provincia;Límite crédito
+Ferretería del Centro;30-71000001-4;C1425ABC;CABA;1.500.000,00
+Distribuidora Norte;30-71000002-2;T4000BAA;Tucumán;850.000,00
+Almacén La Esquina;20-30000003-1;5000;Córdoba;120.000,00
+Autoservicio Sur;20300000049;X5000JKL;Córdoba;300.000,00
+Mayorista Litoral; 30-71000005-6 ;S2000CDE;Santa Fe;2.000.000,00
+Kiosco Avenida;s/d;1406;CABA;50.000,00
+Transportes Andinos;30-71000006-4;M5500FGH;Mendoza;900.000,00
+Panadería Belgrano;27-30000007-5;C1428;CABA;80.000,00
+Librería Universitaria;30 71000008 0;X5000;Córdoba;150.000,00
+Frigorífico Pampa;30-71000009-9;;Buenos Aires;3.500.000,00

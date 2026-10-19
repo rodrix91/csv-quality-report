@@ -7,6 +7,7 @@ still prints the full report, lists failed checks on stderr and exits with
 
 from __future__ import annotations
 
+import re
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
@@ -16,7 +17,16 @@ from typing import Any
 from .clock import format_stamp, parse_stamp
 from .compare import Comparison, TypeChange
 from .inference import parse_datetime
-from .profile import ColumnProfile, DomainProfile, KeyProfile, Report, allowed_list, key_columns
+from .profile import (
+    ColumnProfile,
+    DomainProfile,
+    KeyProfile,
+    PatternProfile,
+    Report,
+    allowed_list,
+    compile_pattern,
+    key_columns,
+)
 
 CHECK_MAX_MISSING = "max_missing"
 CHECK_MAX_DUPLICATES = "max_duplicates"
@@ -33,6 +43,7 @@ CHECK_BASELINE_AGE = "baseline_age"
 CHECK_MAX_AGE = "max_age"
 CHECK_MIN_ROWS = "min_rows"
 CHECK_ALLOWED_VALUES = "allowed_values"
+CHECK_PATTERN = "pattern"
 # A baseline stamped up to this many seconds after the clock counts as 0
 # seconds old (clocks of two machines differ a little); later is an error.
 CLOCK_SKEW_TOLERANCE = 300
@@ -95,6 +106,8 @@ class CheckResult:
     newest: str | None = None  # max_age checks: the column's newest value, as reported
     allowed: tuple[str, ...] = ()  # allowed_values checks: the values given
     unexpected: tuple[tuple[str, int], ...] = ()  # allowed_values: most frequent (value, cells)
+    pattern: str = ""  # pattern checks: the regular expression given
+    mismatched: tuple[tuple[str, int], ...] = ()  # pattern checks: most frequent (value, cells)
 
     def describe(self) -> str:
         """One-line, human-readable explanation used on stderr and in Markdown."""
@@ -143,6 +156,8 @@ class CheckResult:
             return self._describe_max_age()
         if self.check == CHECK_ALLOWED_VALUES:
             return self._describe_allowed_values()
+        if self.check == CHECK_PATTERN:
+            return self._describe_pattern()
         if self.check == CHECK_MIN_ROWS:
             rows = int(self.value)
             noun = "data row" if rows == 1 else "data rows"
@@ -228,6 +243,20 @@ class CheckResult:
             + (f": {examples}" if examples else "")
         )
 
+    def _describe_pattern(self) -> str:
+        shown = code_span(self.pattern)
+        if self.passed:
+            return f"column '{self.column}' matches the pattern {shown}"
+        count = int(self.value)
+        noun = "cell that does" if count == 1 else "cells that do"
+        examples = ", ".join(
+            f'"{value}" in {cells} cell' + ("s" if cells != 1 else "")
+            for value, cells in self.mismatched
+        )
+        return f"column '{self.column}' has {count} {noun} not match the pattern {shown}" + (
+            f": {examples}" if examples else ""
+        )
+
     def _describe_max_age(self) -> str:
         limit = format_duration(int(self.limit))
         if self.detail == _NO_VALUES:
@@ -279,6 +308,20 @@ _RANGE_TYPES = {
     "date": {"date", "datetime"},
     "datetime": {"date", "datetime"},
 }
+
+
+def code_span(text: str) -> str:
+    """``text`` as one Markdown code span, so the backslashes of ``\\d`` or ``\\.`` show as written.
+
+    The fence is one backtick longer than the longest run of backticks in
+    ``text`` (padded with spaces when ``text`` starts or ends with one), and
+    line breaks become spaces, so the span stays on one line.
+    """
+    text = text.replace("\r", " ").replace("\n", " ")
+    longest = max((len(run) for run in re.findall("`+", text)), default=0)
+    fence = "`" * (longest + 1)
+    pad = " " if text.startswith("`") or text.endswith("`") else ""
+    return f"{fence}{pad}{text}{pad}{fence}"
 
 
 def _exact(value: int | float | str | date | None) -> str:
@@ -764,6 +807,19 @@ def _allowed_values_check(domain: DomainProfile) -> CheckResult:
     )
 
 
+def _pattern_check(profile: PatternProfile) -> CheckResult:
+    """A check that fails when a non-missing cell does not match ``profile.pattern``."""
+    return CheckResult(
+        check=CHECK_PATTERN,
+        column=profile.column,
+        limit=0,
+        value=profile.mismatched,
+        passed=profile.mismatched == 0,
+        pattern=profile.pattern,
+        mismatched=profile.examples,
+    )
+
+
 def _unique_key_check(key: KeyProfile) -> CheckResult:
     """A check that fails when two checked rows share the values of ``key``'s columns."""
     return CheckResult(
@@ -801,6 +857,7 @@ def evaluate(
     utc_offset: timedelta | None = None,
     min_rows: int | None = None,
     allowed_values: Mapping[str, Iterable[str]] | None = None,
+    patterns: Mapping[str, str] | None = None,
 ) -> list[CheckResult]:
     """Evaluate the requested thresholds; a value equal to its limit passes.
 
@@ -880,6 +937,15 @@ def evaluate(
     ``unexpected`` names the most frequent of their values. Unknown names fail
     as ``required_column``.
 
+    ``patterns`` maps column names to regular expressions that every
+    non-missing value must match as a whole (``re.fullmatch``), such as a
+    postal code or a tax id format. As with ``allowed_values``, the report
+    must have been built with the same patterns (``Report.patterns``); one it
+    lacks raises ``ValueError``, and so does an empty or invalid pattern. The
+    check's ``value`` is the exact number of cells that do not match and
+    ``mismatched`` names the most frequent of their values. Unknown names
+    fail as ``required_column``.
+
     ``required_columns`` are matched exactly (case-sensitive) against the
     file's whole header (``Report.header``, after duplicate-name suffixes),
     also when only some columns were profiled; each one gives a check with
@@ -939,7 +1005,10 @@ def evaluate(
     gated = [*(column_max_missing or {}), *(column_types or {}), *(column_max_affixes or {})]
     max_ages = dict(column_max_ages or {})
     domains = {name: allowed_list(values) for name, values in (allowed_values or {}).items()}
-    gated += [*(column_ranges or {}), *unique, *max_ages, *domains]
+    formats = dict(patterns or {})
+    for pattern in formats.values():
+        compile_pattern(pattern)  # ValueError when empty or invalid
+    gated += [*(column_ranges or {}), *unique, *max_ages, *domains, *formats]
     unprofiled = [name for name in gated if name in present]
     unprofiled = [name for name in unprofiled if name not in by_name]
     if unprofiled:
@@ -1022,6 +1091,17 @@ def evaluate(
                 "profiled with the same list"
             )
         results.append(_allowed_values_check(domain))
+    measured_patterns = {profile.column: profile for profile in report.patterns}
+    for name, pattern in formats.items():
+        if name not in by_name:
+            continue  # reported below as a missing required column
+        profile = measured_patterns.get(name)
+        if profile is None or profile.pattern != pattern:
+            raise ValueError(
+                f"column {name!r} has a pattern check but the report was not "
+                "profiled with the same pattern"
+            )
+        results.append(_pattern_check(profile))
     keys = list(dict.fromkeys(key_columns(key) for key in unique_keys))
     measured = {key.columns: key for key in report.keys}
     for columns in keys:
@@ -1044,6 +1124,7 @@ def evaluate(
             *key_names,
             *max_ages,
             *domains,
+            *formats,
         ]
         if name not in present
     )
