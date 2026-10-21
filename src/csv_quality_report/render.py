@@ -12,11 +12,13 @@ from .checks import (
     CHECK_BASELINE_AGE,
     CHECK_MAX_AFFIXES,
     CHECK_MAX_AGE,
+    CHECK_PATTERN,
     CHECK_SCHEMA_CHANGE,
     CHECK_UNIQUE,
     CHECK_UNIQUE_KEY,
     CHECK_VALUE_RANGE,
     CheckResult,
+    code_span,
 )
 from .compare import Comparison
 from .profile import ColumnProfile, Report
@@ -29,6 +31,20 @@ def _num(value: int | float | str | None) -> str:
 
 def _md_escape(text: str) -> str:
     return text.replace("|", "\\|").replace("\n", " ").replace("\r", " ")
+
+
+def _md_check(check: CheckResult) -> str:
+    """``check.describe()`` for a Markdown list item.
+
+    A ``|`` is escaped as in table cells, except inside the code span of a
+    pattern check, where a backslash would show as written (``a|b`` must not
+    become ``a\\|b``).
+    """
+    text = _md_escape(check.describe())
+    if check.check == CHECK_PATTERN:
+        span = code_span(check.pattern)
+        text = text.replace(_md_escape(span), span, 1)
+    return text
 
 
 def _top(col: ColumnProfile) -> str:
@@ -70,7 +86,7 @@ def _checks_section(checks: Sequence[CheckResult]) -> list[str]:
         "",
     ]
     for c in checks:
-        lines.append(f"- {'FAIL' if not c.passed else 'pass'}: {_md_escape(c.describe())}")
+        lines.append(f"- {'FAIL' if not c.passed else 'pass'}: {_md_check(c)}")
     return lines
 
 
@@ -345,6 +361,11 @@ def render_json(
                 **(
                     {"allowed": list(c.allowed), "unexpected": dict(c.unexpected)}
                     if c.check == CHECK_ALLOWED_VALUES
+                    else {}
+                ),
+                **(
+                    {"pattern": c.pattern, "mismatched": dict(c.mismatched)}
+                    if c.check == CHECK_PATTERN
                     else {}
                 ),
             }

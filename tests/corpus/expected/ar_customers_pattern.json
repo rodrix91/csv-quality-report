@@ -1,0 +1,197 @@
+{
+  "source": "tests/corpus/ar_customers.csv",
+  "rows": 10,
+  "truncated": false,
+  "delimiter": ";",
+  "delimiter_detected": true,
+  "sep_line": false,
+  "na_tokens": [
+    "s/d"
+  ],
+  "top_n": 3,
+  "compressed": false,
+  "encoding": "utf-8",
+  "thousands": ".",
+  "date_order": null,
+  "bool_words": [],
+  "number_affixes": [],
+  "accounting_negatives": false,
+  "selected_columns": null,
+  "header_columns": 5,
+  "duplicate_rows": 0,
+  "untrimmed_columns": [],
+  "columns": [
+    {
+      "name": "Cliente",
+      "type": "string",
+      "type_hint": null,
+      "missing": 0,
+      "missing_pct": 0.0,
+      "distinct": 10,
+      "min": null,
+      "max": null,
+      "mean": null,
+      "min_length": 14,
+      "max_length": 22,
+      "top_values": [
+        {
+          "value": "Ferretería del Centro",
+          "count": 1
+        },
+        {
+          "value": "Distribuidora Norte",
+          "count": 1
+        },
+        {
+          "value": "Almacén La Esquina",
+          "count": 1
+        }
+      ],
+      "untrimmed": 0,
+      "affixes": {}
+    },
+    {
+      "name": "CUIT",
+      "type": "string",
+      "type_hint": null,
+      "missing": 1,
+      "missing_pct": 10.0,
+      "distinct": 9,
+      "min": null,
+      "max": null,
+      "mean": null,
+      "min_length": 11,
+      "max_length": 13,
+      "top_values": [
+        {
+          "value": "30-71000001-4",
+          "count": 1
+        },
+        {
+          "value": "30-71000002-2",
+          "count": 1
+        },
+        {
+          "value": "20-30000003-1",
+          "count": 1
+        }
+      ],
+      "untrimmed": 1,
+      "affixes": {}
+    },
+    {
+      "name": "Código postal",
+      "type": "string",
+      "type_hint": null,
+      "missing": 1,
+      "missing_pct": 10.0,
+      "distinct": 9,
+      "min": null,
+      "max": null,
+      "mean": null,
+      "min_length": 4,
+      "max_length": 8,
+      "top_values": [
+        {
+          "value": "C1425ABC",
+          "count": 1
+        },
+        {
+          "value": "T4000BAA",
+          "count": 1
+        },
+        {
+          "value": "5000",
+          "count": 1
+        }
+      ],
+      "untrimmed": 0,
+      "affixes": {}
+    },
+    {
+      "name": "Provincia",
+      "type": "string",
+      "type_hint": null,
+      "missing": 0,
+      "missing_pct": 0.0,
+      "distinct": 6,
+      "min": null,
+      "max": null,
+      "mean": null,
+      "min_length": 4,
+      "max_length": 12,
+      "top_values": [
+        {
+          "value": "CABA",
+          "count": 3
+        },
+        {
+          "value": "Córdoba",
+          "count": 3
+        },
+        {
+          "value": "Tucumán",
+          "count": 1
+        }
+      ],
+      "untrimmed": 0,
+      "affixes": {}
+    },
+    {
+      "name": "Límite crédito",
+      "type": "float",
+      "type_hint": null,
+      "missing": 0,
+      "missing_pct": 0.0,
+      "distinct": 10,
+      "min": 50000.0,
+      "max": 3500000.0,
+      "mean": 945000.0,
+      "min_length": 9,
+      "max_length": 12,
+      "top_values": [
+        {
+          "value": "1.500.000,00",
+          "count": 1
+        },
+        {
+          "value": "850.000,00",
+          "count": 1
+        },
+        {
+          "value": "120.000,00",
+          "count": 1
+        }
+      ],
+      "untrimmed": 0,
+      "affixes": {}
+    }
+  ],
+  "baseline": null,
+  "checks": [
+    {
+      "check": "pattern",
+      "column": "CUIT",
+      "limit": 0,
+      "value": 2,
+      "passed": false,
+      "pattern": "\\d{2}-\\d{8}-\\d",
+      "mismatched": {
+        "20300000049": 1,
+        "30 71000008 0": 1
+      }
+    },
+    {
+      "check": "pattern",
+      "column": "Código postal",
+      "limit": 0,
+      "value": 2,
+      "passed": false,
+      "pattern": "\\d{4}|[A-Z]\\d{4}[A-Z]{3}",
+      "mismatched": {
+        "C1428": 1,
+        "X5000": 1
+      }
+    }
+  ]
+}

@@ -249,5 +249,12 @@
     "args": ["--delimiter", "auto", "--decimal-comma", "--na", "s/d", "--date-order", "dmy", "--allowed-values", "Estado=Entregado,En tránsito,Pendiente"],
     "exit_code": 8,
     "about": "The courier's status column checked against the statuses the consumer handles: the returned parcel (Devuelto) is the one cell outside the list, so the run fails and names it."
+  },
+  {
+    "name": "ar_customers_pattern",
+    "file": "ar_customers.csv",
+    "args": ["--delimiter", "auto", "--decimal-comma", "--thousands", "dot", "--na", "s/d", "--pattern", "CUIT=\\d{2}-\\d{8}-\\d", "--pattern", "Código postal=\\d{4}|[A-Z]\\d{4}[A-Z]{3}"],
+    "exit_code": 8,
+    "about": "A customer master export checked for the format of its codes: two tax ids written without dashes or with spaces, and two postal codes cut to five characters, fail their patterns; the padded tax id and the s/d and empty cells are not counted."
   }
 ]

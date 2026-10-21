@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import hashlib
+import heapq
 import math
-from collections import Counter
-from collections.abc import Callable, Iterable, Mapping, Sequence
+import re
+from collections import Counter, deque
+from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
 from dataclasses import dataclass
 from itertools import compress, islice, repeat
 from operator import itemgetter
@@ -137,6 +139,34 @@ def allowed_list(values: Iterable[str]) -> tuple[str, ...]:
 
 
 @dataclass(frozen=True)
+class PatternProfile:
+    """Which values of a column do not match a regular expression (``--pattern``).
+
+    Values are matched as the report counts them: stripped of surrounding
+    whitespace, as text, with ``re.fullmatch`` (the whole value must match);
+    missing cells are not checked. ``mismatched`` is the exact number of
+    non-missing cells whose value does not match ``pattern``; ``examples``
+    are the most frequent of those values, up to ``top_n``, with their cells
+    (first seen on ties).
+    """
+
+    column: str
+    pattern: str
+    mismatched: int
+    examples: tuple[tuple[str, int], ...] = ()
+
+
+def compile_pattern(pattern: str) -> re.Pattern[str]:
+    """``pattern`` compiled; ``ValueError`` if it is empty or not a valid regular expression."""
+    if not pattern:
+        raise ValueError("a pattern must not be empty")
+    try:
+        return re.compile(pattern)
+    except re.error as exc:
+        raise ValueError(f"invalid regular expression {pattern!r}: {exc}") from None
+
+
+@dataclass(frozen=True)
 class Report:
     rows: int
     duplicate_rows: int
@@ -161,6 +191,7 @@ class Report:
     selected_columns: tuple[str, ...] | None = None  # --columns, in the order given
     keys: tuple[KeyProfile, ...] = ()  # --unique-key: one per key whose columns all exist
     domains: tuple[DomainProfile, ...] = ()  # --allowed-values: one per profiled column
+    patterns: tuple[PatternProfile, ...] = ()  # --pattern: one per profiled column
 
 
 def _untrimmed_names(header: list[str]) -> tuple[str, ...]:
@@ -550,6 +581,7 @@ class _Profiled:
     duplicate_rows: int
     keys: tuple[KeyProfile, ...] = ()
     domains: tuple[DomainProfile, ...] = ()
+    patterns: tuple[PatternProfile, ...] = ()
 
 
 def _columns(
@@ -607,6 +639,7 @@ def profile_rows(
     columns: Sequence[str] | None = None,
     unique_keys: Iterable[Iterable[str]] = (),
     allowed_values: Mapping[str, Iterable[str]] | None = None,
+    patterns: Mapping[str, str] | None = None,
 ) -> _Profiled:
     """Profile ``rows`` in a single pass; each row must have ``len(header)`` cells.
 
@@ -638,11 +671,18 @@ def profile_rows(
     once per distinct value, so it costs neither a pass nor memory. A name
     that is not profiled is skipped (``evaluate`` reports it); an empty list
     or value raises ``ValueError`` before any row is read.
+
+    ``patterns`` maps column names to regular expressions their non-missing
+    values must match as a whole (see ``PatternProfile``). Like
+    ``allowed_values``, each distinct value is matched once after the pass;
+    a name that is not profiled is skipped, and an empty or invalid pattern
+    raises ``ValueError`` before any row is read.
     """
     rules = _reading_rules(
         decimal_comma, thousands, date_order, bool_words, number_affixes, accounting_negatives
     )
     domains = {name: allowed_list(values) for name, values in (allowed_values or {}).items()}
+    formats = {name: compile_pattern(pattern) for name, pattern in (patterns or {}).items()}
     selected = _selection(header, columns)
     accumulators = [
         _ColumnAccumulator(name)
@@ -681,20 +721,53 @@ def profile_rows(
         domains=tuple(
             _domain(acc, domains[acc.name], top_n) for acc in accumulators if acc.name in domains
         ),
+        patterns=tuple(
+            _pattern(acc, formats[acc.name], top_n) for acc in accumulators if acc.name in formats
+        ),
     )
 
 
 def _domain(acc: _ColumnAccumulator, allowed: tuple[str, ...], top_n: int) -> DomainProfile:
     """The cells of ``acc`` (stripped, without missing ones) whose value is not ``allowed``."""
     permitted = set(allowed)
-    # Counter keeps first-seen order, and most_common is stable on ties.
-    outside = Counter({v: n for v, n in acc.counts.items() if v not in permitted})
-    return DomainProfile(
-        column=acc.name,
-        allowed=allowed,
-        unexpected=outside.total(),
-        examples=tuple(outside.most_common(top_n)),
+    unexpected, examples = _outside(acc.counts, permitted.__contains__, top_n)
+    return DomainProfile(column=acc.name, allowed=allowed, unexpected=unexpected, examples=examples)
+
+
+def _pattern(acc: _ColumnAccumulator, pattern: re.Pattern[str], top_n: int) -> PatternProfile:
+    """The cells of ``acc`` (stripped, without missing ones) whose value does not match."""
+    mismatched, examples = _outside(acc.counts, pattern.fullmatch, top_n)
+    return PatternProfile(
+        column=acc.name, pattern=pattern.pattern, mismatched=mismatched, examples=examples
     )
+
+
+def _outside(
+    counts: Counter[str], accepts: Callable[[str], object], top_n: int
+) -> tuple[int, tuple[tuple[str, int], ...]]:
+    """The cells of ``counts`` whose value ``accepts`` rejects (returns a falsy result for).
+
+    Returns their exact number and the ``top_n`` most frequent of their values
+    with their cells, first seen on ties (``Counter.most_common`` order). Each
+    distinct value is tested once, and the rejected values are streamed into
+    ``heapq.nlargest`` instead of being copied, so a column whose values are
+    all rejected needs no second copy of its counts.
+    """
+    cells = 0
+
+    def rejected() -> Iterator[tuple[str, int]]:
+        nonlocal cells
+        for value, count in counts.items():
+            if not accepts(value):
+                cells += count
+                yield value, count
+
+    values = rejected()
+    # nlargest is documented as sorted(..., reverse=True)[:n], stable on ties
+    # like most_common; with n == 0 it reads nothing, hence the drain after it.
+    examples = tuple(heapq.nlargest(top_n, values, key=itemgetter(1)))
+    deque(values, maxlen=0)
+    return cells, examples
 
 
 def _report(
@@ -732,6 +805,7 @@ def _report(
         selected_columns=None if columns is None else tuple(dict.fromkeys(columns)),
         keys=result.keys,
         domains=result.domains,
+        patterns=result.patterns,
     )
 
 
@@ -748,6 +822,7 @@ def build_report(
     columns: Sequence[str] | None = None,
     unique_keys: Iterable[Iterable[str]] = (),
     allowed_values: Mapping[str, Iterable[str]] | None = None,
+    patterns: Mapping[str, str] | None = None,
 ) -> Report:
     """Profile every column of an in-memory ``table``.
 
@@ -762,7 +837,9 @@ def build_report(
     and ``1.234,56-`` as negative numbers; ``columns`` profiles only those
     header names, in that order; ``unique_keys`` are composite keys whose
     uniqueness is measured (``Report.keys``); ``allowed_values`` maps column
-    names to the values they may hold (``Report.domains``).
+    names to the values they may hold (``Report.domains``); ``patterns``
+    maps column names to regular expressions their values must match
+    (``Report.patterns``).
     """
     result = profile_rows(
         table.header,
@@ -778,6 +855,7 @@ def build_report(
         columns,
         unique_keys,
         allowed_values,
+        patterns,
     )
     return _report(
         result,
@@ -810,6 +888,7 @@ def profile_file(
     columns: Sequence[str] | None = None,
     unique_keys: Iterable[Iterable[str]] = (),
     allowed_values: Mapping[str, Iterable[str]] | None = None,
+    patterns: Mapping[str, str] | None = None,
 ) -> Report:
     """Stream ``path`` and profile it without loading the whole file into memory.
 
@@ -839,6 +918,7 @@ def profile_file(
             columns,
             unique_keys,
             allowed_values,
+            patterns,
         )
         return _report(
             result,

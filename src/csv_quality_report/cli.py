@@ -36,7 +36,7 @@ from .inference import (
     parse_datetime,
 )
 from .output import write_atomic
-from .profile import TOP_N, allowed_list, profile_file
+from .profile import TOP_N, allowed_list, compile_pattern, profile_file
 from .reader import (
     DEFAULT_ENCODING,
     DELIMITER_AUTO,
@@ -120,6 +120,20 @@ def _column_allowed(text: str) -> tuple[str, tuple[str, ...]]:
         raise argparse.ArgumentTypeError(
             usage + "Moneda=PYG,USD; every value must be non-empty)"
         ) from None
+
+
+def _column_pattern(text: str) -> tuple[str, str]:
+    """Parse ``NAME=REGEX`` for --pattern (split at the first ``=``, so REGEX may hold ``=``)."""
+    name, sep, pattern = text.partition("=")
+    if not sep or not name or not pattern:
+        raise argparse.ArgumentTypeError(
+            f"invalid --pattern value: {text!r} (use NAME=REGEX, such as CP=[0-9]{{4}})"
+        )
+    try:
+        compile_pattern(pattern)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError(f"invalid --pattern value for {name!r}: {exc}") from None
+    return name, pattern
 
 
 def _column_age(text: str) -> tuple[str, int]:
@@ -544,6 +558,16 @@ def build_parser() -> argparse.ArgumentParser:
         "repeatable",
     )
     gates.add_argument(
+        "--pattern",
+        type=_column_pattern,
+        action="append",
+        default=[],
+        metavar="NAME=REGEX",
+        help="fail if a non-missing cell of column NAME does not match the regular "
+        "expression REGEX as a whole, such as CP=[0-9]{4} (stripped text, Python re "
+        "syntax; NAME ends at the first =); repeatable",
+    )
+    gates.add_argument(
         "--max-age",
         type=_column_age,
         action="append",
@@ -659,6 +683,7 @@ def _check_selected(args: argparse.Namespace) -> None:
         ("--unique", args.unique),
         ("--max-age", [name for name, _ in args.max_age]),
         ("--allowed-values", [name for name, _ in args.allowed_values]),
+        ("--pattern", [name for name, _ in args.pattern]),
         ("--allow-type-change", [r.column for r in args.allow_type_change if r.column]),
         ("--allow-added-column", args.allow_added_column),
         ("--allow-removed-column", args.allow_removed_column),
@@ -787,6 +812,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             columns=args.columns,
             unique_keys=args.unique_key,
             allowed_values=dict(args.allowed_values),  # the last list for a name wins
+            patterns=dict(args.pattern),  # the last pattern for a name wins
         )
     except CsvQualityError as exc:
         print(f"error: {exc.message}", file=sys.stderr)
@@ -797,6 +823,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         max_duplicates=args.max_duplicates,
         min_rows=args.min_rows,
         allowed_values=dict(args.allowed_values),
+        patterns=dict(args.pattern),
         required_columns=args.require_columns,
         column_max_missing=dict(args.max_missing_column),  # the last limit for a name wins
         column_types=dict(args.require_type),  # the last type for a name wins
