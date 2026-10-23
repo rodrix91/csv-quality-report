@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.22.0] - 2026-10-22
+
 ### Added
 
 - `--allowed-values NAME=VALUES` quality gate (repeatable): fails with exit code 8 when a non-missing cell of a column holds a value outside a comma-separated list, for status, currency or unit columns with a closed set of codes: `column 'Estado' has 1 cell outside the allowed values (Entregado, En tránsito, Pendiente): "Devuelto" in 1 cell`. Values compare stripped, case-sensitive and as text; missing cells are not checked. The count is exact and comes from the value counts the pass already keeps, at no extra cost. Per-column `allowed_values` check in JSON with `allowed` and `unexpected`; reports without the option are unchanged. `profile_file()`, `build_report()` and `evaluate()` gain `allowed_values`, and `Report` gains `domains` (`DomainProfile` in `csv_quality_report.profile`). The corpus gains a check of the courier export's statuses (#153).
@@ -248,7 +250,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 - Initial version: per-column type inference, missing values, distinct counts, min/max and top values, duplicate rows, Markdown and JSON output.
 
-[Unreleased]: https://github.com/rodrix91/csv-quality-report/compare/v0.21.0...HEAD
+[Unreleased]: https://github.com/rodrix91/csv-quality-report/compare/v0.22.0...HEAD
+[0.22.0]: https://github.com/rodrix91/csv-quality-report/compare/v0.21.0...v0.22.0
 [0.21.0]: https://github.com/rodrix91/csv-quality-report/compare/v0.20.0...v0.21.0
 [0.20.0]: https://github.com/rodrix91/csv-quality-report/compare/v0.19.0...v0.20.0
 [0.19.0]: https://github.com/rodrix91/csv-quality-report/compare/v0.18.0...v0.19.0
