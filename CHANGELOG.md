@@ -12,6 +12,7 @@ All notable changes to this project are documented here. The format follows [Kee
 ### Changed
 
 - The README's exit-code table and module table name `--allowed-values` and `--pattern` among the gates, and the module table also `--min-rows`.
+- The GitHub Action examples in the README pin the latest release tag, `@v0.21.0` (they still named `@v0.19.0`, which lacks the `baseline` inputs of 0.20.0 and `--min-rows` of 0.21.0 that the daily workflow example uses, so that example failed as written). A test now fails when the pin falls more than one release behind the CHANGELOG or the examples pin different tags.
 - ADR 0008 records the decision on its open question: `generated_at` stays opt-in (`--record-time`) and will not become the default, so reports stay byte-identical across runs by default.
 
 ## [0.21.0] - 2026-10-18

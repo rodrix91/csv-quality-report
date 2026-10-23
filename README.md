@@ -310,7 +310,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: Check shipments.csv
         id: quality
-        uses: rodrix91/csv-quality-report@v0.19.0  # pin a release tag or commit SHA for reproducible runs (@main follows unreleased changes)
+        uses: rodrix91/csv-quality-report@v0.21.0  # pin a release tag or commit SHA for reproducible runs (@main follows unreleased changes)
         with:
           path: data/shipments.csv
           args: --delimiter auto --na NA,s/d --max-missing 5 --max-duplicates 0 --require-columns shipment_id,date
@@ -362,7 +362,7 @@ jobs:
           key: export-baseline-${{ github.run_id }}
           restore-keys: export-baseline-
       - name: Check today's export
-        uses: rodrix91/csv-quality-report@v0.19.0  # pin a release tag or commit SHA
+        uses: rodrix91/csv-quality-report@v0.21.0  # pin a release tag or commit SHA
         with:
           path: data/export.csv
           args: --delimiter auto --decimal-comma --na s/d --min-rows 1 --record-time

@@ -90,3 +90,26 @@ def test_every_output_is_written() -> None:
     for name in _keys("outputs"):
         assert f"steps.run.outputs.{name} }}}}" in _block("outputs"), name
         assert f'echo "{name}=' in script, name
+
+
+def _released_versions() -> list[tuple[int, ...]]:
+    """Versions with a dated CHANGELOG section, newest first."""
+    changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
+    found = re.findall(r"^## \[(\d+)\.(\d+)\.(\d+)\] - \d{4}-\d{2}-\d{2}$", changelog, re.M)
+    return [tuple(map(int, version)) for version in found]
+
+
+def test_readme_pins_a_recent_release() -> None:
+    # The README examples use inputs and options of the newest releases (the
+    # daily workflow needs `baseline` from 0.20.0 and `--min-rows` from
+    # 0.21.0), so a pin left behind documents a workflow that fails. The pin
+    # follows a release once its tag exists: it may name the newest dated
+    # section or, while that version waits for its tag, the one before it.
+    pins = re.findall(r"rodrix91/csv-quality-report@v(\d+)\.(\d+)\.(\d+)\b", README)
+    assert pins, "no pinned Action example in the README"
+    assert len(set(pins)) == 1, f"the README examples pin different tags: {sorted(set(pins))}"
+    released = _released_versions()
+    assert len(released) >= 2 and released == sorted(released, reverse=True)
+    assert tuple(map(int, pins[0])) in released[:2], (
+        f"the README pins v{'.'.join(pins[0])}; pin the latest release tag"
+    )
