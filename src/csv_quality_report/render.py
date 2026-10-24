@@ -224,8 +224,10 @@ def render_markdown(
     checks: Sequence[CheckResult] = (),
     comparison: Comparison | None = None,
 ) -> str:
+    # The CLI uses <stdin> as a fixed sentinel, not a user-controlled path.
+    display_source = source if source == "<stdin>" else _md_literal(source)
     lines = [
-        f"# CSV quality report: {_md_literal(source)}",
+        f"# CSV quality report: {display_source}",
         "",
         f"- Rows analyzed: {report.rows}"
         + (" (stopped early by --max-rows)" if report.truncated else ""),
