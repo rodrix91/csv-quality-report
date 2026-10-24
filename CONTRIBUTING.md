@@ -66,7 +66,7 @@ This is a simple pattern check, not a substitute for a dedicated scanner.
 Dependabot opens weekly PRs for the pinned dev tools. These rules were first recorded in `HANDOFF.md` (kept as a historical record) and are maintained here. It edits `requirements-dev.txt` but may not regenerate the hashed lock, so do not merge a Dependabot PR as is:
 
 1. In a clean clone of the PR branch, regenerate `requirements-dev.lock` with the `uv pip compile` command above and push it to the PR.
-2. CI must pass on Python 3.11, 3.12 and 3.13 with `pip install --require-hashes -r requirements-dev.lock` (tests with 100% coverage, Ruff, strict mypy), and the test suite must also pass on Windows and macOS with Python 3.11 and 3.13 (job `platforms`).
+2. CI must pass the 100% coverage, Ruff, formatting and strict mypy quality gate on Python 3.12; the full test suite must also pass on Linux Python 3.11 and 3.13 and on Windows/macOS Python 3.11 and 3.13.
 3. If the PR changes the `setuptools` pin in `pyproject.toml`, rebuild from a clean clone and check that the wheel and the sdist still contain `LICENSE`.
 
 ## Releases
