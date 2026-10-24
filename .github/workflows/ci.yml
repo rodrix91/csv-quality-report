@@ -15,12 +15,11 @@ concurrency:
 
 jobs:
   quality:
+    # Coverage and static analysis are version-independent checks. Run them
+    # once on the middle supported interpreter instead of instrumenting the
+    # full ~1,250-test suite three times.
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    strategy:
-      fail-fast: false
-      matrix:
-        python-version: ["3.11", "3.12", "3.13"]
 
     steps:
       - name: Check out repository
@@ -31,7 +30,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7
         with:
-          python-version: ${{ matrix.python-version }}
+          python-version: "3.12"
           cache: pip
 
       - name: Install development dependencies
@@ -51,6 +50,34 @@ jobs:
 
       - name: Type check
         run: mypy
+
+  linux:
+    # Keep explicit compatibility checks on the other supported Python
+    # versions without repeating coverage instrumentation and static analysis.
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.13"]
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: Install development dependencies
+        run: python -m pip install --require-hashes -r requirements-dev.lock
+
+      - name: Run tests
+        run: python -m pytest -p no:cacheprovider -ra
 
   platforms:
     # Runs the whole test suite on Windows and macOS (issue #116). Atomic
