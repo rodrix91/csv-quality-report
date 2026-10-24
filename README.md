@@ -1,5 +1,8 @@
 # csv-quality-report
 
+[![CI](https://github.com/rodrix91/csv-quality-report/actions/workflows/ci.yml/badge.svg)](https://github.com/rodrix91/csv-quality-report/actions/workflows/ci.yml)
+
+
 > **Status: prototype/alpha.** Maintained by [rodrix91](https://github.com/rodrix91). Interfaces and output formats may change without notice.
 
 A small command-line tool that gives a quick data-quality check of a CSV file before you use it.
@@ -18,7 +21,7 @@ Per column it reports:
 
 At dataset level it reports the row count and the number of duplicate rows.
 
-Out of scope: data cleaning, schema validation, automatic encoding detection (other encodings are read when named with `--encoding`), network sources.
+Out of scope: automatic data cleaning, centralized schema-registry management, automatic encoding detection (other encodings are read when named with `--encoding`), and network sources. The CLI does support local schema-oriented gates such as required columns and types, allowed type changes, and baseline schema-change checks.
 
 ## Requirements
 
