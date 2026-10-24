@@ -68,6 +68,12 @@ jobs:
           cd "$RUNNER_TEMP"/sdist/*/
           "$RUNNER_TEMP/venv/bin/python" -m pytest -p no:cacheprovider
 
+      - name: Write SHA-256 checksums
+        run: |
+          cd "$RUNNER_TEMP/dist"
+          sha256sum *.whl *.tar.gz > SHA256SUMS
+          sha256sum -c SHA256SUMS
+
       - name: Attach the files to the GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
