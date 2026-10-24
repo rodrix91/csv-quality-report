@@ -183,6 +183,7 @@ class Report:
     date_order: str | None = None  # order of non-ISO dates given ("dmy", "mdy" or "ymd")
     bool_words: BoolWords = ()  # extra (true, false) word pairs, as given
     sep_line: bool = False  # the input started with an Excel "sep=" line, which was skipped
+    skipped_lines: int = 0  # --skip-lines: lines skipped before the header
     number_affixes: tuple[str, ...] = ()  # --number-affix texts, as validated
     accounting_negatives: bool = False  # (1.234,56) and 1.234,56- were read as negative
     # All column names of the file, after duplicate-name suffixes; ``columns``
@@ -796,6 +797,7 @@ def _report(
         untrimmed_columns=_untrimmed_names(source.header),
         encoding=source.encoding,
         sep_line=source.sep_line,
+        skipped_lines=source.skipped_lines,
         thousands=thousands,
         date_order=date_order,
         bool_words=bool_words,
@@ -889,13 +891,15 @@ def profile_file(
     unique_keys: Iterable[Iterable[str]] = (),
     allowed_values: Mapping[str, Iterable[str]] | None = None,
     patterns: Mapping[str, str] | None = None,
+    skip_lines: int = 0,
 ) -> Report:
     """Stream ``path`` and profile it without loading the whole file into memory.
 
     ``path`` is a ``str`` or any path-like object; ``"-"`` reads standard input.
 
     Same rules and errors as ``reader.open_rows``; same result as
-    ``build_report(read_table(...))``.
+    ``build_report(read_table(...))``. ``skip_lines`` lines before the header
+    are skipped (``Report.skipped_lines``).
     """
     with open_rows(
         path,
@@ -903,6 +907,7 @@ def profile_file(
         delimiter=delimiter,
         encoding=encoding,
         max_field_size=max_field_size,
+        skip_lines=skip_lines,
     ) as stream:
         result = profile_rows(
             stream.header,

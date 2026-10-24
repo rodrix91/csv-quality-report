@@ -1,0 +1,1 @@
+error: cannot detect the delimiter: no separator gives the same number of fields on every line; pass it explicitly with --delimiter; if the file starts with 3 title lines before the header, skip them with --skip-lines 3

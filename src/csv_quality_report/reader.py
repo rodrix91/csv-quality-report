@@ -39,6 +39,7 @@ _STREAM_ERRORS = (OSError, EOFError, zlib.error)
 DELIMITER_CANDIDATES = (",", ";", "\t", "|")
 SNIFF_CHARS = 64 * 1024  # how much text detection looks at
 SNIFF_RECORDS = 100  # how many lines detection checks
+MAX_TITLE_LINES = 20  # how many leading title lines a failed detection looks past
 DELIMITER_NAMES = {",": "comma", ";": "semicolon", "\t": "tab", "|": "pipe"}
 # Excel's hint line, e.g. "sep=;": one separator character, optionally quoted.
 _SEP_LINE_RE = re.compile(r'"?sep=([^"\r\n])"?(?:\r\n|\r|\n)?', re.IGNORECASE)
@@ -56,6 +57,7 @@ class Table:
     compressed: bool = False  # True when the input was gzip-compressed
     encoding: str = DEFAULT_ENCODING  # normalized codec name used to decode the input
     sep_line: bool = False  # True when a first line such as "sep=;" was skipped
+    skipped_lines: int = 0  # lines skipped before the header (``skip_lines``)
 
 
 def declared_delimiter(line: str) -> str | None:
@@ -168,6 +170,32 @@ def detect_delimiter(text: str) -> str:
     )
 
 
+def title_lines(sample: str) -> int | None:
+    """How many leading lines of ``sample`` to drop for ``detect_delimiter`` to succeed.
+
+    Only called after detection failed on the whole sample. Tries dropping 1
+    to ``MAX_TITLE_LINES`` lines, always leaving at least one, and returns the
+    first count after which one separator gives the same number of fields
+    (more than one) on every line while the dropped lines have no field
+    separator, as titles do, or ``None``. It suggests ``--skip-lines``
+    for exports that start with title lines (#161).
+    """
+    lines = io.StringIO(sample, newline="").readlines()  # split like the reader does
+    for count in range(1, min(MAX_TITLE_LINES, len(lines) - 1) + 1):
+        dropped, rest = "".join(lines[:count]), "".join(lines[count:])
+        try:
+            delimiter = detect_delimiter(rest)
+        except DelimiterDetectionError:
+            continue
+        widths = _record_widths(rest, delimiter)
+        # A one-column rest ("," is then returned) does not count, and the
+        # dropped lines must look like titles: no separator, so one field each.
+        titles = _record_widths(dropped, delimiter)
+        if widths and max(widths) > 1 and titles is not None and titles <= {1}:
+            return count
+    return None
+
+
 class RowStream:
     """Validated data rows of an open CSV file, produced one at a time.
 
@@ -189,12 +217,14 @@ class RowStream:
         compressed: bool = False,
         encoding: str = DEFAULT_ENCODING,
         sep_line: bool = False,
+        skipped_lines: int = 0,
     ) -> None:
         self.path = path
         self.name = name  # the path as given, for messages
         self.compressed = compressed
         self.encoding = encoding
         self.sep_line = sep_line
+        self.skipped_lines = skipped_lines
         self.header = dedupe_header(raw_header)
         self.delimiter = delimiter
         self.delimiter_detected = delimiter_detected
@@ -215,10 +245,19 @@ class RowStream:
                 self.truncated = True
                 return
             if len(record) != self._width:
-                raise RaggedRowError(
+                message = (
                     f"row at line {self._reader.line_num} has {len(record)} fields, "
                     f"expected {self._width} (from the header)"
                 )
+                if self._width == 1 and len(record) > 1 and not self.skipped_lines:
+                    # The usual symptom of a title line read as the header (#161):
+                    # this row is then the real header, after the title lines.
+                    titles = self._reader.line_num - 1 - int(self.sep_line)
+                    message += (
+                        "; if this row is the header and the lines before it are titles, "
+                        f"skip them with --skip-lines {titles}"
+                    )
+                raise RaggedRowError(message)
             count += 1
             yield record
 
@@ -378,6 +417,7 @@ def open_rows(
     delimiter: str = ",",
     encoding: str = DEFAULT_ENCODING,
     max_field_size: int | None = None,
+    skip_lines: int = 0,
 ) -> Iterator[RowStream]:
     """Open ``path`` and yield a ``RowStream`` that reads it lazily.
 
@@ -402,16 +442,25 @@ def open_rows(
     or ``DelimiterDetectionError`` is raised instead of reading the file with
     the wrong one. Line numbers in errors still count the skipped line.
 
+    ``skip_lines`` lines are skipped before the header, for exports that start
+    with title lines (#161). They are text lines, not CSV records, and come
+    after a ``sep=`` line, which is not counted in them; delimiter detection
+    samples the lines after them, and line numbers in errors still count
+    them. A file that has no line left for the header raises
+    ``EmptyFileError``. A negative ``skip_lines`` raises ``ValueError``.
+
     ``max_field_size`` raises Python's ``csv`` field size limit (131,072
     characters by default) while the file is read. The limit is process-wide
     in the ``csv`` module, so the previous value is restored when the stream
     closes, also after an error.
     """
+    if skip_lines < 0:
+        raise ValueError(f"skip_lines must be >= 0, got {skip_lines}")
     name = display_name(path)  # as given: Path() would change the separators on Windows
     path = Path(path)  # the rest of the reader works on Path objects
     previous_limit = None if max_field_size is None else csv.field_size_limit(max_field_size)
     try:
-        with _open_rows(path, name, max_rows, delimiter, encoding) as stream:
+        with _open_rows(path, name, max_rows, delimiter, encoding, skip_lines) as stream:
             yield stream
     finally:
         if previous_limit is not None:
@@ -420,7 +469,12 @@ def open_rows(
 
 @contextmanager
 def _open_rows(
-    path: Path, name: str, max_rows: int | None, delimiter: str, encoding: str
+    path: Path,
+    name: str,
+    max_rows: int | None,
+    delimiter: str,
+    encoding: str,
+    skip_lines: int = 0,
 ) -> Iterator[RowStream]:
     """``open_rows`` without the field size handling; ``name`` is used in messages."""
     with _text_stream(path, name, encoding) as (handle, compressed):
@@ -437,6 +491,8 @@ def _open_rows(
                         f"in its first line (sep={declared}), but the delimiter in use is "
                         f"{_describe(delimiter)}; pass --delimiter auto to follow the file"
                     )
+            if skip_lines:
+                first = _skip(handle, name, first, skip_lines)
             detected = delimiter == DELIMITER_AUTO
             sample = first
             if detected and len(first) <= SNIFF_CHARS:
@@ -448,17 +504,32 @@ def _open_rows(
         except _STREAM_ERRORS as exc:
             raise _read_error(name, exc) from exc
         if detected:
-            delimiter = detect_delimiter(sample)
+            try:
+                delimiter = detect_delimiter(sample)
+            except DelimiterDetectionError as exc:
+                titles = None if skip_lines else title_lines(sample)
+                if titles is None:
+                    raise
+                raise DelimiterDetectionError(
+                    f"{exc.message}; if the file starts with {titles} title "
+                    f"{'line' if titles == 1 else 'lines'} before the header, "
+                    f"skip {'it' if titles == 1 else 'them'} with --skip-lines {titles}"
+                ) from exc
         # Parse what was read ahead again, then continue with the rest of the stream.
         lines = chain(io.StringIO(sample, newline=""), handle)
 
         reader = csv.reader(lines, delimiter=delimiter)
         records = iter(reader)
-        counter = _LineCounter(reader, 0 if declared is None else 1)
+        counter = _LineCounter(reader, (0 if declared is None else 1) + skip_lines)
         header = next(
             (r for r in _guarded(path, records, counter, compressed, encoding, name) if r), None
         )
         if header is None:
+            if skip_lines:
+                raise EmptyFileError(
+                    f"'{name}' has no header row after the {skip_lines} lines "
+                    "skipped by --skip-lines"
+                )
             raise EmptyFileError(f"'{name}' is empty (no header row)")
         yield RowStream(
             path,
@@ -472,7 +543,26 @@ def _open_rows(
             compressed,
             encoding,
             sep_line=declared is not None,
+            skipped_lines=skip_lines,
         )
+
+
+def _skip(handle: io.TextIOWrapper, name: str, first: str, count: int) -> str:
+    """Skip ``count`` lines of ``handle``, ``first`` (already read, or ``""``) being the first.
+
+    Returns the line after them, the first one the CSV reader sees. Raises
+    ``EmptyFileError`` when the file ends before that line.
+    """
+    line = first or handle.readline()
+    for _ in range(count):
+        if not line:
+            break
+        line = handle.readline()
+    if not line:
+        raise EmptyFileError(
+            f"'{name}' has no header row: it ends within the {count} lines skipped by --skip-lines"
+        )
+    return line
 
 
 def read_table(
@@ -481,6 +571,7 @@ def read_table(
     delimiter: str = ",",
     encoding: str = DEFAULT_ENCODING,
     max_field_size: int | None = None,
+    skip_lines: int = 0,
 ) -> Table:
     """Read the whole of ``path`` into a ``Table`` (see ``open_rows`` for the rules).
 
@@ -493,6 +584,7 @@ def read_table(
         delimiter=delimiter,
         encoding=encoding,
         max_field_size=max_field_size,
+        skip_lines=skip_lines,
     ) as stream:
         rows = list(stream)
         return Table(
@@ -504,4 +596,5 @@ def read_table(
             compressed=stream.compressed,
             encoding=stream.encoding,
             sep_line=stream.sep_line,
+            skipped_lines=stream.skipped_lines,
         )
