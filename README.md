@@ -42,6 +42,22 @@ pip install -e .
 
 You can also run the tool without installing it: `PYTHONPATH=src python3 -m csv_quality_report FILE`. Installing the package (`pip install -e .`) is only needed for the `csv-quality-report` command or for using it from other environments; the test suite does **not** require it.
 
+## Verify release artifacts
+
+Releases produced by the current release workflow include a `SHA256SUMS` file and GitHub artifact provenance attestations for the wheel and source distribution. After downloading the release files into one directory, verify the checksums:
+
+```bash
+sha256sum -c SHA256SUMS
+```
+
+Then verify provenance for each artifact with GitHub CLI:
+
+```bash
+gh attestation verify PATH/TO/ARTIFACT -R rodrix91/csv-quality-report
+```
+
+Historical releases created from older commits may predate checksums or provenance attestations; verify only the guarantees actually published with that release.
+
 ## Usage
 
 ```text
