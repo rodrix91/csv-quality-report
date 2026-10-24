@@ -26,8 +26,8 @@ inputs:
     default: "true"
   report-path:
     description: >-
-      Where to write the JSON report, relative to the workspace (parent
-      directories are created), for example to keep it as the next run's
+      Where to write the JSON report, relative to and contained within the
+      workspace (parent directories are created), for example to keep it as the next run's
       baseline. Empty writes it to a temporary directory.
     required: false
     default: ""
