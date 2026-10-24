@@ -8,3 +8,4 @@ include scripts/update_guide.py
 include scripts/release_notes.py
 graft docs
 include action.yml
+include src/csv_quality_report/py.typed
