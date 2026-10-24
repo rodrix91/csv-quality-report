@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+- The reusable GitHub Action now rejects informational help/version switches in `args` and `baseline-args` (including accepted abbreviations) before invoking the CLI: these options exit 0 without profiling a CSV and could falsely mark a workflow as passed if a report already existed. Added regression and end-to-end checks; CLI help/version behavior remains unchanged.
+
 - The reusable GitHub Action now confines CSV input and optional baseline reads to `GITHUB_WORKSPACE`, rejecting absolute paths, path traversal, symlink escapes, stdin and line breaks with exit code 2. A missing relative baseline remains compatible with `if-baseline-missing: skip`; extra CLI arguments can no longer override the validated `baseline` or `report-path` Action inputs; the standalone CLI is unchanged. Added regressions and Action end-to-end checks.
 
 - The GitHub Action now refuses explicit `report-path` values that are absolute or resolve outside `GITHUB_WORKSPACE`, while preserving the exact relative path in the `report-json` output on success.
