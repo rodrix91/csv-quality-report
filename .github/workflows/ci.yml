@@ -105,6 +105,13 @@ jobs:
           tar xzf "$RUNNER_TEMP"/dist/*.tar.gz -C "$RUNNER_TEMP/sdist"
           cd "$RUNNER_TEMP"/sdist/*/
           python -m pip install --no-deps .
+          python - <<'PY'
+          from pathlib import Path
+          import csv_quality_report
+
+          marker = Path(csv_quality_report.__file__).with_name("py.typed")
+          assert marker.is_file(), marker
+          PY
           python -m pytest -p no:cacheprovider
 
   action:
