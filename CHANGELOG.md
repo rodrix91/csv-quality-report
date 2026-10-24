@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+- The reusable GitHub Action now confines CSV input and optional baseline reads to `GITHUB_WORKSPACE`, rejecting absolute paths, path traversal, symlink escapes, stdin and line breaks with exit code 2. A missing relative baseline remains compatible with `if-baseline-missing: skip`; extra CLI arguments can no longer override the validated `baseline` or `report-path` Action inputs; the standalone CLI is unchanged. Added regressions and Action end-to-end checks.
+
 - The GitHub Action now refuses explicit `report-path` values that are absolute or resolve outside `GITHUB_WORKSPACE`, while preserving the exact relative path in the `report-json` output on success.
 
 - CI now measures 100% coverage, Ruff, formatting, and strict mypy once on Python 3.12 while retaining full Linux compatibility tests on Python 3.11/3.13 and the existing Windows/macOS matrix, reducing redundant runner work without lowering quality gates.
