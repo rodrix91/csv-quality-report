@@ -12,3 +12,4 @@ include src/csv_quality_report/py.typed
 include CONTRIBUTING.md
 include SECURITY.md
 include CITATION.cff
+include scripts/validate_action_report_path.py

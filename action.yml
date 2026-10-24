@@ -26,8 +26,8 @@ inputs:
     default: "true"
   report-path:
     description: >-
-      Where to write the JSON report, relative to the workspace (parent
-      directories are created), for example to keep it as the next run's
+      Where to write the JSON report, relative to and contained within the
+      workspace (parent directories are created), for example to keep it as the next run's
       baseline. Empty writes it to a temporary directory.
     required: false
     default: ""
@@ -86,6 +86,7 @@ runs:
       # Inputs reach the script only through environment variables, never
       # interpolated into it, so they cannot inject shell commands.
       env:
+        ACTION_PATH: ${{ github.action_path }}
         INPUT_PATH: ${{ inputs.path }}
         INPUT_ARGS: ${{ inputs.args }}
         INPUT_SUMMARY: ${{ inputs.summary }}
@@ -160,7 +161,15 @@ runs:
         if [ -n "$INPUT_REPORT_PATH" ]; then
           # The user's file is never removed here: it may be a report a later
           # step needs, and the tool refuses to write over the input or the
-          # baseline.
+          # baseline. The path must stay inside the workflow workspace.
+          set +e
+          path_error=$(python "$ACTION_PATH/scripts/validate_action_report_path.py" "$INPUT_REPORT_PATH" "$GITHUB_WORKSPACE" 2>&1)
+          path_code=$?
+          set -e
+          if [ "$path_code" -ne 0 ]; then
+            annotate error "$path_error"
+            finish 2 "" false
+          fi
           json="$INPUT_REPORT_PATH"
           mkdir -p -- "$(dirname -- "$json")"
         else

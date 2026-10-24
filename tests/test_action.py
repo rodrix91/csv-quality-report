@@ -8,6 +8,8 @@ exactly two spaces. The action itself runs end to end in the CI job ``action``.
 from __future__ import annotations
 
 import re
+import subprocess
+import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -90,6 +92,38 @@ def test_every_output_is_written() -> None:
     for name in _keys("outputs"):
         assert f"steps.run.outputs.{name} }}}}" in _block("outputs"), name
         assert f'echo "{name}=' in script, name
+
+
+def _validate_report_path(path: str, workspace: Path) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        [
+            sys.executable,
+            str(ROOT / "scripts" / "validate_action_report_path.py"),
+            path,
+            str(workspace),
+        ],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+
+def test_action_report_path_validator_accepts_workspace_relative_path(tmp_path: Path) -> None:
+    completed = _validate_report_path("reports/report.json", tmp_path)
+    assert completed.returncode == 0, completed.stderr
+
+
+def test_action_report_path_validator_rejects_absolute_path(tmp_path: Path) -> None:
+    completed = _validate_report_path(str(tmp_path / "report.json"), tmp_path)
+    assert completed.returncode == 2
+    assert "must be relative" in completed.stderr
+
+
+def test_action_report_path_validator_rejects_parent_escape(tmp_path: Path) -> None:
+    completed = _validate_report_path("../report.json", tmp_path)
+    assert completed.returncode == 2
+    assert "must stay within" in completed.stderr
 
 
 def _released_versions() -> list[tuple[int, ...]]:

@@ -348,7 +348,7 @@ jobs:
 | `args` | `""` | extra command-line options, split on whitespace (no glob expansion) |
 | `python-version` | `3.12` | Python used to run the tool (3.11 or newer) |
 | `summary` | `true` | write the Markdown report to the job summary |
-| `report-path` | `""` | where to write the JSON report, relative to the workspace (parent directories are created); empty writes it to a temporary directory |
+| `report-path` | `""` | where to write the JSON report, relative to and contained within the workspace (parent directories are created); empty writes it to a temporary directory |
 | `baseline` | `""` | earlier JSON report to compare with (`--baseline`), relative to the workspace; passed as one argument, so spaces are fine |
 | `baseline-args` | `""` | options that need the baseline (`--fail-on-schema-change`, `--max-row-drop`, `--max-baseline-age` ...), split like `args`; added only when the baseline is used, and an error without `baseline` |
 | `if-baseline-missing` | `fail` | when the `baseline` file does not exist: `fail` (the tool stops with exit code 3) or `skip` (run without `--baseline` and `baseline-args`, with a warning annotation); any other value is an error (exit code 2) |
@@ -360,7 +360,7 @@ jobs:
 | `report-json` | path of the JSON report; empty when the file could not be read |
 | `baseline-used` | `true` when the run was compared with the baseline |
 
-`report-json` is `report-path` as given (relative to the workspace) when that input is set. The action never removes an existing `report-path` file: when the run stops before writing the report (exit codes other than 0 and 8), the file keeps its content and `report-json` is empty; like `--json-output`, the report cannot be written over the input file or the baseline (exit code 2). A `report-path` with a line break is an error.
+`report-json` is `report-path` as given when that input is set. An explicit `report-path` must be relative and resolve inside `GITHUB_WORKSPACE`; absolute paths and `..` escapes are refused. The action never removes an existing `report-path` file: when the run stops before writing the report (exit codes other than 0 and 8), the file keeps its content and `report-json` is empty; like `--json-output`, the report cannot be written over the input file or the baseline (exit code 2). A `report-path` with a line break is an error.
 
 Example: a scheduled workflow that compares each day's export with the report the previous successful run kept, fails when the export arrived with only its header (`--min-rows 1`), when the schema changed, rows dropped by more than half or the kept report is more than 36 hours old (a run that stopped refreshing it), and saves today's report as the next baseline only when every check passed. The first run has no baseline yet; `if-baseline-missing: skip` lets it pass with a warning and keep its report:
 

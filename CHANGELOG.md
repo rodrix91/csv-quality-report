@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+- The GitHub Action now refuses explicit `report-path` values that are absolute or resolve outside `GITHUB_WORKSPACE`, while preserving the exact relative path in the `report-json` output on success.
+
 - CI now measures 100% coverage, Ruff, formatting, and strict mypy once on Python 3.12 while retaining full Linux compatibility tests on Python 3.11/3.13 and the existing Windows/macOS matrix, reducing redundant runner work without lowering quality gates.
 
 - The source distribution now retains `CONTRIBUTING.md`, `SECURITY.md`, and `CITATION.cff`; CI verifies those files plus the installed `py.typed` marker, and package metadata links directly to citation guidance.

@@ -183,6 +183,24 @@ jobs:
           args: --max-duplicates 0
           summary: "false"
 
+      - name: Absolute report path is refused
+        id: absolute
+        continue-on-error: true
+        uses: ./
+        with:
+          path: examples/tiny.csv
+          report-path: ${{ runner.temp }}/csv-quality-report-absolute.json
+          summary: "false"
+
+      - name: Escaping report path is refused
+        id: escape
+        continue-on-error: true
+        uses: ./
+        with:
+          path: examples/tiny.csv
+          report-path: ../csv-quality-report-escape.json
+          summary: "false"
+
       - name: Check the action's outputs
         env:
           OK_CODE: ${{ steps.ok.outputs.exit-code }}
@@ -192,6 +210,14 @@ jobs:
           GATE_PASSED: ${{ steps.gate.outputs.passed }}
           GATE_JSON: ${{ steps.gate.outputs.report-json }}
           GATE_OUTCOME: ${{ steps.gate.outcome }}
+          ABSOLUTE_CODE: ${{ steps.absolute.outputs.exit-code }}
+          ABSOLUTE_PASSED: ${{ steps.absolute.outputs.passed }}
+          ABSOLUTE_JSON: ${{ steps.absolute.outputs.report-json }}
+          ABSOLUTE_OUTCOME: ${{ steps.absolute.outcome }}
+          ESCAPE_CODE: ${{ steps.escape.outputs.exit-code }}
+          ESCAPE_PASSED: ${{ steps.escape.outputs.passed }}
+          ESCAPE_JSON: ${{ steps.escape.outputs.report-json }}
+          ESCAPE_OUTCOME: ${{ steps.escape.outcome }}
         run: |
           set -x
           test "$OK_CODE" = 0
@@ -199,6 +225,16 @@ jobs:
           test "$GATE_CODE" = 8
           test "$GATE_PASSED" = false
           test "$GATE_OUTCOME" = failure
+          test "$ABSOLUTE_CODE" = 2
+          test "$ABSOLUTE_PASSED" = false
+          test -z "$ABSOLUTE_JSON"
+          test "$ABSOLUTE_OUTCOME" = failure
+          test ! -e "$RUNNER_TEMP/csv-quality-report-absolute.json"
+          test "$ESCAPE_CODE" = 2
+          test "$ESCAPE_PASSED" = false
+          test -z "$ESCAPE_JSON"
+          test "$ESCAPE_OUTCOME" = failure
+          test ! -e "$GITHUB_WORKSPACE/../csv-quality-report-escape.json"
           python - <<'PY'
           import json, os
           ok = json.load(open(os.environ["OK_JSON"], encoding="utf-8"))
