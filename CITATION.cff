@@ -1,0 +1,13 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it using the metadata below."
+title: "csv-quality-report"
+type: software
+authors:
+  - given-names: Rodrigo
+    family-names: Pantoja Navajas
+version: 0.22.0
+repository-code: "https://github.com/rodrix91/csv-quality-report"
+license: MIT
+abstract: >-
+  A standard-library Python command-line tool and GitHub Action for profiling
+  CSV data quality, enforcing validation gates, and comparing reports over time.
