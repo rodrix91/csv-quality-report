@@ -11,6 +11,7 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Changed
 
+- CI cancels superseded runs for the same pull request or branch, avoiding redundant validation after a newer commit is pushed.
 - The corpus test that checks error messages name the file relatively now applies to the messages that name a file (delimiter detection and ragged-row errors only give a line), checks that no message holds an absolute path, and still requires at least one error case that names its file.
 
 ## [0.22.0] - 2026-10-22
