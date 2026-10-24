@@ -10,6 +10,7 @@ csv-quality-report never guesses these conventions: each one is turned on with a
 |---|---|
 | `;`, tab or `\|` between fields | `--delimiter auto` (or the character) |
 | A first line `sep=;` (Excel) | `--delimiter auto` follows it |
+| Title lines before the header (report name, period, issue date), exit code 6 or 7 | `--skip-lines N` (the error message suggests `N`) |
 | Accents broken, `UnicodeDecodeError`, exit code 4 | `--encoding cp1252` (Excel on Windows) or `latin-1` |
 | `10,5` | `--decimal-comma` |
 | `1.234,56` or `1 234,56` | `--decimal-comma --thousands dot` (or `space`) |
@@ -96,6 +97,43 @@ $ python -m csv_quality_report tests/corpus/excel_sep_hint.csv --encoding cp1252
 | Costo unitario | float | 0 | 0.0 | 5 | 7.25 | 1020.0 | 201.692 | 12,50 (2), 7,25 (1), 145,00 (1) |
 | Última revisión | date | 0 | 0.0 | 3 | 2026-03-02 | 2026-03-09 |  | 02/03/2026 (2), 05/03/2026 (2), 09/03/2026 (2) |
 ```
+
+## Title lines before the header
+
+ERP reports saved as CSV often start with a few lines for people: the report name, the period and when it was issued, then a blank line and only then the header. Without help, the first title becomes a one-column header. With `--delimiter auto` detection fails (exit code 7), and with `--delimiter ";"` the real header fails as a ragged row (exit code 6); both messages say how many lines to skip:
+
+`error: cannot detect the delimiter: no separator gives the same number of fields on every line; pass it explicitly with --delimiter; if the file starts with 3 title lines before the header, skip them with --skip-lines 3`
+
+`--skip-lines N` skips the first `N` lines as text, before anything is parsed, so the titles may hold any character. The count includes the blank line, although blank lines are skipped anyway (here `3` and `4` give the same columns and values). Error line numbers still count from the first line of the file, so they match what an editor shows.
+
+```console
+$ python -m csv_quality_report tests/corpus/erp_sales_titles.csv --encoding cp1252 --delimiter auto --skip-lines 4 --decimal-comma --thousands dot --date-order dmy --na s/d
+```
+
+```markdown
+# CSV quality report: tests/corpus/erp_sales_titles.csv
+
+- Rows analyzed: 7
+- Columns: 6
+- Delimiter: semicolon (detected)
+- Skipped lines: 4 (before the header)
+- Also counted as missing: `s/d`
+- Encoding: cp1252
+- Thousands separator: dot
+- Date order: day/month/year
+- Duplicate rows: 0
+
+| Column | Type | Missing | Missing % | Distinct | Min | Max | Mean | Top 3 values |
+|---|---|---|---|---|---|---|---|---|
+| Sucursal | string | 0 | 0.0 | 3 |  |  |  | Centro (3), Norte (2), Sur (2) |
+| Fecha | date | 0 | 0.0 | 6 | 2026-10-01 | 2026-10-21 |  | 02/10/2026 (2), 01/10/2026 (1), 05/10/2026 (1) |
+| Comprobante | string | 0 | 0.0 | 7 |  |  |  | A-0001-00012345 (1), A-0001-00012346 (1), B-0002-00000871 (1) |
+| Cliente | string | 1 | 14.3 | 4 |  |  |  | Ferretería López (2), Almacén Don José (2), Distribuidora Ñandú (1) |
+| Importe | float | 1 | 14.3 | 6 | 450.0 | 98765.0 | 20660.1 | 1.234,56 (1), 98.765,00 (1), 12.500,00 (1) |
+| Moneda | string | 0 | 0.0 | 2 |  |  |  | ARS (6), USD (1) |
+```
+
+The `Skipped lines` line records that the report did not start at the first line of the file. A `sep=` first line is still recognized and is not counted in `N`.
 
 ## Day-first dates and times
 

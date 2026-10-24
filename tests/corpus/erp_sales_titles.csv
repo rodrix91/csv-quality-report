@@ -1,0 +1,12 @@
+Reporte de ventas por sucursal
+Período: 01/10/2026 al 21/10/2026
+Emitido: 22/10/2026 08:00
+
+Sucursal;Fecha;Comprobante;Cliente;Importe;Moneda
+Centro;01/10/2026;A-0001-00012345;Ferretería López;1.234,56;ARS
+Centro;02/10/2026;A-0001-00012346;Almacén Don José;98.765,00;ARS
+Norte;02/10/2026;B-0002-00000871;Distribuidora Ñandú;12.500,00;ARS
+Norte;05/10/2026;B-0002-00000872;s/d;3.210,90;ARS
+Sur;09/10/2026;A-0003-00004410;Comercial Peña;450,00;USD
+Sur;14/10/2026;A-0003-00004411;Ferretería López;s/d;ARS
+Centro;21/10/2026;A-0001-00012347;Almacén Don José;7.800,25;ARS

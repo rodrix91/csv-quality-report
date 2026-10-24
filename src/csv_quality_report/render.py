@@ -66,6 +66,13 @@ def _delimiter_line(report: Report) -> list[str]:
     return [f"- Delimiter: {name}{how}"]
 
 
+def _skipped_line(report: Report) -> list[str]:
+    """Markdown line counting the lines skipped before the header, only with ``--skip-lines``."""
+    if not report.skipped_lines:
+        return []
+    return [f"- Skipped lines: {report.skipped_lines} (before the header)"]
+
+
 def _na_line(report: Report) -> list[str]:
     """Markdown line listing the extra missing-value tokens, only when there are some."""
     if not report.na_tokens:
@@ -217,6 +224,7 @@ def render_markdown(
         f"- Columns: {len(report.columns)}"
         + (f" of {len(report.header)} (selected)" if report.selected_columns is not None else ""),
         *_delimiter_line(report),
+        *_skipped_line(report),
         *_na_line(report),
         *(["- Compression: gzip"] if report.compressed else []),
         *([f"- Encoding: {report.encoding}"] if report.encoding != DEFAULT_ENCODING else []),
@@ -301,6 +309,7 @@ def render_json(
         "delimiter": report.delimiter,
         "delimiter_detected": report.delimiter_detected,
         "sep_line": report.sep_line,
+        **({"skipped_lines": report.skipped_lines} if report.skipped_lines else {}),
         "na_tokens": list(report.na_tokens),
         "top_n": report.top_n,
         "compressed": report.compressed,

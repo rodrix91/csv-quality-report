@@ -256,5 +256,26 @@
     "args": ["--delimiter", "auto", "--decimal-comma", "--thousands", "dot", "--na", "s/d", "--pattern", "CUIT=\\d{2}-\\d{8}-\\d", "--pattern", "Código postal=\\d{4}|[A-Z]\\d{4}[A-Z]{3}"],
     "exit_code": 8,
     "about": "A customer master export checked for the format of its codes: two tax ids written without dashes or with spaces, and two postal codes cut to five characters, fail their patterns; the padded tax id and the s/d and empty cells are not counted."
+  },
+  {
+    "name": "erp_sales_titles",
+    "file": "erp_sales_titles.csv",
+    "args": ["--encoding", "cp1252", "--delimiter", "auto", "--skip-lines", "4", "--decimal-comma", "--thousands", "dot", "--date-order", "dmy", "--na", "s/d", "--min-rows", "1", "--require-columns", "Sucursal,Fecha,Importe"],
+    "exit_code": 0,
+    "about": "An ERP sales export in cp1252 that starts with three title lines and a blank line: --skip-lines 4 reaches the header, the semicolon is detected after them, and the day-first dates and 1.234,56 amounts are typed."
+  },
+  {
+    "name": "erp_sales_titles_unskipped",
+    "file": "erp_sales_titles.csv",
+    "args": ["--encoding", "cp1252", "--delimiter", "auto", "--decimal-comma", "--thousands", "dot"],
+    "exit_code": 7,
+    "about": "The same export without --skip-lines: detection fails on the title lines, and the message suggests how many to skip."
+  },
+  {
+    "name": "erp_sales_titles_explicit_delimiter",
+    "file": "erp_sales_titles.csv",
+    "args": ["--encoding", "cp1252", "--delimiter", ";", "--decimal-comma", "--thousands", "dot"],
+    "exit_code": 6,
+    "about": "The same export with an explicit semicolon and no --skip-lines: the first title becomes a one-field header, the real header fails as a ragged row, and the message suggests skipping the lines before it."
   }
 ]

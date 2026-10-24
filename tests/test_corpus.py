@@ -65,10 +65,17 @@ def test_reports_are_valid_json_with_relative_sources() -> None:
 def test_error_cases_store_one_relative_error_message() -> None:
     errors = [c for c in CASES if c["exit_code"] not in corpus.REPORT_CODES]
     assert errors, "the corpus should cover at least one error case"
+    named = 0
     for case in errors:
         message = corpus.expected_path(case).read_text(encoding="utf-8")
         assert message.startswith("error: ") and message.count("\n") == 1, message
-        assert f"'tests/corpus/{case['file']}'" in message
+        assert str(ROOT) not in message
+        # Messages that name the file (most do; delimiter detection and
+        # ragged rows only give a line) name it as given, relative.
+        if case["file"] in message:
+            assert f"'tests/corpus/{case['file']}'" in message
+            named += 1
+    assert named, "at least one error case should name its file"
 
 
 @pytest.mark.parametrize("before", [None, "0"])
