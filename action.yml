@@ -136,6 +136,27 @@ runs:
             ;;
         esac
 
+        # Validate read paths before creating report directories or invoking the CLI.
+        # Both inputs are paths within the caller's checkout, never arbitrary host paths.
+        set +e
+        read_error=$(python "$ACTION_PATH/scripts/validate_action_read_path.py" "$INPUT_PATH" "$GITHUB_WORKSPACE" path 2>&1)
+        read_code=$?
+        set -e
+        if [ "$read_code" -ne 0 ]; then
+          annotate error "$read_error"
+          finish 2 "" false
+        fi
+        if [ -n "$INPUT_BASELINE" ]; then
+          set +e
+          read_error=$(python "$ACTION_PATH/scripts/validate_action_read_path.py" "$INPUT_BASELINE" "$GITHUB_WORKSPACE" baseline 2>&1)
+          read_code=$?
+          set -e
+          if [ "$read_code" -ne 0 ]; then
+            annotate error "$read_error"
+            finish 2 "" false
+          fi
+        fi
+
         # Split the extra arguments on whitespace without glob expansion.
         set -f
         read -r -a extra <<< "$INPUT_ARGS"
