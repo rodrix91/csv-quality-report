@@ -33,6 +33,14 @@ def _md_escape(text: str) -> str:
     return text.replace("|", "\\|").replace("\n", " ").replace("\r", " ")
 
 
+def _md_literal(text: str) -> str:
+    """Render CSV text without creating Markdown links, HTML, or new table cells."""
+    entities = text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+    translated = {ord(ch): "\\" + ch for ch in "\\`[]()|"}
+    translated.update({ord("\r"): "&#13;", ord("\n"): "&#10;"})
+    return entities.translate(translated)
+
+
 def _md_check(check: CheckResult) -> str:
     """``check.describe()`` for a Markdown list item.
 
@@ -48,7 +56,7 @@ def _md_check(check: CheckResult) -> str:
 
 
 def _top(col: ColumnProfile) -> str:
-    return ", ".join(f"{_md_escape(v)} ({n})" for v, n in col.top_values)
+    return ", ".join(f"{_md_literal(v)} ({n})" for v, n in col.top_values)
 
 
 def _delimiter_line(report: Report) -> list[str]:
@@ -216,8 +224,10 @@ def render_markdown(
     checks: Sequence[CheckResult] = (),
     comparison: Comparison | None = None,
 ) -> str:
+    # The CLI uses <stdin> as a fixed sentinel, not a user-controlled path.
+    display_source = source if source == "<stdin>" else _md_literal(source)
     lines = [
-        f"# CSV quality report: {_md_escape(source)}",
+        f"# CSV quality report: {display_source}",
         "",
         f"- Rows analyzed: {report.rows}"
         + (" (stopped early by --max-rows)" if report.truncated else ""),
@@ -244,8 +254,9 @@ def render_markdown(
     ]
     for c in report.columns:
         lines.append(
-            f"| {_md_escape(c.name)} | {c.type} | {c.missing} | {c.missing_pct:.1f} "
-            f"| {c.distinct} | {_num(c.min)} | {_num(c.max)} | {_num(c.mean)} | {_top(c)} |"
+            f"| {_md_literal(c.name)} | {c.type} | {c.missing} | {c.missing_pct:.1f} "
+            f"| {c.distinct} | {_md_literal(_num(c.min))} | {_md_literal(_num(c.max))} "
+            f"| {_md_literal(_num(c.mean))} | {_top(c)} |"
         )
     lines.extend(_baseline_section(comparison))
     lines.extend(_checks_section(checks))

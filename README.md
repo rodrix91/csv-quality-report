@@ -163,6 +163,8 @@ The first run needs a stamped `reports/last.json`: write it once with `--record-
 
 ### Example: Markdown (default)
 
+Markdown reports display CSV-derived names, sample values and textual ranges literally, escaping pipes, Markdown-style links, HTML tags and embedded CR/LF characters. This prevents untrusted export content from introducing fake table cells or clickable links. JSON reports retain the original source and cell values unchanged.
+
 `examples/sample.csv` contains 8 data rows, one exact duplicate row and several empty cells. Command (run from the repository root):
 
 ```bash
