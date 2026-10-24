@@ -245,7 +245,8 @@ def render_markdown(
     for c in report.columns:
         lines.append(
             f"| {_md_escape(c.name)} | {c.type} | {c.missing} | {c.missing_pct:.1f} "
-            f"| {c.distinct} | {_num(c.min)} | {_num(c.max)} | {_num(c.mean)} | {_top(c)} |"
+            f"| {c.distinct} | {_md_escape(_num(c.min))} | {_md_escape(_num(c.max))} "
+            f"| {_md_escape(_num(c.mean))} | {_top(c)} |"
         )
     lines.extend(_baseline_section(comparison))
     lines.extend(_checks_section(checks))
