@@ -32,6 +32,7 @@ Issues = "https://github.com/rodrix91/csv-quality-report/issues"
 Contributing = "https://github.com/rodrix91/csv-quality-report/blob/main/CONTRIBUTING.md"
 Documentation = "https://github.com/rodrix91/csv-quality-report/tree/main/docs"
 Security = "https://github.com/rodrix91/csv-quality-report/security"
+Citation = "https://github.com/rodrix91/csv-quality-report/blob/main/CITATION.cff"
 
 [project.scripts]
 csv-quality-report = "csv_quality_report.cli:main"
