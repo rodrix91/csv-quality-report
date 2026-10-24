@@ -521,7 +521,12 @@ Tests (`tests/`) are behavior tests that call the CLI: happy path, missing value
 
 ## Contributing
 
-See [CONTRIBUTING.md](https://github.com/rodrix91/csv-quality-report/blob/main/CONTRIBUTING.md) in the [source repository](https://github.com/rodrix91/csv-quality-report) (not included in the packages).
+See [CONTRIBUTING.md](https://github.com/rodrix91/csv-quality-report/blob/main/CONTRIBUTING.md) in the [source repository](https://github.com/rodrix91/csv-quality-report) and source distribution (not the wheel).
+
+## Citation
+
+If you use `csv-quality-report` in research, teaching, or a reproducible analytical workflow, cite the software using [CITATION.cff](https://github.com/rodrix91/csv-quality-report/blob/main/CITATION.cff). The citation metadata is retained in the source distribution as well as the repository.
+
 
 ## License
 

@@ -113,6 +113,13 @@ jobs:
           mkdir "$RUNNER_TEMP/sdist"
           tar xzf "$RUNNER_TEMP"/dist/*.tar.gz -C "$RUNNER_TEMP/sdist"
           cd "$RUNNER_TEMP"/sdist/*/
+          python - <<'PY'
+          from pathlib import Path
+
+          for name in ("CONTRIBUTING.md", "SECURITY.md", "CITATION.cff"):
+              path = Path(name)
+              assert path.is_file(), path
+          PY
           python -m pip install --no-deps .
           python - <<'PY'
           from pathlib import Path

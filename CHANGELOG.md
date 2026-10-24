@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+- The source distribution now retains `CONTRIBUTING.md`, `SECURITY.md`, and `CITATION.cff`; CI verifies those files plus the installed `py.typed` marker, and package metadata links directly to citation guidance.
+
 - README now links the private vulnerability-reporting guidance in `SECURITY.md` from the security notes.
 
 - README now documents how to verify release SHA-256 checksums and GitHub provenance attestations, while noting that historical releases may predate those guarantees.
