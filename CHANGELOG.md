@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+- The package now ships a PEP 561 `py.typed` marker so downstream type checkers can recognize the public Python API as typed. CI verifies the marker survives source-distribution packaging and installation.
+
 - Package metadata now includes project URLs, search keywords, and classifiers so built distributions expose the repository, changelog, issues, contribution guide, documentation, supported Python versions, and project status more clearly.
 
 ### Added
