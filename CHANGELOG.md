@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+- The contribution guide now names the current `setuptools==84.2.1` build-backend pin instead of the superseded 84.0.0 value.
+
 - The distribution metadata now links directly to the repository security page alongside documentation, issues, and contribution guidance.
 
 - The package now ships a PEP 561 `py.typed` marker so downstream type checkers can recognize the public Python API as typed. CI verifies the marker survives source-distribution packaging and installation.
