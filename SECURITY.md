@@ -4,7 +4,7 @@
 
 ## Reporting a problem
 
-If you find a security issue, open a private GitHub security advisory on this repository, or email Rodrigo Pantoja Navajas through the contact on the [profile README](https://github.com/rodrix91/rodrix91). Please do not open a public issue for an unfixed vulnerability.
+If you find a security issue, open a private GitHub security advisory on this repository, or use the contact information on the [profile README](https://github.com/rodrix91/rodrix91). Please do not open a public issue for an unfixed vulnerability.
 
 ## Scope
 
