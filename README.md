@@ -360,6 +360,8 @@ jobs:
 | `report-json` | path of the JSON report; empty when the file could not be read |
 | `baseline-used` | `true` when the run was compared with the baseline |
 
+The Action's **read inputs** (`path` and optional `baseline`) must also be relative to and resolve inside `GITHUB_WORKSPACE`. Absolute paths, parent traversal, symlink escapes, line breaks and stdin (`-`) are rejected with exit code `2` before any report is created; relative paths with spaces remain supported. This protects Action file reads, not the standalone CLI, which still supports stdin and explicitly selected absolute paths. A missing baseline within the workspace remains valid when `if-baseline-missing: skip` is used.
+
 `report-json` is `report-path` as given when that input is set. An explicit `report-path` must be relative and resolve inside `GITHUB_WORKSPACE`; absolute paths and `..` escapes are refused. The action never removes an existing `report-path` file: when the run stops before writing the report (exit codes other than 0 and 8), the file keeps its content and `report-json` is empty; like `--json-output`, the report cannot be written over the input file or the baseline (exit code 2). A `report-path` with a line break is an error.
 
 Example: a scheduled workflow that compares each day's export with the report the previous successful run kept, fails when the export arrived with only its header (`--min-rows 1`), when the schema changed, rows dropped by more than half or the kept report is more than 36 hours old (a run that stopped refreshing it), and saves today's report as the next baseline only when every check passed. The first run has no baseline yet; `if-baseline-missing: skip` lets it pass with a warning and keep its report:
