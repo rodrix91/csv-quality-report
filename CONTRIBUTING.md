@@ -28,7 +28,7 @@ python -m build                  # build sdist + wheel into dist/ (needs network
 
 **Always build from a clean clone** (`git clone <repo> /tmp/build-check && cd /tmp/build-check`), not from a working directory that has stray files: the sdist and wheel are assembled from whatever is on disk, and files that are ignored by git (old `build/`, `dist/`, `*.egg-info`, local notes) can leak into or distort the artifacts.
 
-The test suite must also pass from the unpacked sdist: CI builds it and runs the tests there (job `sdist`). When a test starts reading a new file outside `src/` and `tests/test_*.py` (data, a script), add it to `MANIFEST.in`.
+The test suite must also pass from the unpacked sdist: CI builds it and runs the tests there (job `sdist`). That job also verifies that `CONTRIBUTING.md`, `SECURITY.md`, `CITATION.cff`, and the installed `py.typed` marker are present. When a test starts reading a new file outside `src/` and `tests/test_*.py` (data, a script), add it to `MANIFEST.in`.
 
 If a change alters the output, refresh the samples embedded in the README with `python scripts/update_readme_samples.py` and the outputs in `docs/guides/spanish-exports.md` with `python scripts/update_guide.py` (`--check` only reports, for both); the test suite fails while they are stale.
 
