@@ -517,6 +517,7 @@ Tests (`tests/`) are behavior tests that call the CLI: happy path, missing value
 - Reads one local file path given on the command line, or standard input with `-`; makes no network calls and writes no files except the one named with `--json-output` (and, while writing it, a temporary file next to it that is removed on failure), which is refused when it is the input file or the baseline. Gzip input is decompressed in a stream, with bounded memory.
 - Uses only the Python standard library at runtime.
 - CSV content is treated as data only (never executed). Markdown output escapes `|` and newlines in cell text but does not sanitize other Markdown, so render untrusted files' reports with care.
+- Security vulnerabilities should be reported privately as described in [SECURITY.md](https://github.com/rodrix91/csv-quality-report/blob/main/SECURITY.md), not through a public issue.
 
 ## Contributing
 
