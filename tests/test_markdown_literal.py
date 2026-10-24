@@ -70,9 +70,7 @@ def test_actual_csv_markdown_escape_preserves_json_values(tmp_path: Path) -> Non
     )
     env = {**os.environ, "PYTHONPATH": str(ROOT / "src")}
     args = [sys.executable, "-m", "csv_quality_report", str(source)]
-    markdown = subprocess.run(
-        args, cwd=ROOT, env=env, capture_output=True, text=True, check=False
-    )
+    markdown = subprocess.run(args, cwd=ROOT, env=env, capture_output=True, text=True, check=False)
     as_json = subprocess.run(
         [*args, "--format", "json"],
         cwd=ROOT,
