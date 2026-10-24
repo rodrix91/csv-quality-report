@@ -163,10 +163,16 @@ runs:
         read -r -a baseline_extra <<< "$INPUT_BASELINE_ARGS"
         set +f
 
-        # Do not let CLI extras override the Action's validated read/write inputs.
+        # Do not let CLI extras bypass profiling or override validated inputs.
         # argparse accepts unique long-option abbreviations, so guard those too.
+        # Help/version exit 0 without processing the CSV and must never produce
+        # a passing Action result (especially when an old report file exists).
         for token in "${extra[@]}" "${baseline_extra[@]}"; do
           case "$token" in
+            -h | --h | --he | --hel | --help | --v | --ve | --ver | --vers | --versi | --versio | --version)
+              annotate error "help/version options are not supported in Action args; run the standalone CLI instead"
+              finish 2 "" false
+              ;;
             --ba* | --j*)
               annotate error "use the Action baseline/report-path inputs; --baseline and --json-output are reserved"
               finish 2 "" false
