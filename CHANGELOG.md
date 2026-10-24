@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+- CI cancels superseded runs for the same pull request or branch, avoiding redundant validation after a newer commit is pushed.
+
 ### Added
 
 - `--skip-lines N`: skips the first `N` lines of the file before the header, for ERP and spreadsheet exports that start with title lines (report name, period, issue time, a blank line), which could not be profiled at all: the first title became a one-field header, so the real header failed as a ragged row (exit code 6), and `--delimiter auto` failed (exit code 7). The lines are skipped as text, before anything is parsed, after decoding (so `--encoding`, gzip and standard input work as usual) and after a `sep=` first line, which is not counted in `N`; `--delimiter auto` samples the lines after them, and error line numbers still count them. A file that ends before a header is found stops with exit code 5 (`has no header row: it ends within the 4 lines skipped by --skip-lines`). JSON reports `skipped_lines` right after `sep_line`, and Markdown `Skipped lines: N (before the header)`, only when `N > 0`, so reports without the option are byte-identical. `open_rows()`, `read_table()` and `profile_file()` gain `skip_lines`; `Table`, `RowStream` and `Report` gain `skipped_lines`. The corpus gains an ERP sales export in cp1252 with three title lines and a blank line, and the guide to Spanish and Latin American exports a section on it (#161).
