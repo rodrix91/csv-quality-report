@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+- CI jobs now have explicit conservative timeouts so a hung test or platform runner cannot consume GitHub Actions indefinitely.
+
 - The contribution guide now names the current `setuptools==84.2.1` build-backend pin instead of the superseded 84.0.0 value.
 
 - The distribution metadata now links directly to the repository security page alongside documentation, issues, and contribution guidance.
