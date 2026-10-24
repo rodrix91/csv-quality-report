@@ -55,7 +55,7 @@ This is a simple pattern check, not a substitute for a dedicated scanner.
 ## Guidelines
 
 - Runtime code must stay standard-library only. Dev tools go in `requirements-dev.txt`. After changing them, regenerate the hashed lock with [uv](https://docs.astral.sh/uv/) (the lock was generated with uv 0.12.22): `uv pip compile requirements-dev.txt --generate-hashes --universal --python-version 3.11 -o requirements-dev.lock`.
-- The build backend is pinned exactly in `pyproject.toml` (`setuptools==84.0.0`); `python -m build` downloads it in an isolated environment, and that download is not covered by `requirements-dev.lock` hashes.
+- The build backend is pinned exactly in `pyproject.toml` (`setuptools==84.2.1`); `python -m build` downloads it in an isolated environment, and that download is not covered by `requirements-dev.lock` hashes.
 - Add or update behavior tests in `tests/` for every behavior change.
 - If you change the CLI output, regenerate the samples in `README.md` with `python scripts/update_readme_samples.py`; the README tests in `tests/test_cli.py` fail when they drift.
 - Keep type hints on all functions; keep modules small.
