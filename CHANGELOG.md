@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+- Release builds now generate GitHub artifact provenance attestations for the wheel and source distribution, signed through GitHub OIDC/Sigstore and pinned to `actions/attest` v4.2.2 by commit SHA.
+
 - GitHub Actions checkouts now disable persisted Git credentials because CI and release jobs do not push repository changes.
 
 - Release artifacts now include a `SHA256SUMS` file so downloaded wheels and source distributions can be independently verified.
