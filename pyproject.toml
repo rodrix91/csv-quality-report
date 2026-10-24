@@ -31,6 +31,7 @@ Changelog = "https://github.com/rodrix91/csv-quality-report/blob/main/CHANGELOG.
 Issues = "https://github.com/rodrix91/csv-quality-report/issues"
 Contributing = "https://github.com/rodrix91/csv-quality-report/blob/main/CONTRIBUTING.md"
 Documentation = "https://github.com/rodrix91/csv-quality-report/tree/main/docs"
+Security = "https://github.com/rodrix91/csv-quality-report/security"
 
 [project.scripts]
 csv-quality-report = "csv_quality_report.cli:main"
