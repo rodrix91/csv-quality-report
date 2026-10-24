@@ -24,6 +24,8 @@ def test_csv_labels_and_sample_values_do_not_create_links_or_html() -> None:
         missing=0,
         missing_pct=0.0,
         distinct=1,
+        min=None,
+        max=None,
         top_values=[(value, 1)],
     )
     report = Report(rows=1, duplicate_rows=0, truncated=False, columns=[column])
