@@ -54,7 +54,7 @@ def test_string_extrema_in_custom_report_cannot_split_markdown_table() -> None:
     )
     report = Report(rows=2, duplicate_rows=0, truncated=False, columns=[column])
     markdown = render_markdown(report, "source.csv")
-    assert " | A\|B | \[Z\]\(https://example.invalid\) | " in markdown
+    assert r" | A\|B | \[Z\]\(https://example.invalid\) | " in markdown
     data = json.loads(render_json(report, "source.csv"))
     assert data["columns"][0]["min"] == "A|B"
     assert data["columns"][0]["max"] == "[Z](https://example.invalid)"
