@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+- CI now measures 100% coverage, Ruff, formatting, and strict mypy once on Python 3.12 while retaining full Linux compatibility tests on Python 3.11/3.13 and the existing Windows/macOS matrix, reducing redundant runner work without lowering quality gates.
+
 - The source distribution now retains `CONTRIBUTING.md`, `SECURITY.md`, and `CITATION.cff`; CI verifies those files plus the installed `py.typed` marker, and package metadata links directly to citation guidance.
 
 - README now links the private vulnerability-reporting guidance in `SECURITY.md` from the security notes.
