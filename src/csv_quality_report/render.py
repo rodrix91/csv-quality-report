@@ -41,7 +41,6 @@ def _md_literal(text: str) -> str:
     return entities.translate(translated)
 
 
-
 def _md_check(check: CheckResult) -> str:
     """``check.describe()`` for a Markdown list item.
 
