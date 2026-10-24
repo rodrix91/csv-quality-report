@@ -1,27 +1,44 @@
 # Related tools
 
+The three active projects in this GitHub portfolio are intentionally complementary:
+
+1. **csv-quality-report** profiles and validates raw CSV extracts.
+2. **ops-field-brief** performs fast operational completeness and concentration checks.
+3. **inventory-policy-lab** turns validated demand history into inventory-policy analysis and replay.
+
 ## ops-field-brief
 
-[ops-field-brief](https://github.com/rodrix91/ops-field-brief) is a small standard-library Python CLI that answers three operational questions about one CSV:
+[ops-field-brief](https://github.com/rodrix91/ops-field-brief) is a small standard-library Python CLI for five practical questions about one operational CSV:
 
-- Are the required fields filled? Empty cells and tokens such as `NA`, `N/A`, `null`, `none`, `s/d`, `s.d.`, `N/D`, `N.D.`, and `-` count as missing. A field that is only whitespace, or only a tab, also counts as missing.
-- Does the business key repeat? Blank keys are not counted as repeats. Three identical keys count as two extra rows. Two different keys, each repeated once, also count as two.
-- Which groups account for the rows? A blank group is reported as `(blank)`. Top groups are limited to five. `--top` can lower that limit. `--top 0` reports no groups. A negative `--top` exits `2`.
+- Are required fields filled? Empty cells and common missing tokens such as `NA`, `N/A`, `null`, `none`, `s/d`, `s.d.`, `N/D`, `N.D.`, and `-` count as missing.
+- Does the business key repeat? Single-column and composite keys such as `order_id,line_id` are supported.
+- Which groups account for the rows?
+- Does one group dominate more of the extract than allowed? `--max-group-share` adds an opt-in concentration gate used with `--group`.
+- Does the extract contain at least the expected number of rows? `--min-rows` adds an opt-in row-count gate.
 
-Use `csv-quality-report` for full profiling (types, locales, ranges, quality gates). Use `ops-field-brief` when the question is operational completeness.
+Use `csv-quality-report` for broader profiling and pipeline-oriented quality gates such as types, ranges, allowed values, uniqueness, freshness, schema changes, and baseline drift. Use `ops-field-brief` when the question is operational completeness and concentration.
 
-`--delimiter` accepts `comma` (default), `semicolon`, `tab`, or `pipe`. Comma remains the default, so existing commands do not change. Semicolon covers the usual Spanish and Latin American spreadsheet export. An unknown delimiter exits `2`.
+`--delimiter` accepts `comma` (default), `semicolon`, `tab`, `pipe`, or `auto`. Automatic detection is intentionally conservative and exits with a clear error rather than guessing when the separator is ambiguous.
 
-`--encoding` defaults to `utf-8`. A UTF-8 BOM, common in Excel exports, is stripped, including on stdin. For a Windows Excel export in Spanish, pass `--encoding cp1252` or `--encoding latin-1`. An unknown encoding exits `2`.
+`--encoding` defaults to `utf-8`. A UTF-8 BOM is stripped, including on stdin. For Windows spreadsheet exports, `cp1252` or `latin-1` can be selected explicitly.
 
-A quoted field that contains a comma stays one field. An escaped quote stays in the field. A multiline quoted field stays one row. A trailing comma does not break the row. A duplicate column name in the header uses the last value, following the standard library CSV reader.
+The CLI also supports stdin, JSON or Markdown output, configurable missing-rate and duplicate limits, and a configurable top-group count.
 
-A path of `-` reads the CSV from stdin. `--help` exits `0` and lists the arguments.
-
-An unknown `--key` or `--group` exits `2` and names the column. An empty `--required` list exits `2`. `--max-missing` can allow a share of blanks; a value outside 0 to 1 exits `2`.
-
-Status: 0.1.0. Forty local unit tests. CI runs the same suite on Python 3.10 through 3.13. See [CONTRIBUTING.md](https://github.com/rodrix91/ops-field-brief/blob/main/CONTRIBUTING.md) for the setup and the guidelines. It is not a replacement and is not a production pipeline.
+Status: **0.3.0 with additional Unreleased work**. CI runs **63 tests** on Python 3.10 through 3.13 on Ubuntu, with Python 3.10 and 3.13 also validated on Windows and macOS. A dedicated quality job enforces branch coverage of at least 90%, Ruff lint/format checks, and mypy. Packaging is smoke-tested in a clean environment. See [CONTRIBUTING.md](https://github.com/rodrix91/ops-field-brief/blob/main/CONTRIBUTING.md).
 
 ## inventory-policy-lab
 
-[inventory-policy-lab](https://github.com/rodrix91/inventory-policy-lab) is a standard-library Python toolkit and CLI that turns a per-SKU demand history CSV into an inventory policy: ABC-XYZ classification, Syntetos-Boylan demand patterns (smooth, erratic, intermittent, lumpy), backtested forecasts scored by MASE (naive, moving average, SES, Croston, SBA), safety stock (normal formula or bootstrap of protection-interval demand), reorder points, EOQ, and an in-sample replay of the resulting (s, Q) policy. Use `csv-quality-report` first to check that a demand extract is clean and complete before running an inventory policy analysis.
+[inventory-policy-lab](https://github.com/rodrix91/inventory-policy-lab) is a standard-library Python toolkit and CLI that turns per-SKU demand history into reviewable inventory-policy analysis.
+
+It includes:
+
+- ABC-XYZ classification and Syntetos-Boylan demand-pattern classification.
+- Backtested forecasts scored with MASE, including naive, moving average, SES, Croston, SBA, and opt-in damped Holt / Holt-Winters models.
+- Normal-formula or bootstrap safety stock.
+- Reorder points, EOQ, and `(s, Q)`, `(R, S)`, and `(R, s, S)` policy replay.
+- Out-of-sample and rolling-origin replay.
+- Optional dynamic seasonal levels, residual bootstrap, configurable refit cadence, cost accounting, and cost-oriented level search.
+
+Use `csv-quality-report` first to verify that the demand extract is structurally sound, then use `inventory-policy-lab` to study policy choices. `ops-field-brief` can sit between them when an operations team also wants fast checks on required fields, repeated keys, row counts, or counterparty concentration.
+
+Status: **0.10.0 alpha**. The project has **403 tests**, 100% line and branch coverage, Ruff, strict mypy, and cross-platform CI on supported Python versions. Its README documents formulas, assumptions, limitations, worked examples, and empirical comparisons so the output remains auditable rather than a black box.
