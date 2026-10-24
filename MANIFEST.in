@@ -13,3 +13,4 @@ include CONTRIBUTING.md
 include SECURITY.md
 include CITATION.cff
 include scripts/validate_action_report_path.py
+include scripts/validate_action_read_path.py
