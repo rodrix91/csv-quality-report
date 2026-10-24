@@ -96,14 +96,13 @@ def test_every_output_is_written() -> None:
 
 
 def test_action_help_and_version_cannot_bypass_csv_profiling() -> None:
-    script = ACTION.split("      run: |\\n", 1)[1]
+    script = ACTION.split("      run: |\n", 1)[1]
     guard = script.split('for token in "${extra[@]}" "${baseline_extra[@]}"; do', 1)[1]
     guard = guard.split("        done", 1)[0]
     for token in ("-h", "--h", "--he", "--hel", "--help", "--v", "--ver", "--version"):
         assert token in guard
     assert "finish 2 \"\" false" in guard
     assert script.index("help/version options are not supported") < script.index("report_dir=")
-
 
 
 def _validate_report_path(path: str, workspace: Path) -> subprocess.CompletedProcess[str]:
