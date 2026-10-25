@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+- Escaped CSV-derived Markdown content in quality-check messages (column names, repeated keys, allowed-value and regex mismatch examples) so links, HTML, inline code delimiters and newlines cannot alter rendered reports or Action summaries. Regex patterns remain legible in their intentional code spans; JSON and check results are unchanged. Added direct and CLI regressions.
+
 - Hardened Markdown table rendering for CSV-derived source names, column labels, sample values and textual extrema: pipes and CR/LF cannot alter table structure, and Markdown links or HTML tags are displayed literally. JSON remains unchanged. Added direct and real-CLI regression tests.
 
 - The reusable GitHub Action now rejects informational help/version switches in `args` and `baseline-args` (including accepted abbreviations) before invoking the CLI: these options exit 0 without profiling a CSV and could falsely mark a workflow as passed if a report already existed. Added regression and end-to-end checks; CLI help/version behavior remains unchanged.
