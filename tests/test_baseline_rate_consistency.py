@@ -64,9 +64,7 @@ def test_opt_in_rate_check_accepts_correct_counts_and_display_rounding(
     assert load_baseline(path, check_missing_rate=True)["columns"][0]["missing_pct"] == rate
 
 
-def test_default_mode_preserves_legacy_rate_count_behavior(
-    tmp_path: Path, write_csv: Any
-) -> None:
+def test_default_mode_preserves_legacy_rate_count_behavior(tmp_path: Path, write_csv: Any) -> None:
     legacy = _baseline(missing=0, rate=100)
     path = _save(tmp_path, legacy)
     assert load_baseline(path) == legacy
