@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+- Support literal `=` characters in `--pattern` CSV header names using `\\=` (e.g. `SLA\\=met=OK=[0-9]+`) while retaining unescaped `=` as the name/pattern delimiter and allowing regex patterns themselves to contain `=`. Add CLI regressions for passing, failing and malformed pattern selectors.
+
 - Reject blank positions in composite `--unique-key` selectors, including doubled commas, leading/trailing commas and whitespace-only components. Prevent silently checking an incomplete business key; retain valid whitespace-trimmed selections and existing deduplication semantics. Added CLI regression coverage.
 
 - Reject blank positions in `--columns` selections, including leading/trailing commas and whitespace-only entries, to prevent silently profiling fewer columns than requested. Preserve valid trimmed selections and repeated-name deduplication. Add JSON/CLI regressions for invalid and valid selectors.
