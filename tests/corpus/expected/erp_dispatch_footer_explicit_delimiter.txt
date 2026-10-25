@@ -1,0 +1,1 @@
+error: row at line 14 has 1 fields, expected 5 (from the header); if this record and the 1 after it are a footer, skip both with --skip-footer 2 (add one for each totals row above them)

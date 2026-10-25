@@ -11,6 +11,7 @@ csv-quality-report never guesses these conventions: each one is turned on with a
 | `;`, tab or `\|` between fields | `--delimiter auto` (or the character) |
 | A first line `sep=;` (Excel) | `--delimiter auto` follows it |
 | Title lines before the header (report name, period, issue date), exit code 6 or 7 | `--skip-lines N` (the error message suggests `N`) |
+| A footer after the data (a totals row, `Cantidad de registros: 7`, a generated-by line), exit code 6 or 7, or a total that shows up as the maximum | `--skip-footer N` (the error message suggests `N`; count a totals row too) |
 | Accents broken, `UnicodeDecodeError`, exit code 4 | `--encoding cp1252` (Excel on Windows) or `latin-1` |
 | `10,5` | `--decimal-comma` |
 | `1.234,56` or `1 234,56` | `--decimal-comma --thousands dot` (or `space`) |
@@ -134,6 +135,56 @@ $ python -m csv_quality_report tests/corpus/erp_sales_titles.csv --encoding cp12
 ```
 
 The `Skipped lines` line records that the report did not start at the first line of the file. A `sep=` first line is still recognized and is not counted in `N`.
+
+## A footer after the data
+
+The same reports often end with lines for people too: a totals row, the number of records, who or what generated the file. The corpus has a warehouse's dispatch notes for a week, with two title lines and this footer after the seven dispatches:
+
+```text
+R-0001-00004518;24/10/2026;Agropecuaria Los Álamos;Pendiente;142,25
+
+Total despachado;;;;2.345,60
+Cantidad de remitos: 7
+Generado por el sistema de gestión el 24/10/2026 18:30
+```
+
+The last two lines have one field, so with `--delimiter auto` detection fails (exit code 7), and with `--delimiter ";"` the record count fails as a ragged row (exit code 6). Both messages say how many records to drop:
+
+`error: row at line 14 has 1 fields, expected 5 (from the header); if this record and the 1 after it are a footer, skip both with --skip-footer 2 (add one for each totals row above them)`
+
+The totals row has the header's width, so no error points at it: it would be read as an eighth dispatch, whose 2.345,60 kilos become the column's maximum and fail a `--range Kilos=0:1500` that the real dispatches meet. Count it in `N`. `--skip-footer N` drops the last `N` records, after the header; blank lines are not records, so the blank line above the total is not counted, and the dropped records are never checked for their width. The file is still read once, holding only `N` rows at a time.
+
+```console
+$ python -m csv_quality_report tests/corpus/erp_dispatch_footer.csv --encoding cp1252 --delimiter auto --skip-lines 3 --skip-footer 3 --decimal-comma --thousands dot --date-order dmy --range Kilos=0:1500
+```
+
+```markdown
+# CSV quality report: tests/corpus/erp_dispatch_footer.csv
+
+- Rows analyzed: 7
+- Columns: 5
+- Delimiter: semicolon (detected)
+- Skipped lines: 3 (before the header)
+- Skipped footer: 3 records (after the data)
+- Encoding: cp1252
+- Thousands separator: dot
+- Date order: day/month/year
+- Duplicate rows: 0
+
+| Column | Type | Missing | Missing % | Distinct | Min | Max | Mean | Top 3 values |
+|---|---|---|---|---|---|---|---|---|
+| Remito | string | 0 | 0.0 | 7 |  |  |  | R-0001-00004512 (1), R-0001-00004513 (1), R-0001-00004514 (1) |
+| Fecha | date | 0 | 0.0 | 5 | 2026-10-20 | 2026-10-24 |  | 20/10/2026 (2), 22/10/2026 (2), 21/10/2026 (1) |
+| Cliente | string | 0 | 0.0 | 5 |  |  |  | Ferretería del Sur S.R.L. (2), Agropecuaria Los Álamos (2), Distribuidora Ñandú (1) |
+| Estado | string | 0 | 0.0 | 3 |  |  |  | Entregado (3), En tránsito (2), Pendiente (2) |
+| Kilos | float | 0 | 0.0 | 7 | 45.6 | 1020.0 | 335.086 | 312,5 (1), 1.020,0 (1), 87,25 (1) |
+
+## Checks: passed (0 of 1 failed)
+
+- pass: column 'Kilos' is within 0..1500 (min 45.6, max 1020)
+```
+
+The `Skipped footer` line records that the report did not end at the last line of the file, next to `Skipped lines` for the titles.
 
 ## Day-first dates and times
 

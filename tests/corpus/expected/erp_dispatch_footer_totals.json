@@ -1,0 +1,220 @@
+{
+  "source": "tests/corpus/erp_dispatch_footer.csv",
+  "rows": 8,
+  "truncated": false,
+  "delimiter": ";",
+  "delimiter_detected": true,
+  "sep_line": false,
+  "skipped_lines": 3,
+  "skipped_footer": 2,
+  "na_tokens": [],
+  "top_n": 3,
+  "compressed": false,
+  "encoding": "cp1252",
+  "thousands": ".",
+  "date_order": "dmy",
+  "bool_words": [],
+  "number_affixes": [],
+  "accounting_negatives": false,
+  "selected_columns": null,
+  "header_columns": 5,
+  "duplicate_rows": 0,
+  "untrimmed_columns": [],
+  "columns": [
+    {
+      "name": "Remito",
+      "type": "string",
+      "type_hint": null,
+      "missing": 0,
+      "missing_pct": 0.0,
+      "distinct": 8,
+      "min": null,
+      "max": null,
+      "mean": null,
+      "min_length": 15,
+      "max_length": 16,
+      "top_values": [
+        {
+          "value": "R-0001-00004512",
+          "count": 1
+        },
+        {
+          "value": "R-0001-00004513",
+          "count": 1
+        },
+        {
+          "value": "R-0001-00004514",
+          "count": 1
+        }
+      ],
+      "untrimmed": 0,
+      "affixes": {}
+    },
+    {
+      "name": "Fecha",
+      "type": "date",
+      "type_hint": null,
+      "missing": 1,
+      "missing_pct": 12.5,
+      "distinct": 5,
+      "min": "2026-10-20",
+      "max": "2026-10-24",
+      "mean": null,
+      "min_length": 10,
+      "max_length": 10,
+      "top_values": [
+        {
+          "value": "20/10/2026",
+          "count": 2
+        },
+        {
+          "value": "22/10/2026",
+          "count": 2
+        },
+        {
+          "value": "21/10/2026",
+          "count": 1
+        }
+      ],
+      "untrimmed": 0,
+      "affixes": {}
+    },
+    {
+      "name": "Cliente",
+      "type": "string",
+      "type_hint": null,
+      "missing": 1,
+      "missing_pct": 12.5,
+      "distinct": 5,
+      "min": null,
+      "max": null,
+      "mean": null,
+      "min_length": 19,
+      "max_length": 25,
+      "top_values": [
+        {
+          "value": "Ferretería del Sur S.R.L.",
+          "count": 2
+        },
+        {
+          "value": "Agropecuaria Los Álamos",
+          "count": 2
+        },
+        {
+          "value": "Distribuidora Ñandú",
+          "count": 1
+        }
+      ],
+      "untrimmed": 0,
+      "affixes": {}
+    },
+    {
+      "name": "Estado",
+      "type": "string",
+      "type_hint": null,
+      "missing": 1,
+      "missing_pct": 12.5,
+      "distinct": 3,
+      "min": null,
+      "max": null,
+      "mean": null,
+      "min_length": 9,
+      "max_length": 11,
+      "top_values": [
+        {
+          "value": "Entregado",
+          "count": 3
+        },
+        {
+          "value": "En tránsito",
+          "count": 2
+        },
+        {
+          "value": "Pendiente",
+          "count": 2
+        }
+      ],
+      "untrimmed": 0,
+      "affixes": {}
+    },
+    {
+      "name": "Kilos",
+      "type": "float",
+      "type_hint": null,
+      "missing": 0,
+      "missing_pct": 0.0,
+      "distinct": 8,
+      "min": 45.6,
+      "max": 2345.6,
+      "mean": 586.4,
+      "min_length": 4,
+      "max_length": 8,
+      "top_values": [
+        {
+          "value": "312,5",
+          "count": 1
+        },
+        {
+          "value": "1.020,0",
+          "count": 1
+        },
+        {
+          "value": "87,25",
+          "count": 1
+        }
+      ],
+      "untrimmed": 0,
+      "affixes": {}
+    }
+  ],
+  "baseline": null,
+  "checks": [
+    {
+      "check": "column_type",
+      "column": "Fecha",
+      "limit": 1,
+      "value": 1,
+      "passed": true,
+      "expected": "date",
+      "actual": "date"
+    },
+    {
+      "check": "value_range",
+      "column": "Kilos",
+      "limit": 1,
+      "value": 0,
+      "passed": false,
+      "expected": "int or float",
+      "actual": "float",
+      "range": {
+        "min": 0,
+        "max": 1500
+      },
+      "observed": {
+        "min": 45.6,
+        "max": 2345.6
+      }
+    },
+    {
+      "check": "unique",
+      "column": "Remito",
+      "limit": 0,
+      "value": 0,
+      "passed": true,
+      "repeated": {}
+    },
+    {
+      "check": "allowed_values",
+      "column": "Estado",
+      "limit": 0,
+      "value": 0,
+      "passed": true,
+      "allowed": [
+        "Entregado",
+        "En tránsito",
+        "Pendiente"
+      ],
+      "unexpected": {}
+    }
+  ]
+}
