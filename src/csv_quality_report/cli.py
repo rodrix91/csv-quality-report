@@ -329,6 +329,18 @@ def _column_names(text: str, option: str = "--require-columns") -> tuple[str, ..
     return names
 
 
+def _required_column_names(text: str) -> tuple[str, ...]:
+    """Reject omitted required-column positions rather than silently skipping a gate."""
+    if not text.strip():
+        return _column_names(text)
+    if any(not part.strip() for part in text.split(",")):
+        raise argparse.ArgumentTypeError(
+            f"invalid --require-columns value: {text!r} "
+            "(empty column; specify every required column)"
+        )
+    return _column_names(text)
+
+
 def _column_name(text: str, option: str = "--unique") -> str:
     """One column name, exactly as written (commas and ``=`` are part of it)."""
     if not text.strip():
@@ -510,7 +522,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     gates.add_argument(
         "--require-columns",
-        type=_column_names,
+        type=_required_column_names,
         default=(),
         metavar="NAMES",
         help="fail if any of these comma-separated columns is missing (exact, case-sensitive)",

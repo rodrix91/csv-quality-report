@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+- Reject blank comma-separated positions in `--require-columns`, including leading/trailing commas and whitespace-only entries, rather than silently dropping a required-field quality gate. Other CSV column-selection options keep their previous parsing behavior, and CLI regressions cover both invalid and valid selections.
+
 - Escaped CSV-derived Markdown content in quality-check messages (column names, repeated keys, allowed-value and regex mismatch examples) so links, HTML, inline code delimiters and newlines cannot alter rendered reports or Action summaries. Regex patterns remain legible in their intentional code spans; JSON and check results are unchanged. Added direct and CLI regressions.
 
 - Hardened Markdown table rendering for CSV-derived source names, column labels, sample values and textual extrema: pipes and CR/LF cannot alter table structure, and Markdown links or HTML tags are displayed literally. JSON remains unchanged. Added direct and real-CLI regression tests.

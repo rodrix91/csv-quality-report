@@ -127,3 +127,35 @@ def test_empty_name_list_is_a_usage_error(
         main([str(write_csv(DATA)), "--require-columns", bad])
     assert excinfo.value.code == 2
     assert "invalid --require-columns value" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize(
+    "bad",
+    [
+        "shipment_id,,date",
+        ",shipment_id,date",
+        "shipment_id,date,",
+        "shipment_id, ,date",
+        "shipment_id,  ,date",
+    ],
+)
+def test_missing_required_column_slot_is_a_usage_error(
+    write_csv: WriteCsv, capsys: pytest.CaptureFixture[str], bad: str
+) -> None:
+    with pytest.raises(SystemExit) as excinfo:
+        main([str(write_csv(DATA)), "--require-columns", bad, "--format", "json"])
+    assert excinfo.value.code == 2
+    captured = capsys.readouterr()
+    assert "empty column; specify every required column" in captured.err
+    assert not captured.out
+
+
+def test_required_columns_accept_trimmed_distinct_names(
+    write_csv: WriteCsv, capsys: pytest.CaptureFixture[str]
+) -> None:
+    code, report, err = run(write_csv(DATA), capsys, "--require-columns", " shipment_id , date ")
+    assert (code, err) == (0, "")
+    assert [(item["column"], item["passed"]) for item in report["checks"]] == [
+        ("shipment_id", True),
+        ("date", True),
+    ]
