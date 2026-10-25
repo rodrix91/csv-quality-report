@@ -123,9 +123,11 @@ def _column_allowed(text: str) -> tuple[str, tuple[str, ...]]:
 
 
 def _column_pattern(text: str) -> tuple[str, str]:
-    """Parse ``NAME=REGEX`` for --pattern (split at the first ``=``, so REGEX may hold ``=``)."""
-    name, sep, pattern = text.partition("=")
-    if not sep or not name or not pattern:
+    """Split at the first unescaped '='; headers may spell literal '=' as '\\='."""
+    parts = re.split(r"(?<!\\)=", text, maxsplit=1)
+    name, pattern = parts if len(parts) == 2 else ("", "")
+    name = name.replace(r"\=", "=")
+    if not name or not pattern:
         raise argparse.ArgumentTypeError(
             f"invalid --pattern value: {text!r} (use NAME=REGEX, such as CP=[0-9]{{4}})"
         )
