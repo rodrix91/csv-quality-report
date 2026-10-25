@@ -41,19 +41,23 @@ def _md_literal(text: str) -> str:
     return entities.translate(translated)
 
 
+def _md_check_text(text: str) -> str:
+    """Keep arbitrary check names and examples from creating Markdown or HTML."""
+    entities = text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+    escaped = {ord(ch): chr(92) + ch for ch in chr(92) + chr(96) + "*_[]|~"}
+    escaped.update({ord("\r"): "&#13;", ord("\n"): "&#10;"})
+    return entities.translate(escaped)
+
+
 def _md_check(check: CheckResult) -> str:
-    """``check.describe()`` for a Markdown list item.
-
-    A ``|`` is escaped as in table cells, except inside the code span of a
-    pattern check, where a backslash would show as written (``a|b`` must not
-    become ``a\\|b``).
-    """
-    text = _md_escape(check.describe())
+    """Escape CSV-derived check messages, retaining the regex code span."""
+    text = _md_check_text(check.describe())
     if check.check == CHECK_PATTERN:
+        # The regex uses an intentional code span: restore it unchanged after
+        # escaping its surrounding column names and sample values.
         span = code_span(check.pattern)
-        text = text.replace(_md_escape(span), span, 1)
+        text = text.replace(_md_check_text(span), span, 1)
     return text
-
 
 def _top(col: ColumnProfile) -> str:
     return ", ".join(f"{_md_literal(v)} ({n})" for v, n in col.top_values)
