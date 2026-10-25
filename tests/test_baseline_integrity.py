@@ -32,17 +32,21 @@ def _baseline() -> dict[str, Any]:
         ({"rows": -1}, "no 'rows' count"),
         ({"rows": -100}, "no 'rows' count"),
         (
-            {"columns": [
-                {"name": "amount", "type": "int", "missing_pct": 0},
-                {"name": "amount", "type": "string", "missing_pct": 100},
-            ]},
+            {
+                "columns": [
+                    {"name": "amount", "type": "int", "missing_pct": 0},
+                    {"name": "amount", "type": "string", "missing_pct": 100},
+                ]
+            },
             "duplicate baseline column name: 'amount'",
         ),
         (
-            {"columns": [
-                {"name": "Amount", "type": "int", "missing_pct": 0},
-                {"name": "amount", "type": "int", "missing_pct": 0},
-            ]},
+            {
+                "columns": [
+                    {"name": "Amount", "type": "int", "missing_pct": 0},
+                    {"name": "amount", "type": "int", "missing_pct": 0},
+                ]
+            },
             None,
         ),
     ],
@@ -61,9 +65,7 @@ def test_baseline_row_count_and_duplicate_labels(
             load_baseline(target)
 
 
-@pytest.mark.parametrize(
-    "value", [-1.0, 100.1, math.nan, math.inf, -math.inf, 10**400]
-)
+@pytest.mark.parametrize("value", [-1.0, 100.1, math.nan, math.inf, -math.inf, 10**400])
 def test_invalid_missing_rates_are_rejected_before_drift_comparison(
     value: float | int, tmp_path: Path
 ) -> None:
@@ -76,9 +78,7 @@ def test_invalid_missing_rates_are_rejected_before_drift_comparison(
 
 
 @pytest.mark.parametrize("value", [0, 100, 0.001, 99.999])
-def test_valid_boundary_rates_preserve_normal_baseline_schema(
-    value: float, tmp_path: Path
-) -> None:
+def test_valid_boundary_rates_preserve_normal_baseline_schema(value: float, tmp_path: Path) -> None:
     baseline = _baseline()
     baseline["columns"][0]["missing_pct"] = value
     target = tmp_path / "historical.json"
@@ -90,9 +90,7 @@ def test_cli_rejects_corrupt_baseline_before_reading_input(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     baseline = _baseline()
-    baseline["columns"].append(
-        {"name": "order", "type": "int", "missing_pct": 0}
-    )
+    baseline["columns"].append({"name": "order", "type": "int", "missing_pct": 0})
     target = tmp_path / "historical.json"
     target.write_text(json.dumps(baseline), encoding="utf-8")
     missing_input = tmp_path / "does-not-exist.csv"
@@ -104,9 +102,7 @@ def test_cli_rejects_corrupt_baseline_before_reading_input(
 
 def test_direct_comparison_refuses_ambiguous_history(write_csv: Any) -> None:
     baseline = _baseline()
-    baseline["columns"].append(
-        {"name": "amount", "type": "float", "missing_pct": 0}
-    )
+    baseline["columns"].append({"name": "amount", "type": "float", "missing_pct": 0})
     report = profile_file(write_csv("order,amount\nO1,3\nO2,5\nO3,7\n"))
     with pytest.raises(ValueError, match="duplicate baseline column name"):
         compare_reports(baseline, report)
