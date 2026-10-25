@@ -229,9 +229,30 @@ def test_option_splits_and_strips_names_like_require_columns(
 ) -> None:
     path = str(write_csv(DATA))
     code, checks = checks_json(
-        capsys, path, *OPTIONS, "--unique-key", " Factura , Línea,", "--unique-key", KEY
+        capsys, path, *OPTIONS, "--unique-key", " Factura , Línea ", "--unique-key", KEY
     )
     assert (code, len(checks), checks[0]["columns"]) == (8, 1, ["Factura", "Línea"])
+
+
+@pytest.mark.parametrize(
+    "selection",
+    [
+        "Factura,,Línea",
+        ",Factura,Línea",
+        "Factura,Línea,",
+        "Factura, ,Línea",
+        "Factura,  ,Línea",
+    ],
+)
+def test_empty_unique_key_component_is_usage_error(
+    write_csv: WriteCsv, capsys: pytest.CaptureFixture[str], selection: str
+) -> None:
+    with pytest.raises(SystemExit) as exc:
+        main([str(write_csv(DATA)), "--unique-key", selection, "--format", "json"])
+    assert exc.value.code == 2
+    output = capsys.readouterr()
+    assert "empty column; specify every key column" in output.err
+    assert output.out == ""
 
 
 def test_name_with_a_comma_cannot_be_part_of_a_key(

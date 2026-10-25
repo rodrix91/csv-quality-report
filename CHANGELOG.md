@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+- Reject blank positions in composite `--unique-key` selectors, including doubled commas, leading/trailing commas and whitespace-only components. Prevent silently checking an incomplete business key; retain valid whitespace-trimmed selections and existing deduplication semantics. Added CLI regression coverage.
+
 - Reject blank positions in `--columns` selections, including leading/trailing commas and whitespace-only entries, to prevent silently profiling fewer columns than requested. Preserve valid trimmed selections and repeated-name deduplication. Add JSON/CLI regressions for invalid and valid selectors.
 
 - Reject blank comma-separated positions in `--require-columns`, including leading/trailing commas and whitespace-only entries, rather than silently dropping a required-field quality gate. Other CSV column-selection options keep their previous parsing behavior, and CLI regressions cover both invalid and valid selections.
