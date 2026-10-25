@@ -329,6 +329,16 @@ def _column_names(text: str, option: str = "--require-columns") -> tuple[str, ..
     return names
 
 
+def _selected_column_names(text: str) -> tuple[str, ...]:
+    """Require a name in every selected-column position."""
+    if text.strip() and any(not part.strip() for part in text.split(",")):
+        raise argparse.ArgumentTypeError(
+            f"invalid --columns value: {text!r} "
+            "(empty column; specify every selected column)"
+        )
+    return _column_names(text, "--columns")
+
+
 def _required_column_names(text: str) -> tuple[str, ...]:
     """Reject omitted required-column positions rather than silently skipping a gate."""
     if not text.strip():
@@ -514,7 +524,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--columns",
-        type=lambda text: _column_names(text, "--columns"),
+        type=_selected_column_names,
         default=None,
         metavar="NAMES",
         help="profile only these comma-separated columns, in this order (rows are still read "
