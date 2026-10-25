@@ -47,7 +47,7 @@ def _md_check_text(text: str) -> str:
     # existing report prose remains stable; a literal [ or ` cannot open links
     # or inline code, and escaping < prevents HTML tags/autolinks.
     entities = text.replace("&", "&amp;").replace("<", "&lt;")
-    escaped = {ord(ch): chr(92) + ch for ch in chr(96) + "[]|"}
+    escaped = {ord(ch): chr(92) + ch for ch in chr(92) + chr(96) + "[]|"}
     escaped.update({ord("\r"): "&#13;", ord("\n"): "&#10;"})
     return entities.translate(escaped)
 
