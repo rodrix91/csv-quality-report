@@ -242,6 +242,38 @@ def test_cli_name_ends_at_the_first_equals_sign(
     assert r"column 'Código' matches the pattern `[A-Z](?<=[AB])=\d`" in capsys.readouterr().out
 
 
+def test_cli_pattern_header_with_equals_uses_explicit_escape(
+    write_csv: WriteCsv, capsys: pytest.CaptureFixture[str]
+) -> None:
+    path = write_csv("SLA=met,shipment\nOK=10,S1\nOK=11,S2\nBAD,S3\n")
+    assert main(
+        [str(path), "--format", "json", "--pattern", r"SLA\=met=OK=[0-9]+"]
+    ) == 8
+    report = json.loads(capsys.readouterr().out)
+    (check,) = report["checks"]
+    assert check["column"] == "SLA=met"
+    assert check["pattern"] == "OK=[0-9]+"
+    assert check["value"] == 1
+    assert check["mismatched"] == {"BAD": 1}
+
+
+def test_cli_pattern_header_with_equals_can_pass(
+    write_csv: WriteCsv, capsys: pytest.CaptureFixture[str]
+) -> None:
+    path = write_csv("SLA=met\nOK=10\nOK=11\n")
+    assert main([str(path), "--pattern", r"SLA\=met=OK=[0-9]+"]) == 0
+    assert "column 'SLA=met' matches" in capsys.readouterr().out
+
+
+def test_cli_pattern_unseparated_escaped_equals_is_usage_error(
+    write_csv: WriteCsv, capsys: pytest.CaptureFixture[str]
+) -> None:
+    with pytest.raises(SystemExit) as exc:
+        run(write_csv, "--pattern", r"CUIT\=test")
+    assert exc.value.code == 2
+    assert "invalid --pattern value" in capsys.readouterr().err
+
+
 def test_without_the_option_reports_are_unchanged(
     write_csv: WriteCsv, capsys: pytest.CaptureFixture[str]
 ) -> None:
