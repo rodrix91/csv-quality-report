@@ -102,9 +102,7 @@ def _na_line(report: Report) -> list[str]:
     """Markdown line listing the extra missing-value tokens, only when there are some."""
     if not report.na_tokens:
         return []
-    return [
-        "- Also counted as missing: " + ", ".join(_md_code(t) for t in report.na_tokens)
-    ]
+    return ["- Also counted as missing: " + ", ".join(_md_code(t) for t in report.na_tokens)]
 
 
 def _checks_section(checks: Sequence[CheckResult]) -> list[str]:
