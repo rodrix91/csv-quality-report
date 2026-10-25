@@ -109,10 +109,21 @@ def _baseline_columns(baseline: Mapping[str, Any]) -> list[Mapping[str, Any]]:
         # A valid integer claiming more missing cells than rows, however, is
         # internally impossible and must not be used as a historical baseline.
         count = column.get("missing")
-        if isinstance(count, int) and not isinstance(count, bool) and count >= 0 and count > rows:
-            raise ValueError(
-                f"baseline column {name!r} has more missing cells ({count}) than rows ({rows})"
-            )
+        if isinstance(count, int) and not isinstance(count, bool) and count >= 0:
+            if count > rows:
+                raise ValueError(
+                    f"baseline column {name!r} has more missing cells ({count}) than rows ({rows})"
+                )
+            # Native reports round percentages to one decimal place. Allow
+            # half of that display step (plus floating-point tolerance) and
+            # more precise third-party rates, but reject inconsistent rates.
+            # Multiplying integer counts first avoids overflow on huge totals.
+            expected_pct = 100 * count / rows if rows else 0.0
+            if abs(missing_pct - expected_pct) > 0.05000000001:
+                raise ValueError(
+                    f"baseline column {name!r} has a 'missing_pct' inconsistent "
+                    f"with its 'missing' count ({count} of {rows} rows)"
+                )
     return columns
 
 
