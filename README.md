@@ -73,7 +73,8 @@ python -m csv_quality_report PATH [--format markdown|json] [--json-output FILE] 
                              [--baseline REPORT [--fail-on-schema-change [--allow-type-change [NAME=]FROM:TO ...]
                                                                          [--allow-added-column NAME ...] [--allow-removed-column NAME ...]]
                                                 [--max-row-drop PCT] [--max-missing-increase PCT]
-                                                [--max-missing-increase-column NAME=PCT ...] [--max-baseline-age DURATION]]
+                                                [--max-missing-increase-column NAME=PCT ...] [--max-baseline-age DURATION]
+                                                [--check-baseline-missing-rate]]
 python -m csv_quality_report --version
 python -m csv_quality_report --help
 ```
