@@ -383,6 +383,14 @@ def build_parser() -> argparse.ArgumentParser:
         help="skip the first N lines (title lines before the header; a sep= line is not counted)",
     )
     parser.add_argument(
+        "--skip-footer",
+        type=_non_negative_int,
+        default=0,
+        metavar="N",
+        help="drop the last N records (a footer after the data: totals rows, a record count; "
+        "blank lines are not counted)",
+    )
+    parser.add_argument(
         "--decimal-comma",
         action="store_true",
         help="numbers use ',' as decimal mark (10,5); values written with '.' are not floats",
@@ -821,6 +829,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             allowed_values=dict(args.allowed_values),  # the last list for a name wins
             patterns=dict(args.pattern),  # the last pattern for a name wins
             skip_lines=args.skip_lines,
+            skip_footer=args.skip_footer,
         )
     except CsvQualityError as exc:
         print(f"error: {exc.message}", file=sys.stderr)

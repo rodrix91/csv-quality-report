@@ -1,0 +1,1 @@
+error: cannot detect the delimiter: no separator gives the same number of fields on every line; pass it explicitly with --delimiter; if the file ends with 2 footer lines after the data, skip them with --skip-footer 2 (add one for each totals row above them)

@@ -10,6 +10,7 @@ import os
 import re
 import sys
 import zlib
+from collections import deque
 from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -18,6 +19,7 @@ from pathlib import Path
 from typing import Protocol, cast
 
 from .errors import (
+    CsvQualityError,
     DelimiterDetectionError,
     EmptyFileError,
     EncodingError,
@@ -40,6 +42,7 @@ DELIMITER_CANDIDATES = (",", ";", "\t", "|")
 SNIFF_CHARS = 64 * 1024  # how much text detection looks at
 SNIFF_RECORDS = 100  # how many lines detection checks
 MAX_TITLE_LINES = 20  # how many leading title lines a failed detection looks past
+MAX_FOOTER_LINES = 20  # how many trailing footer records an error looks for
 DELIMITER_NAMES = {",": "comma", ";": "semicolon", "\t": "tab", "|": "pipe"}
 # Excel's hint line, e.g. "sep=;": one separator character, optionally quoted.
 _SEP_LINE_RE = re.compile(r'"?sep=([^"\r\n])"?(?:\r\n|\r|\n)?', re.IGNORECASE)
@@ -58,6 +61,7 @@ class Table:
     encoding: str = DEFAULT_ENCODING  # normalized codec name used to decode the input
     sep_line: bool = False  # True when a first line such as "sep=;" was skipped
     skipped_lines: int = 0  # lines skipped before the header (``skip_lines``)
+    skipped_footer: int = 0  # records dropped after the data (``skip_footer``)
 
 
 def declared_delimiter(line: str) -> str | None:
@@ -196,6 +200,42 @@ def title_lines(sample: str) -> int | None:
     return None
 
 
+def _without_last_lines(text: str, count: int) -> str:
+    """``text`` without its last ``count`` non-blank lines (and the blank lines among them).
+
+    The first non-blank line, the header, is always kept.
+    """
+    lines = io.StringIO(text, newline="").readlines()  # split like the reader does
+    filled = [i for i, line in enumerate(lines) if line.strip("\r\n")]
+    if len(filled) <= 1 or count <= 0:
+        return text
+    cut = filled[-min(count, len(filled) - 1)]
+    return "".join(lines[:cut])
+
+
+def footer_lines(sample: str) -> int | None:
+    """How many trailing non-blank lines of ``sample`` to drop for ``detect_delimiter`` to succeed.
+
+    ``sample`` must hold the whole file. Only called after detection failed
+    on it. Tries dropping 1 to ``MAX_FOOTER_LINES`` non-blank lines from the
+    end (blank lines among them go too), always leaving at least two, and
+    returns the first count after which one separator gives the same number
+    of fields (more than one) on every line, or ``None``. It suggests
+    ``--skip-footer`` for exports that end with a footer (#192).
+    """
+    filled = sum(1 for line in io.StringIO(sample, newline="") if line.strip("\r\n"))
+    for count in range(1, min(MAX_FOOTER_LINES, filled - 2) + 1):
+        rest = _without_last_lines(sample, count)
+        try:
+            delimiter = detect_delimiter(rest)
+        except DelimiterDetectionError:
+            continue
+        widths = _record_widths(rest, delimiter)
+        if widths and max(widths) > 1:  # a one-column rest does not count
+            return count
+    return None
+
+
 class RowStream:
     """Validated data rows of an open CSV file, produced one at a time.
 
@@ -218,6 +258,7 @@ class RowStream:
         encoding: str = DEFAULT_ENCODING,
         sep_line: bool = False,
         skipped_lines: int = 0,
+        skipped_footer: int = 0,
     ) -> None:
         self.path = path
         self.name = name  # the path as given, for messages
@@ -225,6 +266,7 @@ class RowStream:
         self.encoding = encoding
         self.sep_line = sep_line
         self.skipped_lines = skipped_lines
+        self.skipped_footer = skipped_footer
         self.header = dedupe_header(raw_header)
         self.delimiter = delimiter
         self.delimiter_detected = delimiter_detected
@@ -235,31 +277,96 @@ class RowStream:
         self._max_rows = max_rows
 
     def __iter__(self) -> Iterator[list[str]]:
-        count = 0
-        for record in _guarded(
+        rows = _guarded(
             self.path, self._records, self._reader, self.compressed, self.encoding, self.name
-        ):
-            if not record:  # blank line
-                continue
+        )
+        # Non-blank records and the line each one ends on, read when it is read.
+        numbered: Iterator[tuple[list[str], int]] = (
+            (record, self._reader.line_num) for record in rows if record
+        )
+        if self.skipped_footer:
+            numbered = _before_footer(numbered, self.skipped_footer, self.name)
+        count = 0
+        for record, line in numbered:
             if self._max_rows is not None and count >= self._max_rows:
                 self.truncated = True
                 return
             if len(record) != self._width:
-                message = (
-                    f"row at line {self._reader.line_num} has {len(record)} fields, "
-                    f"expected {self._width} (from the header)"
-                )
-                if self._width == 1 and len(record) > 1 and not self.skipped_lines:
-                    # The usual symptom of a title line read as the header (#161):
-                    # this row is then the real header, after the title lines.
-                    titles = self._reader.line_num - 1 - int(self.sep_line)
-                    message += (
-                        "; if this row is the header and the lines before it are titles, "
-                        f"skip them with --skip-lines {titles}"
-                    )
-                raise RaggedRowError(message)
+                raise RaggedRowError(self._ragged_message(record, line, numbered))
             count += 1
             yield record
+
+    def _ragged_message(
+        self, record: list[str], line: int, later: Iterator[tuple[list[str], int]]
+    ) -> str:
+        """The error for ``record``, of the wrong width, with a hint when one fits.
+
+        ``later`` holds the records after it; it may be read to look for a footer.
+        """
+        message = (
+            f"row at line {line} has {len(record)} fields, expected {self._width} (from the header)"
+        )
+        if self._width == 1 and len(record) > 1 and not self.skipped_lines:
+            # The usual symptom of a title line read as the header (#161):
+            # this row is then the real header, after the title lines.
+            titles = line - 1 - int(self.sep_line)
+            message += (
+                "; if this row is the header and the lines before it are titles, "
+                f"skip them with --skip-lines {titles}"
+            )
+        elif not self.skipped_footer:
+            after = _footer_after(later, self._width)
+            if after == 0:
+                message += (
+                    "; if this last record is a footer, skip it with --skip-footer 1 "
+                    "(add one for each totals row above it)"
+                )
+            elif after is not None:
+                message += (
+                    f"; if this record and the {after} after it are a footer, skip "
+                    f"{'both' if after == 1 else 'them'} with --skip-footer {after + 1} "
+                    "(add one for each totals row above them)"
+                )
+        return message
+
+
+def _before_footer(
+    numbered: Iterator[tuple[list[str], int]], count: int, name: str
+) -> Iterator[tuple[list[str], int]]:
+    """``numbered`` without its last ``count`` items (``skip_footer``, #192).
+
+    Each item is held until ``count`` more have been read, so memory stays
+    ``O(count)``. Raises ``EmptyFileError`` when there are fewer than ``count``.
+    """
+    held: deque[tuple[list[str], int]] = deque()
+    for item in numbered:
+        held.append(item)
+        if len(held) > count:
+            yield held.popleft()
+    if len(held) < count:
+        records = "record" if len(held) == 1 else "records"
+        raise EmptyFileError(
+            f"'{name}' has {len(held)} {records} after the header, "
+            f"fewer than the {count} skipped by --skip-footer"
+        )
+
+
+def _footer_after(later: Iterator[tuple[list[str], int]], width: int) -> int | None:
+    """How many records follow a ragged one when they look like the rest of a footer.
+
+    Reads at most ``MAX_FOOTER_LINES`` - 1 more records. Returns their number
+    when the file ends among them and none has the header's ``width`` (so all
+    would fail too), else ``None``; also ``None`` when reading them fails.
+    """
+    after = 0
+    try:
+        for record, _ in later:
+            if after == MAX_FOOTER_LINES - 1 or len(record) == width:
+                return None
+            after += 1
+    except CsvQualityError:
+        return None
+    return after
 
 
 class _CsvReader(Protocol):
@@ -418,6 +525,7 @@ def open_rows(
     encoding: str = DEFAULT_ENCODING,
     max_field_size: int | None = None,
     skip_lines: int = 0,
+    skip_footer: int = 0,
 ) -> Iterator[RowStream]:
     """Open ``path`` and yield a ``RowStream`` that reads it lazily.
 
@@ -449,6 +557,17 @@ def open_rows(
     them. A file that has no line left for the header raises
     ``EmptyFileError``. A negative ``skip_lines`` raises ``ValueError``.
 
+    ``skip_footer`` records are dropped from the end of the file, for exports
+    that end with a footer: totals rows, a record count, a "generated by" line
+    (#192). They are CSV records after the header, so blank lines are not
+    counted, and they are never checked against the header's width. Each row
+    is held until ``skip_footer`` more have been read, so the file is still
+    read once, in ``O(skip_footer)`` extra memory. A file with fewer records
+    after the header raises ``EmptyFileError`` when the iteration reaches its
+    end. With ``"auto"``, when the detection sample holds the whole file, its
+    last ``skip_footer`` non-blank lines are left out of it. A negative
+    ``skip_footer`` raises ``ValueError``.
+
     ``max_field_size`` raises Python's ``csv`` field size limit (131,072
     characters by default) while the file is read. The limit is process-wide
     in the ``csv`` module, so the previous value is restored when the stream
@@ -456,11 +575,15 @@ def open_rows(
     """
     if skip_lines < 0:
         raise ValueError(f"skip_lines must be >= 0, got {skip_lines}")
+    if skip_footer < 0:
+        raise ValueError(f"skip_footer must be >= 0, got {skip_footer}")
     name = display_name(path)  # as given: Path() would change the separators on Windows
     path = Path(path)  # the rest of the reader works on Path objects
     previous_limit = None if max_field_size is None else csv.field_size_limit(max_field_size)
     try:
-        with _open_rows(path, name, max_rows, delimiter, encoding, skip_lines) as stream:
+        with _open_rows(
+            path, name, max_rows, delimiter, encoding, skip_lines, skip_footer
+        ) as stream:
             yield stream
     finally:
         if previous_limit is not None:
@@ -475,6 +598,7 @@ def _open_rows(
     delimiter: str,
     encoding: str,
     skip_lines: int = 0,
+    skip_footer: int = 0,
 ) -> Iterator[RowStream]:
     """``open_rows`` without the field size handling; ``name`` is used in messages."""
     with _text_stream(path, name, encoding) as (handle, compressed):
@@ -495,26 +619,28 @@ def _open_rows(
                 first = _skip(handle, name, first, skip_lines)
             detected = delimiter == DELIMITER_AUTO
             sample = first
+            whole = False  # the sample holds the whole file
             if detected and len(first) <= SNIFF_CHARS:
                 sample += handle.read(SNIFF_CHARS + 1 - len(first))
                 if len(sample) > SNIFF_CHARS:
                     sample += handle.readline()  # end the sample on a line boundary
+                else:
+                    whole = True
         except UnicodeDecodeError as exc:
             raise _encoding_error(path, name, compressed, encoding) from exc
         except _STREAM_ERRORS as exc:
             raise _read_error(name, exc) from exc
         if detected:
+            judged = sample
+            if whole and skip_footer:
+                judged = _without_last_lines(sample, skip_footer)  # the footer is not data
             try:
-                delimiter = detect_delimiter(sample)
+                delimiter = detect_delimiter(judged)
             except DelimiterDetectionError as exc:
-                titles = None if skip_lines else title_lines(sample)
-                if titles is None:
+                hinted = _detection_hint(exc, sample, whole, skip_lines, skip_footer)
+                if hinted is exc:
                     raise
-                raise DelimiterDetectionError(
-                    f"{exc.message}; if the file starts with {titles} title "
-                    f"{'line' if titles == 1 else 'lines'} before the header, "
-                    f"skip {'it' if titles == 1 else 'them'} with --skip-lines {titles}"
-                ) from exc
+                raise hinted from exc
         # Parse what was read ahead again, then continue with the rest of the stream.
         lines = chain(io.StringIO(sample, newline=""), handle)
 
@@ -544,7 +670,34 @@ def _open_rows(
             encoding,
             sep_line=declared is not None,
             skipped_lines=skip_lines,
+            skipped_footer=skip_footer,
         )
+
+
+def _detection_hint(
+    exc: DelimiterDetectionError, sample: str, whole: bool, skip_lines: int, skip_footer: int
+) -> DelimiterDetectionError:
+    """``exc`` with a ``--skip-lines`` or ``--skip-footer`` suggestion when one fits.
+
+    Title lines are looked for first (#161), then, when ``sample`` holds the
+    whole file, a footer (#192). Neither is looked for once its option is given.
+    """
+    titles = None if skip_lines else title_lines(sample)
+    if titles is not None:
+        return DelimiterDetectionError(
+            f"{exc.message}; if the file starts with {titles} title "
+            f"{'line' if titles == 1 else 'lines'} before the header, "
+            f"skip {'it' if titles == 1 else 'them'} with --skip-lines {titles}"
+        )
+    footer = footer_lines(sample) if whole and not skip_footer else None
+    if footer is not None:
+        return DelimiterDetectionError(
+            f"{exc.message}; if the file ends with {footer} footer "
+            f"{'line' if footer == 1 else 'lines'} after the data, "
+            f"skip {'it' if footer == 1 else 'them'} with --skip-footer {footer} "
+            f"(add one for each totals row above {'it' if footer == 1 else 'them'})"
+        )
+    return exc
 
 
 def _skip(handle: io.TextIOWrapper, name: str, first: str, count: int) -> str:
@@ -572,6 +725,7 @@ def read_table(
     encoding: str = DEFAULT_ENCODING,
     max_field_size: int | None = None,
     skip_lines: int = 0,
+    skip_footer: int = 0,
 ) -> Table:
     """Read the whole of ``path`` into a ``Table`` (see ``open_rows`` for the rules).
 
@@ -585,6 +739,7 @@ def read_table(
         encoding=encoding,
         max_field_size=max_field_size,
         skip_lines=skip_lines,
+        skip_footer=skip_footer,
     ) as stream:
         rows = list(stream)
         return Table(
@@ -597,4 +752,5 @@ def read_table(
             encoding=stream.encoding,
             sep_line=stream.sep_line,
             skipped_lines=stream.skipped_lines,
+            skipped_footer=stream.skipped_footer,
         )

@@ -277,5 +277,33 @@
     "args": ["--encoding", "cp1252", "--delimiter", ";", "--decimal-comma", "--thousands", "dot"],
     "exit_code": 6,
     "about": "The same export with an explicit semicolon and no --skip-lines: the first title becomes a one-field header, the real header fails as a ragged row, and the message suggests skipping the lines before it."
+  },
+  {
+    "name": "erp_dispatch_footer",
+    "file": "erp_dispatch_footer.csv",
+    "args": ["--delimiter", "auto", "--skip-lines", "3", "--skip-footer", "3", "--encoding", "cp1252", "--decimal-comma", "--thousands", "dot", "--date-order", "dmy", "--unique", "Remito", "--require-type", "Fecha=date", "--range", "Kilos=0:1500", "--allowed-values", "Estado=Entregado,En tránsito,Pendiente"],
+    "exit_code": 0,
+    "about": "An ERP dispatch export in cp1252 with two title lines and a blank line before the header and a footer after the data (a blank line, a totals row, a record count and a generated-by line): --skip-lines 3 and --skip-footer 3 leave the seven dispatches, and the gates pass."
+  },
+  {
+    "name": "erp_dispatch_footer_totals",
+    "file": "erp_dispatch_footer.csv",
+    "args": ["--delimiter", "auto", "--skip-lines", "3", "--skip-footer", "2", "--encoding", "cp1252", "--decimal-comma", "--thousands", "dot", "--date-order", "dmy", "--unique", "Remito", "--require-type", "Fecha=date", "--range", "Kilos=0:1500", "--allowed-values", "Estado=Entregado,En tránsito,Pendiente"],
+    "exit_code": 8,
+    "about": "The same export with only the two footer lines dropped: the totals row is profiled as an eighth dispatch, so its 2.345,60 kilos fail the range."
+  },
+  {
+    "name": "erp_dispatch_footer_unskipped",
+    "file": "erp_dispatch_footer.csv",
+    "args": ["--delimiter", "auto", "--skip-lines", "3", "--encoding", "cp1252", "--decimal-comma", "--thousands", "dot", "--date-order", "dmy"],
+    "exit_code": 7,
+    "about": "The same export without --skip-footer: detection fails on the footer lines, and the message suggests how many to drop."
+  },
+  {
+    "name": "erp_dispatch_footer_explicit_delimiter",
+    "file": "erp_dispatch_footer.csv",
+    "args": ["--delimiter", ";", "--skip-lines", "3", "--encoding", "cp1252", "--decimal-comma", "--thousands", "dot", "--date-order", "dmy"],
+    "exit_code": 6,
+    "about": "The same export with an explicit semicolon and no --skip-footer: the record count fails as a ragged row, and the message suggests dropping it and the line after it."
   }
 ]

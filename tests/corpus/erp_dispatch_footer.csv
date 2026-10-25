@@ -1,0 +1,15 @@
+Listado de remitos despachados
+Depósito Central - Período: 20/10/2026 al 24/10/2026
+
+Remito;Fecha;Cliente;Estado;Kilos
+R-0001-00004512;20/10/2026;Ferretería del Sur S.R.L.;Entregado;312,5
+R-0001-00004513;20/10/2026;Agropecuaria Los Álamos;Entregado;1.020,0
+R-0001-00004514;21/10/2026;Distribuidora Ñandú;En tránsito;87,25
+R-0001-00004515;22/10/2026;Corralón San Martín;Entregado;640,0
+R-0001-00004516;22/10/2026;Ferretería del Sur S.R.L.;Pendiente;45,6
+R-0001-00004517;23/10/2026;Supermercado La Económica;En tránsito;98,0
+R-0001-00004518;24/10/2026;Agropecuaria Los Álamos;Pendiente;142,25
+
+Total despachado;;;;2.345,60
+Cantidad de remitos: 7
+Generado por el sistema de gestión el 24/10/2026 18:30

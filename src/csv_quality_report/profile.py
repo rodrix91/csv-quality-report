@@ -184,6 +184,7 @@ class Report:
     bool_words: BoolWords = ()  # extra (true, false) word pairs, as given
     sep_line: bool = False  # the input started with an Excel "sep=" line, which was skipped
     skipped_lines: int = 0  # --skip-lines: lines skipped before the header
+    skipped_footer: int = 0  # --skip-footer: records dropped after the data
     number_affixes: tuple[str, ...] = ()  # --number-affix texts, as validated
     accounting_negatives: bool = False  # (1.234,56) and 1.234,56- were read as negative
     # All column names of the file, after duplicate-name suffixes; ``columns``
@@ -798,6 +799,7 @@ def _report(
         encoding=source.encoding,
         sep_line=source.sep_line,
         skipped_lines=source.skipped_lines,
+        skipped_footer=source.skipped_footer,
         thousands=thousands,
         date_order=date_order,
         bool_words=bool_words,
@@ -892,6 +894,7 @@ def profile_file(
     allowed_values: Mapping[str, Iterable[str]] | None = None,
     patterns: Mapping[str, str] | None = None,
     skip_lines: int = 0,
+    skip_footer: int = 0,
 ) -> Report:
     """Stream ``path`` and profile it without loading the whole file into memory.
 
@@ -899,7 +902,8 @@ def profile_file(
 
     Same rules and errors as ``reader.open_rows``; same result as
     ``build_report(read_table(...))``. ``skip_lines`` lines before the header
-    are skipped (``Report.skipped_lines``).
+    are skipped (``Report.skipped_lines``), and ``skip_footer`` records after
+    the data are dropped (``Report.skipped_footer``).
     """
     with open_rows(
         path,
@@ -908,6 +912,7 @@ def profile_file(
         encoding=encoding,
         max_field_size=max_field_size,
         skip_lines=skip_lines,
+        skip_footer=skip_footer,
     ) as stream:
         result = profile_rows(
             stream.header,
