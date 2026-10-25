@@ -100,6 +100,53 @@ def test_cli_rejects_corrupt_baseline_before_reading_input(
     assert captured.out == ""
 
 
+@pytest.mark.parametrize(
+    ("rows", "missing"),
+    [(3, 4), (3, 10**400), (0, 1)],
+)
+def test_baseline_rejects_more_missing_cells_than_rows(
+    rows: int, missing: int, tmp_path: Path
+) -> None:
+    baseline = _baseline()
+    baseline["rows"] = rows
+    baseline["columns"][0]["missing"] = missing
+    target = tmp_path / "impossible-baseline.json"
+    target.write_text(json.dumps(baseline), encoding="utf-8")
+    with pytest.raises(FileReadError, match="has more missing cells"):
+        load_baseline(target)
+
+
+def test_missing_count_equal_to_rows_is_valid(tmp_path: Path) -> None:
+    baseline = _baseline()
+    baseline["columns"][0]["missing"] = baseline["rows"]
+    baseline["columns"][0]["missing_pct"] = 100
+    target = tmp_path / "all-missing-baseline.json"
+    target.write_text(json.dumps(baseline), encoding="utf-8")
+    loaded = load_baseline(target)
+    assert loaded["columns"][0]["missing"] == 3
+
+
+def test_cli_rejects_impossible_baseline_before_csv_read(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    baseline = _baseline()
+    baseline["columns"][1]["missing"] = 4
+    target = tmp_path / "impossible-baseline.json"
+    target.write_text(json.dumps(baseline), encoding="utf-8")
+    assert main([str(tmp_path / "missing-input.csv"), "--baseline", str(target)]) == 3
+    output = capsys.readouterr()
+    assert "more missing cells (4) than rows (3)" in output.err
+    assert output.out == ""
+
+
+def test_direct_comparison_rejects_impossible_baseline_count(write_csv: Any) -> None:
+    baseline = _baseline()
+    baseline["columns"][1]["missing"] = 5
+    report = profile_file(write_csv("order,amount\\nO1,3\\nO2,5\\nO3,7\\n"))
+    with pytest.raises(ValueError, match="more missing cells"):
+        compare_reports(baseline, report)
+
+
 def test_direct_comparison_refuses_ambiguous_history(write_csv: Any) -> None:
     baseline = _baseline()
     baseline["columns"].append({"name": "amount", "type": "float", "missing_pct": 0})
