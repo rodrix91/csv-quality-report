@@ -60,9 +60,10 @@ def test_metadata_code_spans_contain_backticks_html_and_newlines_safely() -> Non
     assert "\n## injected" not in markdown
     assert r"buyer\[Open\]\(https://example.invalid\)&lt;img&gt;" in markdown
     assert r"\[View\]\(https://example.invalid\)&lt;script&gt;&#10;## injected" in markdown
-    assert "[Open](https://example.invalid)<img>" not in markdown.split(
-        "- Untrimmed values:", 1
-    )[1].split("\n", 1)[0]
+    assert (
+        "[Open](https://example.invalid)<img>"
+        not in markdown.split("- Untrimmed values:", 1)[1].split("\n", 1)[0]
+    )
     assert "&#10;## forged" not in markdown  # code spans replace line breaks with spaces
 
     encoded = json.loads(render_json(report, "input.csv"))
