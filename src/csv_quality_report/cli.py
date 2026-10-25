@@ -358,7 +358,11 @@ def _column_name(text: str, option: str = "--unique") -> str:
 
 
 def _key_names(text: str) -> tuple[str, ...]:
-    """Parse the columns of one --unique-key, split at every comma like --require-columns."""
+    """Reject omitted composite-key columns before checking their uniqueness."""
+    if text.strip() and any(not part.strip() for part in text.split(",")):
+        raise argparse.ArgumentTypeError(
+            f"invalid --unique-key value: {text!r} (empty column; specify every key column)"
+        )
     return _column_names(text, "--unique-key")
 
 
