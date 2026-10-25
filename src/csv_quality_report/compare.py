@@ -10,6 +10,7 @@ the ones that break consumers (columns added or removed, types changed).
 from __future__ import annotations
 
 import json
+import math
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
@@ -76,8 +77,14 @@ def _baseline_columns(baseline: Mapping[str, Any]) -> list[Mapping[str, Any]]:
     """The column entries of a baseline report, validated; ``ValueError`` otherwise."""
     rows = baseline.get("rows")
     columns = baseline.get("columns")
-    if not isinstance(rows, int) or isinstance(rows, bool) or not isinstance(columns, list):
+    if (
+        not isinstance(rows, int)
+        or isinstance(rows, bool)
+        or rows < 0
+        or not isinstance(columns, list)
+    ):
         raise ValueError("it has no 'rows' count and 'columns' list")
+    names: set[str] = set()
     for column in columns:
         if not (
             isinstance(column, Mapping)
@@ -87,6 +94,15 @@ def _baseline_columns(baseline: Mapping[str, Any]) -> list[Mapping[str, Any]]:
             and not isinstance(column.get("missing_pct"), bool)
         ):
             raise ValueError("a column has no 'name', 'type' and 'missing_pct'")
+        name = column["name"]
+        if name in names:
+            raise ValueError(f"duplicate baseline column name: {name!r}")
+        names.add(name)
+        missing_pct = column["missing_pct"]
+        if not math.isfinite(missing_pct) or not 0 <= missing_pct <= 100:
+            raise ValueError(
+                f"baseline column {name!r} has an invalid 'missing_pct' (expected 0 to 100)"
+            )
     return columns
 
 
