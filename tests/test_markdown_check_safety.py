@@ -74,6 +74,23 @@ def test_pattern_code_span_remains_exact_but_csv_examples_are_escaped() -> None:
     assert "[open](https://example.invalid)" not in markdown
 
 
+def test_csv_backslash_cannot_cancel_markdown_bracket_escaping() -> None:
+    value = r"\[open](https://example.invalid)"
+    check = CheckResult(
+        check=CHECK_UNIQUE,
+        column="code",
+        limit=0,
+        value=1,
+        passed=False,
+        repeated=((value, 2),),
+    )
+    markdown = render_markdown(_report("code"), "input.csv", checks=(check,))
+    assert r"\\\[open\](https://example.invalid)" in markdown
+    assert json.loads(render_json(_report("code"), "input.csv", checks=(check,)))["checks"][0][
+        "repeated"
+    ] == {value: 2}
+
+
 def test_cli_duplicate_check_escapes_csv_header_and_values(tmp_path: Path) -> None:
     name = "buyer[link](https://example.invalid)<b>"
     value = "[order](https://example.invalid)<img>"
