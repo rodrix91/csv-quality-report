@@ -109,15 +109,9 @@ def _baseline_columns(baseline: Mapping[str, Any]) -> list[Mapping[str, Any]]:
         # A valid integer claiming more missing cells than rows, however, is
         # internally impossible and must not be used as a historical baseline.
         count = column.get("missing")
-        if (
-            isinstance(count, int)
-            and not isinstance(count, bool)
-            and count >= 0
-            and count > rows
-        ):
+        if isinstance(count, int) and not isinstance(count, bool) and count >= 0 and count > rows:
             raise ValueError(
-                f"baseline column {name!r} has more missing cells ({count}) "
-                f"than rows ({rows})"
+                f"baseline column {name!r} has more missing cells ({count}) than rows ({rows})"
             )
     return columns
 
