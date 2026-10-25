@@ -29,6 +29,11 @@ def _num(value: int | float | str | None) -> str:
     return "" if value is None else str(value)
 
 
+def _md_code(text: str) -> str:
+    """Fence arbitrary metadata as code, retaining the legacy escaped-pipe spelling."""
+    return code_span(text.replace("|", r"\|"))
+
+
 def _md_literal(text: str) -> str:
     """Render CSV text without creating Markdown links, HTML, or new table cells."""
     entities = text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
@@ -70,7 +75,7 @@ def _delimiter_line(report: Report) -> list[str]:
     name = (
         delimiter_name(report.delimiter)
         if report.delimiter in DELIMITER_NAMES
-        else code_span(report.delimiter)
+        else _md_code(report.delimiter)
     )
     how = " (detected)" if report.delimiter_detected else ""
     if report.sep_line:
@@ -98,7 +103,7 @@ def _na_line(report: Report) -> list[str]:
     if not report.na_tokens:
         return []
     return [
-        "- Also counted as missing: " + ", ".join(code_span(t) for t in report.na_tokens)
+        "- Also counted as missing: " + ", ".join(_md_code(t) for t in report.na_tokens)
     ]
 
 
@@ -160,7 +165,7 @@ def _affixes_line(report: Report) -> list[str]:
     parts = []
     for c in report.columns:
         if c.affixes:
-            found = ", ".join(f"{code_span(a)} {n}" for a, n in c.affixes)
+            found = ", ".join(f"{_md_code(a)} {n}" for a, n in c.affixes)
             parts.append(f"{_md_literal(c.name)} ({found})")
     return ["- Number affixes: " + "; ".join(parts)] if parts else []
 
@@ -169,7 +174,7 @@ def _bool_words_line(report: Report) -> list[str]:
     """Markdown line listing the extra boolean words, when some were given."""
     if not report.bool_words:
         return []
-    pairs = ", ".join(f"{code_span(t)}/{code_span(f)}" for t, f in report.bool_words)
+    pairs = ", ".join(f"{_md_code(t)}/{_md_code(f)}" for t, f in report.bool_words)
     return [f"- Boolean words (true/false): {pairs}"]
 
 
@@ -183,7 +188,7 @@ def _baseline_section(comparison: Comparison | None) -> list[str]:
     c = comparison
     lines = ["", "## Changes since baseline", ""]
     if c.baseline_source:
-        lines.append(f"- Baseline: report of {code_span(c.baseline_source)}")
+        lines.append(f"- Baseline: report of {_md_code(c.baseline_source)}")
     if c.baseline_generated_at is not None:
         lines.append(f"- Baseline generated: {_md_literal(c.baseline_generated_at)}")
     lines.append(f"- Rows: {c.rows_before} -> {c.rows_after}")
