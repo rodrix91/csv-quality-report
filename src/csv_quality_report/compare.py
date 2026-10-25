@@ -99,7 +99,9 @@ def _baseline_columns(baseline: Mapping[str, Any]) -> list[Mapping[str, Any]]:
             raise ValueError(f"duplicate baseline column name: {name!r}")
         names.add(name)
         missing_pct = column["missing_pct"]
-        if not math.isfinite(missing_pct) or not 0 <= missing_pct <= 100:
+        if not 0 <= missing_pct <= 100 or (
+            isinstance(missing_pct, float) and not math.isfinite(missing_pct)
+        ):
             raise ValueError(
                 f"baseline column {name!r} has an invalid 'missing_pct' (expected 0 to 100)"
             )
