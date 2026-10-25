@@ -849,9 +849,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         baseline = (
             None
             if args.baseline is None
-            else load_baseline(
-                args.baseline, check_missing_rate=args.check_baseline_missing_rate
-            )
+            else load_baseline(args.baseline, check_missing_rate=args.check_baseline_missing_rate)
         )
         report = profile_file(
             args.path,
