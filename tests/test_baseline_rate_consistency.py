@@ -70,7 +70,7 @@ def test_default_mode_preserves_legacy_rate_count_behavior(
     legacy = _baseline(missing=0, rate=100)
     path = _save(tmp_path, legacy)
     assert load_baseline(path) == legacy
-    current = profile_file(write_csv("sku\\nS1\\nS2\\nS3\\n"))
+    current = profile_file(write_csv("sku\nS1\nS2\nS3\n"))
     assert compare_reports(legacy, current).rows_before == 3
     with pytest.raises(ValueError, match="inconsistent with its 'missing' count"):
         compare_reports(legacy, current, check_missing_rate=True)
@@ -105,7 +105,7 @@ def test_strict_cli_accepts_baseline_with_normal_rounding(
 ) -> None:
     path = _save(tmp_path, _baseline())
     csv = tmp_path / "input.csv"
-    csv.write_text("sku\\nS1\\n\\nS3\\n", encoding="utf-8")
+    csv.write_text("sku\nS1\n\nS3\n", encoding="utf-8")
     code = main(
         [str(csv), "--baseline", str(path), "--check-baseline-missing-rate", "--format", "json"]
     )
