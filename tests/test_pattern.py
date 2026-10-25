@@ -246,9 +246,7 @@ def test_cli_pattern_header_with_equals_uses_explicit_escape(
     write_csv: WriteCsv, capsys: pytest.CaptureFixture[str]
 ) -> None:
     path = write_csv("SLA=met,shipment\nOK=10,S1\nOK=11,S2\nBAD,S3\n")
-    assert main(
-        [str(path), "--format", "json", "--pattern", r"SLA\=met=OK=[0-9]+"]
-    ) == 8
+    assert main([str(path), "--format", "json", "--pattern", r"SLA\=met=OK=[0-9]+"]) == 8
     report = json.loads(capsys.readouterr().out)
     (check,) = report["checks"]
     assert check["column"] == "SLA=met"
