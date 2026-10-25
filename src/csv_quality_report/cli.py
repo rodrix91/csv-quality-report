@@ -529,6 +529,14 @@ def build_parser() -> argparse.ArgumentParser:
         "--json-output): added, removed and retyped columns, missing-value and row changes",
     )
     parser.add_argument(
+        "--check-baseline-missing-rate",
+        action="store_true",
+        help=(
+            "with --baseline: reject a historical 'missing_pct' that contradicts "
+            "its exact 'missing' count beyond one-decimal rounding"
+        ),
+    )
+    parser.add_argument(
         "--columns",
         type=_selected_column_names,
         default=None,
@@ -805,6 +813,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 ("--allow-added-column", bool(args.allow_added_column)),
                 ("--allow-removed-column", bool(args.allow_removed_column)),
                 ("--max-baseline-age", args.max_baseline_age is not None),
+                ("--check-baseline-missing-rate", args.check_baseline_missing_rate),
             ):
                 if given:
                     raise ValueError(f"{option} needs --baseline")
@@ -837,7 +846,13 @@ def main(argv: Sequence[str] | None = None) -> int:
         parser.error(str(exc))
     try:
         # Read the baseline first: a wrong path should not cost a full profile.
-        baseline = None if args.baseline is None else load_baseline(args.baseline)
+        baseline = (
+            None
+            if args.baseline is None
+            else load_baseline(
+                args.baseline, check_missing_rate=args.check_baseline_missing_rate
+            )
+        )
         report = profile_file(
             args.path,
             max_rows=args.max_rows,
