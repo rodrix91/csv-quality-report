@@ -72,8 +72,10 @@ class Comparison:
         return len(self.added_columns) + len(self.removed_columns) + len(self.type_changes)
 
 
-def _baseline_columns(baseline: Mapping[str, Any]) -> list[Mapping[str, Any]]:
-    """The column entries of a baseline report, validated; ``ValueError`` otherwise."""
+def _baseline_columns(
+    baseline: Mapping[str, Any], *, check_missing_rate: bool = False
+) -> list[Mapping[str, Any]]:
+    """Validate baseline column metadata and optionally verify rounded missing-rate consistency."""
     rows = baseline.get("rows")
     columns = baseline.get("columns")
     if (
@@ -109,22 +111,39 @@ def _baseline_columns(baseline: Mapping[str, Any]) -> list[Mapping[str, Any]]:
         # A valid integer claiming more missing cells than rows, however, is
         # internally impossible and must not be used as a historical baseline.
         count = column.get("missing")
-        if isinstance(count, int) and not isinstance(count, bool) and count >= 0 and count > rows:
-            raise ValueError(
-                f"baseline column {name!r} has more missing cells ({count}) than rows ({rows})"
-            )
+        if isinstance(count, int) and not isinstance(count, bool) and count >= 0:
+            if count > rows:
+                raise ValueError(
+                    f"baseline column {name!r} has more missing cells ({count}) than rows ({rows})"
+                )
+            # Native reports round percentages to one decimal place. Allow
+            # half of that display step (plus floating-point tolerance) and
+            # more precise third-party rates, but reject inconsistent rates.
+            # Multiplying integer counts first avoids overflow on huge totals.
+            expected_pct = 100 * count / rows if rows else 0.0
+            if check_missing_rate and abs(missing_pct - expected_pct) > 0.05000000001:
+                raise ValueError(
+                    f"baseline column {name!r} has a 'missing_pct' inconsistent "
+                    f"with its 'missing' count ({count} of {rows} rows)"
+                )
     return columns
 
 
-def compare_reports(baseline: Mapping[str, Any], report: Report) -> Comparison:
+def compare_reports(
+    baseline: Mapping[str, Any], report: Report, *, check_missing_rate: bool = False
+) -> Comparison:
     """Compare ``report`` with ``baseline``, a JSON report of this tool loaded as a dict.
+
+    ``check_missing_rate`` optionally checks that each exact baseline missing
+    count agrees with its percentage within the original one-decimal display
+    precision; disabled by default to preserve older report compatibility.
 
     Columns are matched by name. When ``report`` profiled only some columns
     (``--columns``), only those are compared, so a baseline of the whole
     file does not show the others as removed. Raises ``ValueError`` when
     ``baseline`` is not a report of this tool.
     """
-    entries = _baseline_columns(baseline)
+    entries = _baseline_columns(baseline, check_missing_rate=check_missing_rate)
     before = {entry["name"]: entry for entry in entries}
     if report.selected_columns is not None:
         wanted = set(report.selected_columns)
@@ -173,8 +192,8 @@ def _missing_count(entry: Mapping[str, Any]) -> int | None:
     return None
 
 
-def load_baseline(path: Path) -> dict[str, Any]:
-    """Read a baseline JSON report; ``FileReadError`` (exit code 3) when it is unusable."""
+def load_baseline(path: Path, *, check_missing_rate: bool = False) -> dict[str, Any]:
+    """Read baseline JSON, optionally checking counts against percentages (exit 3 on error)."""
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
     except OSError as exc:
@@ -184,7 +203,7 @@ def load_baseline(path: Path) -> dict[str, Any]:
     if not isinstance(data, dict):
         raise FileReadError(f"baseline '{path}' is not a csv-quality-report JSON report")
     try:
-        _baseline_columns(data)
+        _baseline_columns(data, check_missing_rate=check_missing_rate)
     except ValueError as exc:
         raise FileReadError(
             f"baseline '{path}' is not a csv-quality-report JSON report ({exc})"
