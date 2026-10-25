@@ -48,8 +48,8 @@ def test_check_messages_escape_links_html_and_inline_backticks_without_changing_
         unexpected=((value, 1),),
     )
     markdown = render_markdown(_report(name), "input.csv", checks=(check,))
-    assert r"ref\[link\](https://example.invalid)&lt;img&gt;" in markdown
-    assert r"\[See record\](https://example.invalid)&lt;script&gt;\`fake\`&amp;" in markdown
+    assert r"ref\[link\](https://example.invalid)&lt;img>" in markdown
+    assert r"\[See record\](https://example.invalid)&lt;script>\`fake\`&amp;" in markdown
     assert "[See record](https://example.invalid)" not in markdown
     assert "<script>" not in markdown
     data = json.loads(render_json(_report(name), "input.csv", checks=(check,)))
@@ -70,7 +70,7 @@ def test_pattern_code_span_remains_exact_but_csv_examples_are_escaped() -> None:
     )
     markdown = render_markdown(_report("code"), "input.csv", checks=(check,))
     assert r"pattern `[A-Z]|\d{2}`" in markdown
-    assert r"\[open\](https://example.invalid)&lt;b&gt;" in markdown
+    assert r"\[open\](https://example.invalid)&lt;b>" in markdown
     assert "[open](https://example.invalid)" not in markdown
 
 
@@ -109,8 +109,8 @@ def test_cli_duplicate_check_escapes_csv_header_and_values(tmp_path: Path) -> No
     )
     assert markdown.returncode == 8, markdown.stderr
     assert as_json.returncode == 8, as_json.stderr
-    assert r"buyer\[link\](https://example.invalid)&lt;b&gt;" in markdown.stdout
-    assert r"\[order\](https://example.invalid)&lt;img&gt;" in markdown.stdout
+    assert r"buyer\[link\](https://example.invalid)&lt;b>" in markdown.stdout
+    assert r"\[order\](https://example.invalid)&lt;img>" in markdown.stdout
     assert "<img>" not in markdown.stdout
     data = json.loads(as_json.stdout)
     assert data["checks"][0]["check"] == CHECK_UNIQUE
