@@ -104,6 +104,15 @@ def _baseline_columns(baseline: Mapping[str, Any]) -> list[Mapping[str, Any]]:
             raise ValueError(
                 f"baseline column {name!r} has an invalid 'missing_pct' (expected 0 to 100)"
             )
+        # Older third-party reports may omit 'missing' or provide an invalid
+        # type; their exact-count drift check already treats it as unavailable.
+        # A valid integer claiming more missing cells than rows, however, is
+        # internally impossible and must not be used as a historical baseline.
+        count = column.get("missing")
+        if isinstance(count, int) and not isinstance(count, bool) and count >= 0 and count > rows:
+            raise ValueError(
+                f"baseline column {name!r} has more missing cells ({count}) than rows ({rows})"
+            )
     return columns
 
 
