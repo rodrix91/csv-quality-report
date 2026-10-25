@@ -62,6 +62,7 @@ def _md_check(check: CheckResult) -> str:
         text = text.replace(_md_check_text(span), span, 1)
     return text
 
+
 def _top(col: ColumnProfile) -> str:
     return ", ".join(f"{_md_literal(v)} ({n})" for v, n in col.top_values)
 
