@@ -10,7 +10,6 @@ the ones that break consumers (columns added or removed, types changed).
 from __future__ import annotations
 
 import json
-import math
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
@@ -99,9 +98,9 @@ def _baseline_columns(baseline: Mapping[str, Any]) -> list[Mapping[str, Any]]:
             raise ValueError(f"duplicate baseline column name: {name!r}")
         names.add(name)
         missing_pct = column["missing_pct"]
-        if not 0 <= missing_pct <= 100 or (
-            isinstance(missing_pct, float) and not math.isfinite(missing_pct)
-        ):
+        # Chained comparisons safely reject NaN, infinities, out-of-range
+        # numbers and arbitrarily large JSON integers without float conversion.
+        if not 0 <= missing_pct <= 100:
             raise ValueError(
                 f"baseline column {name!r} has an invalid 'missing_pct' (expected 0 to 100)"
             )
