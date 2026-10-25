@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+- Add opt-in `--check-baseline-missing-rate` when using `--baseline`: reject a historical `missing_pct` that contradicts its exact integer `missing` count beyond the one-decimal precision of generated reports (±0.05 points). This protects baseline drift analyses against conflicting historical metadata, while preserving default permissive behavior, legacy reports without a valid optional count, rounding boundaries, and unchanged report JSON schemas. The strict check runs before reading the new CSV and returns the existing baseline error code 3. Add API, boundary, legacy and CLI regression tests.
+
 - Reject historical baseline columns with a valid integer `missing` count greater than total baseline rows (including zero-row and huge-count cases). Such impossible counts could distort exact missingness-drift checks. Keep missing counts optional for older JSON reports, accept valid boundary counts, reject corrupt baselines at existing exit 3 before reading the CSV, and preserve unchanged results for valid reports. Add direct comparison, loading and CLI regressions.
 
 - Fail closed on malformed historical `--baseline` report metadata before schema/drift comparisons: reject negative row counts, duplicate column names, and non-finite or out-of-range missing percentages (0–100), including arbitrarily large integer input. The file-read error remains exit 3. Preserve valid reports, exact case-sensitive column matching, optional older `missing` counts, and all existing JSON schemas. Add direct comparison, loading and CLI regressions.
