@@ -200,3 +200,41 @@ def test_duplicate_header_names_are_selected_by_their_suffix(write_csv: WriteCsv
     report = profile_file(write_csv("a,a,b\n1,2,3\n"), columns=["a_2"])
     assert [(c.name, c.min) for c in report.columns] == [("a_2", 2)]
     assert report.header == ("a", "a_2", "b")
+
+
+@pytest.mark.parametrize(
+    "selection",
+    [
+        "id,,peso",
+        ",id,peso",
+        "id,peso,",
+        "id, ,peso",
+        "id,  ,peso",
+    ],
+)
+def test_blank_selected_column_slots_are_usage_errors(
+    write_csv: WriteCsv, capsys: pytest.CaptureFixture[str], selection: str
+) -> None:
+    with pytest.raises(SystemExit) as excinfo:
+        main([str(write_csv(DATA)), "--columns", selection, "--format", "json"])
+    assert excinfo.value.code == 2
+    captured = capsys.readouterr()
+    assert "empty column; specify every selected column" in captured.err
+    assert captured.out == ""
+
+
+def test_whitespace_only_selected_column_list_remains_usage_error(
+    write_csv: WriteCsv, capsys: pytest.CaptureFixture[str]
+) -> None:
+    with pytest.raises(SystemExit) as excinfo:
+        main([str(write_csv(DATA)), "--columns", "  "])
+    assert excinfo.value.code == 2
+    assert "invalid --columns value" in capsys.readouterr().err
+
+
+def test_valid_selection_with_whitespace_still_profiles_exact_columns(
+    write_csv: WriteCsv, capsys: pytest.CaptureFixture[str]
+) -> None:
+    rep = report_json(capsys, str(write_csv(DATA)), "--columns", " id , peso ")
+    assert rep["selected_columns"] == ["id", "peso"]
+    assert [c["name"] for c in rep["columns"]] == ["id", "peso"]
