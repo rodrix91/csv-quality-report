@@ -29,8 +29,9 @@ def _num(value: int | float | str | None) -> str:
     return "" if value is None else str(value)
 
 
-def _md_escape(text: str) -> str:
-    return text.replace("|", "\\|").replace("\n", " ").replace("\r", " ")
+def _md_code(text: str) -> str:
+    """Fence arbitrary metadata as code, retaining the legacy escaped-pipe spelling."""
+    return code_span(text.replace("|", r"\|"))
 
 
 def _md_literal(text: str) -> str:
@@ -74,7 +75,7 @@ def _delimiter_line(report: Report) -> list[str]:
     name = (
         delimiter_name(report.delimiter)
         if report.delimiter in DELIMITER_NAMES
-        else f"`{_md_escape(report.delimiter)}`"
+        else _md_code(report.delimiter)
     )
     how = " (detected)" if report.delimiter_detected else ""
     if report.sep_line:
@@ -101,9 +102,7 @@ def _na_line(report: Report) -> list[str]:
     """Markdown line listing the extra missing-value tokens, only when there are some."""
     if not report.na_tokens:
         return []
-    return [
-        "- Also counted as missing: " + ", ".join(f"`{_md_escape(t)}`" for t in report.na_tokens)
-    ]
+    return ["- Also counted as missing: " + ", ".join(_md_code(t) for t in report.na_tokens)]
 
 
 def _checks_section(checks: Sequence[CheckResult]) -> list[str]:
@@ -123,7 +122,7 @@ def _checks_section(checks: Sequence[CheckResult]) -> list[str]:
 
 def _untrimmed_line(report: Report) -> list[str]:
     """Markdown line naming columns with untrimmed values, only when there are some."""
-    found = [f"{_md_escape(c.name)} ({c.untrimmed})" for c in report.columns if c.untrimmed]
+    found = [f"{_md_literal(c.name)} ({c.untrimmed})" for c in report.columns if c.untrimmed]
     return ["- Untrimmed values: " + ", ".join(found)] if found else []
 
 
@@ -131,7 +130,7 @@ def _untrimmed_columns_line(report: Report) -> list[str]:
     """Markdown line quoting header names with surrounding whitespace, when there are some."""
     if not report.untrimmed_columns:
         return []
-    names = ", ".join(f'"{_md_escape(name)}"' for name in report.untrimmed_columns)
+    names = ", ".join(f'"{_md_literal(name)}"' for name in report.untrimmed_columns)
     return [f"- Column names with surrounding whitespace: {names}"]
 
 
@@ -141,10 +140,10 @@ def _type_hint_line(report: Report) -> list[str]:
     for c in report.columns:
         if c.type_hint is not None:
             h = c.type_hint
-            examples = ", ".join(f'"{_md_escape(v)}"' for v in h.examples)
+            examples = ", ".join(f'"{_md_literal(v)}"' for v in h.examples)
             noun = "value" if h.nonconforming == 1 else "values"
             parts.append(
-                f"{_md_escape(c.name)} is {h.type} except {h.nonconforming} {noun} ({examples})"
+                f"{_md_literal(c.name)} is {h.type} except {h.nonconforming} {noun} ({examples})"
             )
     return ["- Mostly typed: " + "; ".join(parts)] if parts else []
 
@@ -164,8 +163,8 @@ def _affixes_line(report: Report) -> list[str]:
     parts = []
     for c in report.columns:
         if c.affixes:
-            found = ", ".join(f"`{_md_escape(a)}` {n}" for a, n in c.affixes)
-            parts.append(f"{_md_escape(c.name)} ({found})")
+            found = ", ".join(f"{_md_code(a)} {n}" for a, n in c.affixes)
+            parts.append(f"{_md_literal(c.name)} ({found})")
     return ["- Number affixes: " + "; ".join(parts)] if parts else []
 
 
@@ -173,7 +172,7 @@ def _bool_words_line(report: Report) -> list[str]:
     """Markdown line listing the extra boolean words, when some were given."""
     if not report.bool_words:
         return []
-    pairs = ", ".join(f"`{_md_escape(t)}`/`{_md_escape(f)}`" for t, f in report.bool_words)
+    pairs = ", ".join(f"{_md_code(t)}/{_md_code(f)}" for t, f in report.bool_words)
     return [f"- Boolean words (true/false): {pairs}"]
 
 
@@ -187,24 +186,24 @@ def _baseline_section(comparison: Comparison | None) -> list[str]:
     c = comparison
     lines = ["", "## Changes since baseline", ""]
     if c.baseline_source:
-        lines.append(f"- Baseline: report of `{_md_escape(c.baseline_source)}`")
+        lines.append(f"- Baseline: report of {_md_code(c.baseline_source)}")
     if c.baseline_generated_at is not None:
-        lines.append(f"- Baseline generated: {_md_escape(c.baseline_generated_at)}")
+        lines.append(f"- Baseline generated: {_md_literal(c.baseline_generated_at)}")
     lines.append(f"- Rows: {c.rows_before} -> {c.rows_after}")
     if c.added_columns:
-        lines.append("- Added columns: " + ", ".join(_md_escape(n) for n in c.added_columns))
+        lines.append("- Added columns: " + ", ".join(_md_literal(n) for n in c.added_columns))
     if c.removed_columns:
-        lines.append("- Removed columns: " + ", ".join(_md_escape(n) for n in c.removed_columns))
+        lines.append("- Removed columns: " + ", ".join(_md_literal(n) for n in c.removed_columns))
     if c.type_changes:
         lines.append(
             "- Type changes: "
-            + "; ".join(f"{_md_escape(t.column)} {t.before} -> {t.after}" for t in c.type_changes)
+            + "; ".join(f"{_md_literal(t.column)} {t.before} -> {t.after}" for t in c.type_changes)
         )
     if c.missing_changes:
         lines.append(
             "- Missing values: "
             + "; ".join(
-                f"{_md_escape(m.column)} {m.before_pct:.1f}% -> {m.after_pct:.1f}%"
+                f"{_md_literal(m.column)} {m.before_pct:.1f}% -> {m.after_pct:.1f}%"
                 for m in c.missing_changes
             )
         )

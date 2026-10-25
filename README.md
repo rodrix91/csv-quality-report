@@ -164,7 +164,7 @@ The first run needs a stamped `reports/last.json`: write it once with `--record-
 
 ### Example: Markdown (default)
 
-Markdown reports display CSV-derived names, sample values and textual ranges literally, escaping pipes, Markdown-style links, HTML tags and embedded CR/LF characters. Quality-check messages now apply the same protection to CSV-derived names and failing examples, while preserving regex patterns as readable code spans. This prevents untrusted export content from introducing fake table cells or clickable links. JSON reports retain the original source and cell values unchanged.
+Markdown reports display CSV-derived names, sample values and textual ranges literally, escaping pipes, Markdown-style links, HTML tags and embedded CR/LF characters. The same protection applies to human-readable metadata lines: missing-value tokens, boolean words, number affixes, untrimmed column names, inferred-type examples and comparison details from prior baseline JSON files. Values intentionally displayed as inline code use dynamically sized backtick fences, so a backtick inside a CSV token cannot escape the code span; JSON retains the original unmodified values. Quality-check messages now apply the same protection to CSV-derived names and failing examples, while preserving regex patterns as readable code spans. This prevents untrusted export content from introducing fake table cells or clickable links. JSON reports retain the original source and cell values unchanged.
 
 `examples/sample.csv` contains 8 data rows, one exact duplicate row and several empty cells. Command (run from the repository root):
 
