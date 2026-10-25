@@ -62,10 +62,10 @@ def test_baseline_row_count_and_duplicate_labels(
 
 
 @pytest.mark.parametrize(
-    "value", [-1.0, 100.1, math.nan, math.inf, -math.inf]
+    "value", [-1.0, 100.1, math.nan, math.inf, -math.inf, 10**400]
 )
 def test_invalid_missing_rates_are_rejected_before_drift_comparison(
-    value: float, tmp_path: Path
+    value: float | int, tmp_path: Path
 ) -> None:
     baseline = _baseline()
     baseline["columns"][0]["missing_pct"] = value
