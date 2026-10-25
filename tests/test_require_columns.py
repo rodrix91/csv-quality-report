@@ -153,9 +153,7 @@ def test_missing_required_column_slot_is_a_usage_error(
 def test_required_columns_accept_trimmed_distinct_names(
     write_csv: WriteCsv, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    code, report, err = run(
-        write_csv(DATA), capsys, "--require-columns", " shipment_id , date "
-    )
+    code, report, err = run(write_csv(DATA), capsys, "--require-columns", " shipment_id , date ")
     assert (code, err) == (0, "")
     assert [(item["column"], item["passed"]) for item in report["checks"]] == [
         ("shipment_id", True),
