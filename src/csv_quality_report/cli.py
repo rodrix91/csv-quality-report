@@ -333,8 +333,7 @@ def _selected_column_names(text: str) -> tuple[str, ...]:
     """Require a name in every selected-column position."""
     if text.strip() and any(not part.strip() for part in text.split(",")):
         raise argparse.ArgumentTypeError(
-            f"invalid --columns value: {text!r} "
-            "(empty column; specify every selected column)"
+            f"invalid --columns value: {text!r} (empty column; specify every selected column)"
         )
     return _column_names(text, "--columns")
 
