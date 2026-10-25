@@ -4,7 +4,7 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
-- Support literal `=` characters in `--pattern` CSV header names using `\\=` (e.g. `SLA\\=met=OK=[0-9]+`) while retaining unescaped `=` as the name/pattern delimiter and allowing regex patterns themselves to contain `=`. Add CLI regressions for passing, failing and malformed pattern selectors.
+- Harden GitHub-friendly Markdown metadata against HTML/link and inline-code injection from untrusted CSV content and prior baseline JSON: free-text lines now use the same literal escaping as the tables, and NA tokens, currency/number affixes, boolean words and baseline source names use dynamically fenced code spans. Preserve ordinary report text, JSON bytes and all data/quality-gate results; add direct rendering and subprocess CLI regressions.\n\n- Support literal `=` characters in `--pattern` CSV header names using `\\=` (e.g. `SLA\\=met=OK=[0-9]+`) while retaining unescaped `=` as the name/pattern delimiter and allowing regex patterns themselves to contain `=`. Add CLI regressions for passing, failing and malformed pattern selectors.
 
 - Reject blank positions in composite `--unique-key` selectors, including doubled commas, leading/trailing commas and whitespace-only components. Prevent silently checking an incomplete business key; retain valid whitespace-trimmed selections and existing deduplication semantics. Added CLI regression coverage.
 
