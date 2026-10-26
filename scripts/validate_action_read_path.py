@@ -16,6 +16,8 @@ def validate_read_path(raw: str, workspace_raw: str, label: str) -> None:
         raise ValueError(f"{label} must name a file inside GITHUB_WORKSPACE")
     if "\n" in raw or "\r" in raw:
         raise ValueError(f"{label} must not contain line breaks")
+    if any(ord(char) < 32 or 127 <= ord(char) <= 159 for char in raw):
+        raise ValueError(f"{label} must not contain terminal control characters")
     path = Path(raw)
     if path.is_absolute():
         raise ValueError(f"{label} must be relative to GITHUB_WORKSPACE")
