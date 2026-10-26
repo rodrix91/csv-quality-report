@@ -113,6 +113,19 @@ def test_action_validates_complete_arg_strings_before_bash_read() -> None:
     assert 'finish 2 "" false' in script[validate : script.index("read -r -a extra")]
 
 
+def test_action_requires_fresh_json_before_advertising_a_report() -> None:
+    script = ACTION.split("      run: |\n", 1)[1]
+    before = script.index('report_before=$(python "$ACTION_PATH/scripts/report_freshness.py"')
+    analysis = script.index('python -m csv_quality_report "$INPUT_PATH"')
+    after = script.index('report_after=$(python "$ACTION_PATH/scripts/report_freshness.py"')
+    outputs = script.index('finish "$code" "$report" "$baseline_used"')
+    assert before < analysis < after < outputs
+    assert '[ "$report_before" = "$report_after" ]' in script
+    assert "CSV analysis did not create a fresh JSON report" in script
+    assert 'code=3' in script[after:outputs]
+    assert 'report="$json"' in script[after:outputs]
+
+
 def _validate_report_path(path: str, workspace: Path) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         [
