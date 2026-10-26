@@ -104,6 +104,15 @@ def test_action_help_and_version_cannot_bypass_csv_profiling() -> None:
     assert script.index("help/version options are not supported") < script.index("report_dir=")
 
 
+def test_action_validates_complete_arg_strings_before_bash_read() -> None:
+    script = ACTION.split("      run: |\n", 1)[1]
+    validate = script.index("scripts/validate_action_args.py")
+    assert validate < script.index('read -r -a extra <<< "$INPUT_ARGS"')
+    assert validate < script.index('read -r -a baseline_extra <<< "$INPUT_BASELINE_ARGS"')
+    assert validate < script.index("report_dir=")
+    assert 'finish 2 "" false' in script[validate : script.index("read -r -a extra")]
+
+
 def _validate_report_path(path: str, workspace: Path) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         [
