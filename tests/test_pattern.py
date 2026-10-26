@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import json
 import random
+import re
+import shlex
 from collections import Counter
 from collections.abc import Callable
 from pathlib import Path
@@ -325,3 +327,28 @@ def test_outside_matches_a_counter_of_the_rejected_values(top_n: int) -> None:
 def test_outside_with_top_0_still_counts_every_rejected_cell() -> None:
     # heapq.nlargest(0, ...) reads nothing; the drain after it counts the rest.
     assert _outside(Counter({"a": 2, "b": 3}), lambda value: False, 0) == (5, ())
+
+
+def test_readme_example_for_names_with_equals_works_in_a_shell(
+    write_csv: WriteCsv, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """The README's ``SLA=met`` example, parsed as a POSIX shell would (#204)."""
+    readme = (Path(__file__).resolve().parent.parent / "README.md").read_text(encoding="utf-8")
+    (example,) = re.findall(r"`(--pattern '[^`]*SLA[^`]*')`", readme)
+    args = shlex.split(example)
+    assert args == ["--pattern", r"SLA\=met=OK=[0-9]+"]
+    path = write_csv("SLA=met,shipment\nOK=10,S1\nBAD,S3\n")
+    assert main([str(path), "--format", "json", *args]) == 8
+    (check,) = json.loads(capsys.readouterr().out)["checks"]
+    assert (check["check"], check["column"], check["mismatched"]) == (
+        CHECK_PATTERN,
+        "SLA=met",
+        {"BAD": 1},
+    )
+
+
+def test_help_explains_the_escaped_equals(capsys: pytest.CaptureFixture[str]) -> None:
+    with pytest.raises(SystemExit):
+        main(["--help"])
+    help_text = " ".join(capsys.readouterr().out.split())
+    assert r"NAME ends at the first = not preceded by \, so SLA\=met names SLA=met" in help_text
