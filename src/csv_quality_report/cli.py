@@ -439,6 +439,13 @@ def build_parser() -> argparse.ArgumentParser:
         "never guessed",
     )
     parser.add_argument(
+        "--month-names",
+        action="store_true",
+        help="with --date-order: also read Spanish or English month names and abbreviations "
+        "in the month position, any case, e.g. 05-oct-2026, 05-oct.-2026, 5/setiembre/2026 "
+        "or Oct-05-2026",
+    )
+    parser.add_argument(
         "--bool-words",
         type=_bool_words,
         action="append",
@@ -834,6 +841,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                     f"--min-rows {args.min_rows} can never pass with --max-rows {args.max_rows} "
                     "(only that many rows are read)"
                 )
+        if args.month_names and args.date_order is None:
+            raise ValueError("--month-names needs --date-order (the order of day, month and year)")
         if args.utc_offset is not None and not args.max_age:
             raise ValueError("--utc-offset needs --max-age (it only places times for that check)")
         if args.record_time and args.format != "json" and args.json_output is None:
@@ -871,6 +880,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             patterns=dict(args.pattern),  # the last pattern for a name wins
             skip_lines=args.skip_lines,
             skip_footer=args.skip_footer,
+            month_names=args.month_names,
         )
     except CsvQualityError as exc:
         print(f"error: {exc.message}", file=sys.stderr)

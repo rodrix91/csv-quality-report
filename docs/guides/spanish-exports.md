@@ -16,6 +16,7 @@ csv-quality-report never guesses these conventions: each one is turned on with a
 | `10,5` | `--decimal-comma` |
 | `1.234,56` or `1 234,56` | `--decimal-comma --thousands dot` (or `space`) |
 | `05/10/2026`, `5/10/2026 14:30`, `10/5/2026 2:30 PM` | `--date-order dmy` (or `mdy`, `ymd`) |
+| `05-oct-2026`, `05-oct.-2026 14:30`, `30-set-2026` (Excel's `dd-mmm-aaaa`) | `--date-order dmy --month-names` |
 | `VERDADERO`/`FALSO`, `Sí`/`No`, `S`/`N` | `--bool-words verdadero,falso --bool-words sí,no` |
 | `s/d`, `N/A`, `-` for missing values | `--na s/d,N/A,-` |
 | `$ 1.234,56`, `Gs. 50.000`, `12,5 kg`, `15 %` | `--number-affix '$' --number-affix Gs. ...` |
@@ -217,6 +218,38 @@ $ python -m csv_quality_report tests/corpus/erp_day_first.csv --delimiter auto -
 ## Checks: FAILED (1 of 1 failed)
 
 - FAIL: column 'Vencimiento' is string, expected date (1 value does not fit: "30/02/2026")
+```
+
+### Month names: `05-oct-2026`
+
+Excel's `dd-mmm-aaaa` date format writes the month as a word, and how depends on the locale and the version: `oct` or `oct.`, `sep`, `sept` or, in Peru and Uruguay, `set`, in any case, or the full `octubre`. Add `--month-names` to `--date-order` to read them; Spanish and English names are both understood, so no language needs to be chosen. The separators, the four-digit year and the optional time follow `--date-order`, and a word that is not a month keeps the column as text.
+
+```console
+$ python -m csv_quality_report tests/corpus/excel_es_month_names.csv --delimiter auto --decimal-comma --thousands dot --na s/d --date-order dmy --month-names --require-type "Fecha pedido=date"
+```
+
+```markdown
+# CSV quality report: tests/corpus/excel_es_month_names.csv
+
+- Rows analyzed: 5
+- Columns: 4
+- Delimiter: semicolon (detected)
+- Also counted as missing: `s/d`
+- Thousands separator: dot
+- Date order: day/month/year
+- Month names: Spanish and English, e.g. 05-oct-2026
+- Duplicate rows: 0
+
+| Column | Type | Missing | Missing % | Distinct | Min | Max | Mean | Top 3 values |
+|---|---|---|---|---|---|---|---|---|
+| Pedido | int | 0 | 0.0 | 5 | 1001 | 1005 | 1003.0 | 1001 (1), 1002 (1), 1003 (1) |
+| Fecha pedido | date | 0 | 0.0 | 5 | 2026-09-28 | 2026-10-05 |  | 28-sep-2026 (1), 30-Sep-2026 (1), 01-oct-2026 (1) |
+| Entrega | datetime | 1 | 20.0 | 4 | 2026-09-30 09:15 | 2026-10-07 11:00 |  | 30-set.-2026 9:15 (1), 02-oct.-2026 14:30 (1), 05-oct.-2026 2:45 p. m. (1) |
+| Importe | float | 0 | 0.0 | 5 | 415.2 | 2310.75 | 1212.29 | 1.250,00 (1), 980,50 (1), 2.310,75 (1) |
+
+## Checks: passed (0 of 1 failed)
+
+- pass: column 'Fecha pedido' is date, as required (date)
 ```
 
 ## `VERDADERO`/`FALSO` and `Sí`/`No`

@@ -25,6 +25,7 @@ from .inference import (
     accounting_negative,
     bool_word_map,
     check_date_order,
+    check_month_names,
     check_number_affixes,
     check_thousands,
     infer_type,
@@ -187,6 +188,7 @@ class Report:
     skipped_footer: int = 0  # --skip-footer: records dropped after the data
     number_affixes: tuple[str, ...] = ()  # --number-affix texts, as validated
     accounting_negatives: bool = False  # (1.234,56) and 1.234,56- were read as negative
+    month_names: bool = False  # --month-names: dates such as 05-oct-2026 were read
     # All column names of the file, after duplicate-name suffixes; ``columns``
     # holds only the selected ones when ``selected_columns`` is set.
     header: tuple[str, ...] = ()
@@ -259,6 +261,7 @@ class _Rules:
     bool_map: dict[str, str] | None = None
     affixes: tuple[str, ...] = ()  # longest first
     accounting: bool = False
+    month_names: bool = False  # only with date_order
 
     @property
     def rewrites(self) -> bool:
@@ -282,10 +285,12 @@ def _reading_rules(
     bool_words: BoolWords,
     number_affixes: tuple[str, ...],
     accounting_negatives: bool,
+    month_names: bool = False,
 ) -> _Rules:
     """Validate the reading options; ``ValueError`` when unsupported or contradictory."""
     check_thousands(thousands, decimal_comma)
     check_date_order(date_order)
+    check_month_names(month_names, date_order)
     return _Rules(
         decimal_comma=decimal_comma,
         thousands=thousands,
@@ -294,6 +299,7 @@ def _reading_rules(
         # Longer affixes first: when two would both leave a number, the longer wins.
         affixes=tuple(sorted(check_number_affixes(number_affixes), key=len, reverse=True)),
         accounting=accounting_negatives,
+        month_names=month_names,
     )
 
 
@@ -315,7 +321,7 @@ def _normalized(values: Iterable[str], rules: _Rules) -> list[str]:
     if rules.thousands is not None:
         plain = [strip_thousands(v, rules.thousands, rules.decimal_comma) for v in plain]
     if rules.date_order is not None:
-        plain = [normalize_date(v, rules.date_order) for v in plain]
+        plain = [normalize_date(v, rules.date_order, rules.month_names) for v in plain]
     if rules.bool_map is not None:
         plain = [normalize_bool(v, rules.bool_map) for v in plain]
     return plain
@@ -642,6 +648,7 @@ def profile_rows(
     unique_keys: Iterable[Iterable[str]] = (),
     allowed_values: Mapping[str, Iterable[str]] | None = None,
     patterns: Mapping[str, str] | None = None,
+    month_names: bool = False,
 ) -> _Profiled:
     """Profile ``rows`` in a single pass; each row must have ``len(header)`` cells.
 
@@ -654,9 +661,10 @@ def profile_rows(
     being stored, so a false match would need a hash collision (probability
     below 1e-20 even for billions of rows).
 
-    ``thousands``, ``date_order``, ``bool_words`` and ``number_affixes`` are
-    validated before any row is read and raise ``ValueError`` when unsupported
-    or contradictory.
+    ``thousands``, ``date_order``, ``bool_words``, ``number_affixes`` and
+    ``month_names`` are validated before any row is read and raise
+    ``ValueError`` when unsupported or contradictory (``month_names`` needs a
+    ``date_order``).
 
     ``columns`` limits the profile to those header names, in that order; a
     name that is not in the header raises ``ColumnSelectionError`` before any
@@ -681,7 +689,13 @@ def profile_rows(
     raises ``ValueError`` before any row is read.
     """
     rules = _reading_rules(
-        decimal_comma, thousands, date_order, bool_words, number_affixes, accounting_negatives
+        decimal_comma,
+        thousands,
+        date_order,
+        bool_words,
+        number_affixes,
+        accounting_negatives,
+        month_names,
     )
     domains = {name: allowed_list(values) for name, values in (allowed_values or {}).items()}
     formats = {name: compile_pattern(pattern) for name, pattern in (patterns or {}).items()}
@@ -783,6 +797,7 @@ def _report(
     number_affixes: tuple[str, ...],
     accounting_negatives: bool,
     columns: Sequence[str] | None,
+    month_names: bool = False,
 ) -> Report:
     """The ``Report`` of a profiled ``Table`` or ``RowStream`` and the options used."""
     return Report(
@@ -805,6 +820,7 @@ def _report(
         bool_words=bool_words,
         number_affixes=check_number_affixes(number_affixes),
         accounting_negatives=accounting_negatives,
+        month_names=month_names,
         header=tuple(source.header),
         selected_columns=None if columns is None else tuple(dict.fromkeys(columns)),
         keys=result.keys,
@@ -827,6 +843,7 @@ def build_report(
     unique_keys: Iterable[Iterable[str]] = (),
     allowed_values: Mapping[str, Iterable[str]] | None = None,
     patterns: Mapping[str, str] | None = None,
+    month_names: bool = False,
 ) -> Report:
     """Profile every column of an in-memory ``table``.
 
@@ -843,7 +860,8 @@ def build_report(
     uniqueness is measured (``Report.keys``); ``allowed_values`` maps column
     names to the values they may hold (``Report.domains``); ``patterns``
     maps column names to regular expressions their values must match
-    (``Report.patterns``).
+    (``Report.patterns``); ``month_names``, with a ``date_order``, also reads
+    Spanish or English month names such as ``05-oct-2026``.
     """
     result = profile_rows(
         table.header,
@@ -860,6 +878,7 @@ def build_report(
         unique_keys,
         allowed_values,
         patterns,
+        month_names,
     )
     return _report(
         result,
@@ -872,6 +891,7 @@ def build_report(
         number_affixes,
         accounting_negatives,
         columns,
+        month_names,
     )
 
 
@@ -895,6 +915,7 @@ def profile_file(
     patterns: Mapping[str, str] | None = None,
     skip_lines: int = 0,
     skip_footer: int = 0,
+    month_names: bool = False,
 ) -> Report:
     """Stream ``path`` and profile it without loading the whole file into memory.
 
@@ -903,7 +924,8 @@ def profile_file(
     Same rules and errors as ``reader.open_rows``; same result as
     ``build_report(read_table(...))``. ``skip_lines`` lines before the header
     are skipped (``Report.skipped_lines``), and ``skip_footer`` records after
-    the data are dropped (``Report.skipped_footer``).
+    the data are dropped (``Report.skipped_footer``). ``month_names`` is as
+    in ``build_report``.
     """
     with open_rows(
         path,
@@ -929,6 +951,7 @@ def profile_file(
             unique_keys,
             allowed_values,
             patterns,
+            month_names,
         )
         return _report(
             result,
@@ -941,4 +964,5 @@ def profile_file(
             number_affixes,
             accounting_negatives,
             columns,
+            month_names,
         )
