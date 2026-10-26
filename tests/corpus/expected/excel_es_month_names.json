@@ -1,0 +1,180 @@
+{
+  "source": "tests/corpus/excel_es_month_names.csv",
+  "rows": 5,
+  "truncated": false,
+  "delimiter": ";",
+  "delimiter_detected": true,
+  "sep_line": false,
+  "na_tokens": [
+    "s/d"
+  ],
+  "top_n": 3,
+  "compressed": false,
+  "encoding": "utf-8",
+  "thousands": ".",
+  "date_order": "dmy",
+  "month_names": true,
+  "bool_words": [],
+  "number_affixes": [],
+  "accounting_negatives": false,
+  "selected_columns": null,
+  "header_columns": 4,
+  "duplicate_rows": 0,
+  "untrimmed_columns": [],
+  "columns": [
+    {
+      "name": "Pedido",
+      "type": "int",
+      "type_hint": null,
+      "missing": 0,
+      "missing_pct": 0.0,
+      "distinct": 5,
+      "min": 1001,
+      "max": 1005,
+      "mean": 1003.0,
+      "min_length": 4,
+      "max_length": 4,
+      "top_values": [
+        {
+          "value": "1001",
+          "count": 1
+        },
+        {
+          "value": "1002",
+          "count": 1
+        },
+        {
+          "value": "1003",
+          "count": 1
+        }
+      ],
+      "untrimmed": 0,
+      "affixes": {}
+    },
+    {
+      "name": "Fecha pedido",
+      "type": "date",
+      "type_hint": null,
+      "missing": 0,
+      "missing_pct": 0.0,
+      "distinct": 5,
+      "min": "2026-09-28",
+      "max": "2026-10-05",
+      "mean": null,
+      "min_length": 11,
+      "max_length": 14,
+      "top_values": [
+        {
+          "value": "28-sep-2026",
+          "count": 1
+        },
+        {
+          "value": "30-Sep-2026",
+          "count": 1
+        },
+        {
+          "value": "01-oct-2026",
+          "count": 1
+        }
+      ],
+      "untrimmed": 0,
+      "affixes": {}
+    },
+    {
+      "name": "Entrega",
+      "type": "datetime",
+      "type_hint": null,
+      "missing": 1,
+      "missing_pct": 20.0,
+      "distinct": 4,
+      "min": "2026-09-30 09:15",
+      "max": "2026-10-07 11:00",
+      "mean": null,
+      "min_length": 17,
+      "max_length": 23,
+      "top_values": [
+        {
+          "value": "30-set.-2026 9:15",
+          "count": 1
+        },
+        {
+          "value": "02-oct.-2026 14:30",
+          "count": 1
+        },
+        {
+          "value": "05-oct.-2026 2:45 p. m.",
+          "count": 1
+        }
+      ],
+      "untrimmed": 0,
+      "affixes": {}
+    },
+    {
+      "name": "Importe",
+      "type": "float",
+      "type_hint": null,
+      "missing": 0,
+      "missing_pct": 0.0,
+      "distinct": 5,
+      "min": 415.2,
+      "max": 2310.75,
+      "mean": 1212.29,
+      "min_length": 6,
+      "max_length": 8,
+      "top_values": [
+        {
+          "value": "1.250,00",
+          "count": 1
+        },
+        {
+          "value": "980,50",
+          "count": 1
+        },
+        {
+          "value": "2.310,75",
+          "count": 1
+        }
+      ],
+      "untrimmed": 0,
+      "affixes": {}
+    }
+  ],
+  "baseline": null,
+  "checks": [
+    {
+      "check": "column_type",
+      "column": "Fecha pedido",
+      "limit": 1,
+      "value": 1,
+      "passed": true,
+      "expected": "date",
+      "actual": "date"
+    },
+    {
+      "check": "column_type",
+      "column": "Entrega",
+      "limit": 1,
+      "value": 1,
+      "passed": true,
+      "expected": "datetime",
+      "actual": "datetime"
+    },
+    {
+      "check": "value_range",
+      "column": "Fecha pedido",
+      "limit": 1,
+      "value": 1,
+      "passed": true,
+      "expected": "date",
+      "actual": "date",
+      "range": {
+        "min": "2026-09-01",
+        "max": "2026-10-31"
+      },
+      "observed": {
+        "min": "2026-09-28",
+        "max": "2026-10-05"
+      }
+    }
+  ]
+}

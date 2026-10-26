@@ -195,8 +195,71 @@ _DATE_LAYOUTS = {  # order: (regex, group of year, group of month, group of day)
     "ymd": (_YEAR_FIRST_RE, 1, 3, 4),
 }
 
+# --month-names: the same layouts with a word in the month position, and the
+# same groups, so the rest of normalize_date is shared. A trailing dot is part
+# of the word ("oct.") and checked by _month_number.
+_MONTH_WORD = r"([A-Za-z]{3,10}\.?)"
+_NAMED_LAYOUTS = {
+    "dmy": (re.compile(r"^([0-9]{1,2})([/.-])" + _MONTH_WORD + r"\2([0-9]{4})" + _TIME), 4, 3, 1),
+    "mdy": (re.compile(r"^" + _MONTH_WORD + r"([/.-])([0-9]{1,2})\2([0-9]{4})" + _TIME), 4, 1, 3),
+    "ymd": (re.compile(r"^([0-9]{4})([/.-])" + _MONTH_WORD + r"\2([0-9]{1,2})" + _TIME), 1, 3, 4),
+}
+# Spanish and English month abbreviations, which never name different months
+# in the two languages ("mar" and "may" are the same month in both), so one
+# table reads both. "set" and "setiembre" are the Peruvian and Uruguayan forms.
+_MONTH_ABBREVIATIONS = {
+    **dict.fromkeys(("ene", "jan"), 1),
+    "feb": 2,
+    "mar": 3,
+    **dict.fromkeys(("abr", "apr"), 4),
+    "may": 5,
+    "jun": 6,
+    "jul": 7,
+    **dict.fromkeys(("ago", "aug"), 8),
+    **dict.fromkeys(("sep", "sept", "set"), 9),
+    "oct": 10,
+    "nov": 11,
+    **dict.fromkeys(("dic", "dec"), 12),
+}
+_MONTH_FULL_NAMES = {
+    name: number
+    for number, names in enumerate(
+        (
+            ("enero", "january"),
+            ("febrero", "february"),
+            ("marzo", "march"),
+            ("abril", "april"),
+            ("mayo", "may"),
+            ("junio", "june"),
+            ("julio", "july"),
+            ("agosto", "august"),
+            ("septiembre", "setiembre", "september"),
+            ("octubre", "october"),
+            ("noviembre", "november"),
+            ("diciembre", "december"),
+        ),
+        start=1,
+    )
+    for name in names
+}
 
-def normalize_date(value: str, order: str) -> str:
+
+def _month_number(word: str, separator: str) -> int | None:
+    """The month that ``word`` names (any case), or ``None``.
+
+    A trailing dot is allowed after an abbreviation (``oct.``), not after a
+    full name (``octubre.``), and not when the date separator is itself a dot
+    (``05.oct..2026``).
+    """
+    key = word.casefold()
+    if key.endswith("."):
+        if separator == ".":
+            return None
+        return _MONTH_ABBREVIATIONS.get(key[:-1])
+    return _MONTH_ABBREVIATIONS.get(key) or _MONTH_FULL_NAMES.get(key)
+
+
+def normalize_date(value: str, order: str, month_names: bool = False) -> str:
     """Rewrite a date written in ``order`` as ISO 8601; return other values unchanged.
 
     ``05/10/2026`` becomes ``2026-10-05`` with ``order="dmy"`` and
@@ -207,12 +270,29 @@ def normalize_date(value: str, order: str) -> str:
     ``2:30 p. m.``) is rewritten on the 24-hour clock; its hour must be 1 to
     12, or the value is returned unchanged. The calendar is not checked here:
     ``31/02/2026`` becomes ``2026-02-31``, which inference then rejects.
+
+    With ``month_names``, the month may also be a Spanish or English month
+    name or abbreviation, in any case: ``05-oct-2026``, ``05-oct.-2026`` and
+    ``5/Octubre/2026`` become ``2026-10-05`` with ``order="dmy"``,
+    ``Oct-05-2026`` with ``"mdy"`` and ``2026-oct-05`` with ``"ymd"``. A word
+    that is not a month leaves the value unchanged.
     """
     regex, year, month, day = _DATE_LAYOUTS[order]
     match = regex.match(value)
     if match is None:
-        return value
-    g = match.groups()
+        if not month_names:
+            return value
+        regex, year, month, day = _NAMED_LAYOUTS[order]
+        match = regex.match(value)
+        if match is None:
+            return value
+        number = _month_number(match[month], match[2])
+        if number is None:
+            return value
+        g = list(match.groups())
+        g[month - 1] = str(number)
+    else:
+        g = list(match.groups())
     iso = f"{g[year - 1]}-{g[month - 1]:0>2}-{g[day - 1]:0>2}"
     if g[4] is None:
         return iso
@@ -263,6 +343,12 @@ def check_date_order(order: str | None) -> None:
     """Raise ``ValueError`` for a date order other than ``None`` or one of ``DATE_ORDERS``."""
     if order is not None and order not in _DATE_LAYOUTS:
         raise ValueError(f"unsupported date order: {order!r} (use one of {', '.join(DATE_ORDERS)})")
+
+
+def check_month_names(month_names: bool, order: str | None) -> None:
+    """Raise ``ValueError`` when month names are asked for without a date order."""
+    if month_names and order is None:
+        raise ValueError("month names need a date order (--date-order dmy, mdy or ymd)")
 
 
 # Spaces allowed between a number and its affix, also the no-break spaces that

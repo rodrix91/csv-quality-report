@@ -305,5 +305,19 @@
     "args": ["--delimiter", ";", "--skip-lines", "3", "--encoding", "cp1252", "--decimal-comma", "--thousands", "dot", "--date-order", "dmy"],
     "exit_code": 6,
     "about": "The same export with an explicit semicolon and no --skip-footer: the record count fails as a ragged row, and the message suggests dropping it and the line after it."
+  },
+  {
+    "name": "excel_es_month_names",
+    "file": "excel_es_month_names.csv",
+    "args": ["--delimiter", "auto", "--decimal-comma", "--thousands", "dot", "--date-order", "dmy", "--month-names", "--na", "s/d", "--require-type", "Fecha pedido=date", "--require-type", "Entrega=datetime", "--range", "Fecha pedido=2026-09-01:2026-10-31"],
+    "exit_code": 0,
+    "about": "Spanish Excel export with order dates written dd-mmm-aaaa (sep, Sep, OCT, octubre) and delivery times with dotted abbreviations (oct., the Uruguayan set.) and a 12-hour p. m. time, read with --month-names: both columns are typed and the gates pass."
+  },
+  {
+    "name": "excel_es_month_names_plain",
+    "file": "excel_es_month_names.csv",
+    "args": ["--delimiter", "auto", "--decimal-comma", "--thousands", "dot", "--date-order", "dmy", "--na", "s/d", "--require-type", "Fecha pedido=date", "--require-type", "Entrega=datetime"],
+    "exit_code": 8,
+    "about": "The same export without --month-names: the date columns stay text and --require-type fails for both."
   }
 ]
