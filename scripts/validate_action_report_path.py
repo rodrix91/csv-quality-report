@@ -7,6 +7,10 @@ from pathlib import Path
 
 
 def validate_report_path(raw: str, workspace_raw: str) -> None:
+    if "\n" in raw or "\r" in raw:
+        raise ValueError("report-path must not contain line breaks")
+    if any(ord(char) < 32 or 127 <= ord(char) <= 159 for char in raw):
+        raise ValueError("report-path must not contain terminal control characters")
     path = Path(raw)
     if path.is_absolute():
         raise ValueError("report-path must be relative to GITHUB_WORKSPACE")
