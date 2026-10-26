@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+- Fail closed on multiline or invisible-control GitHub Action `args` and `baseline-args` before Bash `read -a` can silently discard quality gates after the first line. Preserve legitimate tab-separated one-line options and ordinary Unicode text; avoid reflecting malformed `if-baseline-missing` raw values into workflow annotations. Add direct full-C1-range, Action end-to-end and source-package regressions without changing the standalone CLI or the CSV/JSON report formats.
+
 - Reject invisible ASCII C0, DEL and C1 control characters (including ESC, bell and backspace) in GitHub Action CSV, baseline and explicit report paths, before they reach workflow annotations, filesystem access or line-based outputs. Preserve ordinary Unicode path names and the existing workspace/path traversal guarantees. Add parameterized cross-validator and regression tests; standalone CLI handling remains unchanged.
 
 - Escape untrusted ASCII C0 (except horizontal tab), DEL and C1 control characters in CSV-derived Markdown labels, check details and inline code spans to prevent invisible terminal/log manipulation. Preserve existing tab whitespace, CR/LF-as-space behavior inside code spans, original Unicode CSV/JSON content, and existing literal Markdown escapes; add full control-range, metadata/check and real CLI regression coverage.
