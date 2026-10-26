@@ -227,6 +227,17 @@ runs:
           rm -f "$json"
         fi
 
+        # Capture the existing JSON artifact's identity. The CLI writes
+        # atomically: a previous file left untouched must not appear fresh.
+        set +e
+        report_before=$(python "$ACTION_PATH/scripts/report_freshness.py" "$json")
+        before_code=$?
+        set -e
+        if [ "$before_code" -ne 0 ] || [ "$report_before" = not-file ]; then
+          annotate error "Cannot inspect the existing JSON report"
+          finish 3 "" false
+        fi
+
         set +e
         python -m csv_quality_report "$INPUT_PATH" "${extra[@]}" "${compare[@]}" --json-output "$json" > "$markdown"
         code=$?
@@ -237,10 +248,20 @@ runs:
           cat "$markdown" >> "$GITHUB_STEP_SUMMARY"
         fi
 
-        # The tool writes the JSON report exactly when it exits with 0 or 8.
+        # Only expose a report produced during THIS execution. A stale
+        # pre-existing JSON file cannot satisfy a zero-exit quality gate.
         report=""
-        if { [ "$code" -eq 0 ] || [ "$code" -eq 8 ]; } && [ -f "$json" ]; then
-          report="$json"
+        if [ "$code" -eq 0 ] || [ "$code" -eq 8 ]; then
+          set +e
+          report_after=$(python "$ACTION_PATH/scripts/report_freshness.py" "$json")
+          after_code=$?
+          set -e
+          if [ "$after_code" -ne 0 ] || [ "$report_after" = missing ] || [ "$report_after" = not-file ] || [ "$report_before" = "$report_after" ]; then
+            annotate error "CSV analysis did not create a fresh JSON report"
+            code=3
+          else
+            report="$json"
+          fi
         fi
         case "$code" in
           0 | 8 | 9) ;;

@@ -409,6 +409,33 @@ jobs:
           print("action outputs OK")
           PY
 
+      - name: Action replaces an old report with a fresh JSON artifact
+        id: refresh-existing
+        uses: ./
+        with:
+          path: examples/tiny.csv
+          args: --min-rows 1
+          report-path: reports/stale-report.json
+          summary: "false"
+
+      - name: Verify old JSON was replaced rather than reused
+        shell: bash
+        env:
+          REFRESH_CODE: ${{ steps.refresh-existing.outputs.exit-code }}
+          REFRESH_PASSED: ${{ steps.refresh-existing.outputs.passed }}
+          REFRESH_JSON: ${{ steps.refresh-existing.outputs.report-json }}
+        run: |
+          test "$REFRESH_CODE" = 0
+          test "$REFRESH_PASSED" = true
+          test "$REFRESH_JSON" = reports/stale-report.json
+          python - <<'PY'
+          import json
+          with open("reports/stale-report.json", encoding="utf-8") as handle:
+              report = json.load(handle)
+          assert report["rows"] == 3 and "old" not in report
+          print("fresh Action report replaced old JSON successfully")
+          PY
+
       # A daily comparison chain: the first run has no baseline yet, the next
       # one compares with the report the first one kept.
       - name: First run without a baseline (if-baseline-missing skip)
