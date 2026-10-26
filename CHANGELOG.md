@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+- Reject invisible ASCII C0, DEL and C1 control characters (including ESC, bell and backspace) in GitHub Action CSV, baseline and explicit report paths, before they reach workflow annotations, filesystem access or line-based outputs. Preserve ordinary Unicode path names and the existing workspace/path traversal guarantees. Add parameterized cross-validator and regression tests; standalone CLI handling remains unchanged.
+
 - Escape untrusted ASCII C0 (except horizontal tab), DEL and C1 control characters in CSV-derived Markdown labels, check details and inline code spans to prevent invisible terminal/log manipulation. Preserve existing tab whitespace, CR/LF-as-space behavior inside code spans, original Unicode CSV/JSON content, and existing literal Markdown escapes; add full control-range, metadata/check and real CLI regression coverage.
 
 - Align whole-column `infer_type` with per-cell `value_type` for non-ASCII decimal digits: restrict numeric, ISO temporal and thousands-group parsing to ASCII digits. Unicode numerals (including mixed ASCII/non-ASCII digits) remain original text rather than acquiring contradictory `int`/`float` and `string` classifications; keep existing ASCII, decimal-comma, locale thousands and bool behavior. Add direct and CLI regressions.
