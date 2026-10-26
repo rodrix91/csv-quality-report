@@ -4,8 +4,6 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
-- Fix the documented `--pattern` example for header names that contain `=`: the README showed `'SLA\\=met=OK=[0-9]+'`, which in single quotes reaches the tool with two backslashes and checks a column named `SLA\\=met` instead of `SLA=met`; it now shows `'SLA\=met=OK=[0-9]+'`, and a test runs the README example through shell-style parsing (#204). The `--help` text of `--pattern` now says that `NAME` ends at the first `=` not preceded by `\`. The `[Unreleased]` notes also lost a literal `\n\n` that had joined two entries.
-
 - Add opt-in `--check-baseline-missing-rate` when using `--baseline`: reject a historical `missing_pct` that contradicts its exact integer `missing` count beyond the one-decimal precision of generated reports (±0.05 points). This protects baseline drift analyses against conflicting historical metadata, while preserving default permissive behavior, legacy reports without a valid optional count, rounding boundaries, and unchanged report JSON schemas. The strict check runs before reading the new CSV and returns the existing baseline error code 3. Add API, boundary, legacy and CLI regression tests.
 
 - Reject historical baseline columns with a valid integer `missing` count greater than total baseline rows (including zero-row and huge-count cases). Such impossible counts could distort exact missingness-drift checks. Keep missing counts optional for older JSON reports, accept valid boundary counts, reject corrupt baselines at existing exit 3 before reading the CSV, and preserve unchanged results for valid reports. Add direct comparison, loading and CLI regressions.
@@ -15,6 +13,8 @@ All notable changes to this project are documented here. The format follows [Kee
 - Harden GitHub-friendly Markdown metadata against HTML/link and inline-code injection from untrusted CSV content and prior baseline JSON: free-text lines now use the same literal escaping as the tables, and NA tokens, currency/number affixes, boolean words and baseline source names use dynamically fenced code spans. Preserve ordinary report text, JSON bytes and all data/quality-gate results; add direct rendering and subprocess CLI regressions.
 
 - Support literal `=` characters in `--pattern` CSV header names using `\=` (e.g. `SLA\=met=OK=[0-9]+`) while retaining unescaped `=` as the name/pattern delimiter and allowing regex patterns themselves to contain `=`. Add CLI regressions for passing, failing and malformed pattern selectors.
+
+- Fix the documented `--pattern` example for header names that contain `=`: the README showed `'SLA\\=met=OK=[0-9]+'`, which in single quotes reaches the tool with two backslashes and checks a column named `SLA\\=met` instead of `SLA=met`; it now shows `'SLA\=met=OK=[0-9]+'`, and a test runs the README example through shell-style parsing (#204). The `--help` text of `--pattern` now says that `NAME` ends at the first `=` not preceded by `\`. The `[Unreleased]` notes also lost a literal `\n\n` that had joined two entries.
 
 - Reject blank positions in composite `--unique-key` selectors, including doubled commas, leading/trailing commas and whitespace-only components. Prevent silently checking an incomplete business key; retain valid whitespace-trimmed selections and existing deduplication semantics. Added CLI regression coverage.
 
