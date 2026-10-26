@@ -74,10 +74,14 @@ def test_cli_renders_literal_csv_controls_without_changing_json(tmp_path: Path) 
     value = "Andes\x1b[31m\x08\x7f\x9b\tNorte"
     path = tmp_path / "suppliers.csv"
     path.write_text("buyer\n" + value + "\n", encoding="utf-8")
-    env = {**os.environ, "PYTHONPATH": str(ROOT / "src")}
+    env = {
+        **os.environ,
+        "PYTHONPATH": str(ROOT / "src"),
+        "PYTHONIOENCODING": "utf-8",
+    }
     command = [sys.executable, "-m", "csv_quality_report", str(path)]
     markdown = subprocess.run(
-        command, cwd=ROOT, env=env, capture_output=True, text=True, check=False
+        command, cwd=ROOT, env=env, capture_output=True, text=True, encoding="utf-8", check=False
     )
     json_result = subprocess.run(
         [*command, "--format", "json"],
@@ -85,6 +89,7 @@ def test_cli_renders_literal_csv_controls_without_changing_json(tmp_path: Path) 
         env=env,
         capture_output=True,
         text=True,
+        encoding="utf-8",
         check=False,
     )
     assert markdown.returncode == 0, markdown.stderr
