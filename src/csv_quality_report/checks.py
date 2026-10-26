@@ -314,9 +314,7 @@ _RANGE_TYPES = {
 # Render them as numeric references instead of silently passing them into
 # Markdown job summaries. JSON representations remain completely unchanged.
 _CONTROL_ENTITIES = {
-    codepoint: f"&#{codepoint};"
-    for codepoint in (*range(9), *range(10, 32), *range(127, 160))
-
+    codepoint: f"&#{codepoint};" for codepoint in (*range(9), *range(10, 32), *range(127, 160))
 }
 
 
