@@ -116,10 +116,22 @@ runs:
           echo "::$1::$message"
         }
 
+        # Reject controls and multiline args before Bash 'read -a' silently
+        # ignores everything after its first newline. A later quality gate
+        # must never be dropped while this Action still reports success.
+        set +e
+        args_error=$(python "$ACTION_PATH/scripts/validate_action_args.py" 2>&1)
+        args_code=$?
+        set -e
+        if [ "$args_code" -ne 0 ]; then
+          annotate error "$args_error"
+          finish 2 "" false
+        fi
+
         case "$INPUT_IF_BASELINE_MISSING" in
           fail | skip) ;;
           *)
-            annotate error "if-baseline-missing must be \"fail\" or \"skip\", got \"$INPUT_IF_BASELINE_MISSING\""
+            annotate error "if-baseline-missing must be \"fail\" or \"skip\""
             finish 2 "" false
             ;;
         esac
