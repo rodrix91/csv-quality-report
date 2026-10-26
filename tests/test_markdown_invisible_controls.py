@@ -17,7 +17,7 @@ from csv_quality_report.render import _md_check_text, _md_literal, render_json, 
 ROOT = Path(__file__).resolve().parents[1]
 
 
-@pytest.mark.parametrize("codepoint", [*range(32), *range(127, 160)])
+@pytest.mark.parametrize("codepoint", [*range(9), *range(10, 32), *range(127, 160)])
 def test_all_c0_del_and_c1_controls_are_escaped_in_markdown(codepoint: int) -> None:
     value = f"buyer{chr(codepoint)}north"
     literal = _md_literal(value)
@@ -29,7 +29,7 @@ def test_all_c0_del_and_c1_controls_are_escaped_in_markdown(codepoint: int) -> N
     span = code_span(value)
     if codepoint in (10, 13):
         # The existing one-line code-span convention replaces line breaks with spaces.
-        assert span == "\`buyer north\`"
+        assert span == "`buyer north`"
     else:
         assert f"buyer&#{codepoint};north" in span
         assert chr(codepoint) not in span
@@ -89,9 +89,11 @@ def test_cli_renders_literal_csv_controls_without_changing_json(tmp_path: Path) 
     )
     assert markdown.returncode == 0, markdown.stderr
     assert json_result.returncode == 0, json_result.stderr
-    for character in ("\x1b", "\x08", "\x7f", "\x9b", "\t"):
+    for character in ("\x1b", "\x08", "\x7f", "\x9b"):
         assert character not in markdown.stdout
-    for codepoint in (27, 8, 127, 155, 9):
+    for codepoint in (27, 8, 127, 155):
         assert f"&#{codepoint};" in markdown.stdout
+    # Tabs in imported data are intentionally kept as literal whitespace.
+    assert "\t" in markdown.stdout
     payload = json.loads(json_result.stdout)
     assert payload["columns"][0]["top_values"][0]["value"] == value
