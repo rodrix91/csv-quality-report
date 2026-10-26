@@ -616,7 +616,8 @@ def build_parser() -> argparse.ArgumentParser:
         metavar="NAME=REGEX",
         help="fail if a non-missing cell of column NAME does not match the regular "
         "expression REGEX as a whole, such as CP=[0-9]{4} (stripped text, Python re "
-        "syntax; NAME ends at the first =); repeatable",
+        "syntax; NAME ends at the first = not preceded by \\, so SLA\\=met names SLA=met); "
+        "repeatable",
     )
     gates.add_argument(
         "--max-age",
