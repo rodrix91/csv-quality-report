@@ -1,6 +1,6 @@
 # Direct dev dependencies, pinned. Runtime has no dependencies.
 pytest==9.1.1
-ruff==0.17.1
+ruff==0.17.2
 mypy==2.4.0
 build==1.6.1
 coverage==7.16.2
