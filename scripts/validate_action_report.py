@@ -65,7 +65,10 @@ def main(argv: list[str] | None = None) -> int:
         print("EXIT_CODE must be 0 or 8", file=sys.stderr)
         return 2
     if not valid_report(Path(values[0]), code):
-        print("Action JSON report is invalid or its quality status disagrees with exit code", file=sys.stderr)
+        print(
+            "Action JSON report is invalid or its quality status disagrees with exit code",
+            file=sys.stderr,
+        )
         return 3
     return 0
 
