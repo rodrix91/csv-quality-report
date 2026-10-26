@@ -29,9 +29,7 @@ from csv_quality_report.inference import infer_type, strip_thousands, value_type
     ],
 )
 @pytest.mark.parametrize("decimal_comma", [False, True])
-def test_unicode_digits_are_text_in_both_inference_paths(
-    value: str, decimal_comma: bool
-) -> None:
+def test_unicode_digits_are_text_in_both_inference_paths(value: str, decimal_comma: bool) -> None:
     assert infer_type([value], decimal_comma) == "string"
     assert value_type(value, decimal_comma) == "string"
     assert infer_type(["123", value], decimal_comma) == "string"
