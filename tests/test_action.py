@@ -122,7 +122,7 @@ def test_action_requires_fresh_json_before_advertising_a_report() -> None:
     assert before < analysis < after < outputs
     assert '[ "$report_before" = "$report_after" ]' in script
     assert "CSV analysis did not create a fresh JSON report" in script
-    assert 'code=3' in script[after:outputs]
+    assert "code=3" in script[after:outputs]
     assert 'report="$json"' in script[after:outputs]
 
 
