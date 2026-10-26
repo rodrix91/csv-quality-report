@@ -314,12 +314,14 @@ _RANGE_TYPES = {
 # Render them as numeric references instead of silently passing them into
 # Markdown job summaries. JSON representations remain completely unchanged.
 _CONTROL_ENTITIES = {
-    codepoint: f"&#{codepoint};" for codepoint in (*range(32), *range(127, 160))
+    codepoint: f"&#{codepoint};"
+    for codepoint in (*range(9), *range(10, 32), *range(127, 160))
+
 }
 
 
 def escape_control_chars(text: str) -> str:
-    """Keep C0, DEL and C1 controls out of Markdown source."""
+    """Keep dangerous C0, DEL and C1 controls out; retain ordinary tabs."""
     return text.translate(_CONTROL_ENTITIES)
 
 
