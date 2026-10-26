@@ -19,6 +19,7 @@ from .checks import (
     CHECK_VALUE_RANGE,
     CheckResult,
     code_span,
+    escape_control_chars,
 )
 from .compare import Comparison
 from .profile import ColumnProfile, Report
@@ -39,7 +40,7 @@ def _md_literal(text: str) -> str:
     entities = text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
     translated = {ord(ch): "\\" + ch for ch in "\\`[]()|"}
     translated.update({ord("\r"): "&#13;", ord("\n"): "&#10;"})
-    return entities.translate(translated)
+    return escape_control_chars(entities.translate(translated))
 
 
 def _md_check_text(text: str) -> str:
@@ -50,7 +51,7 @@ def _md_check_text(text: str) -> str:
     entities = text.replace("&", "&amp;").replace("<", "&lt;")
     escaped = {ord(ch): chr(92) + ch for ch in chr(92) + chr(96) + "[]|"}
     escaped.update({ord("\r"): "&#13;", ord("\n"): "&#10;"})
-    return entities.translate(escaped)
+    return escape_control_chars(entities.translate(escaped))
 
 
 def _md_check(check: CheckResult) -> str:

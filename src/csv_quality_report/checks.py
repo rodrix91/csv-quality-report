@@ -310,6 +310,19 @@ _RANGE_TYPES = {
 }
 
 
+# CSV and check metadata can contain terminal escape/control characters.
+# Render them as numeric references instead of silently passing them into
+# Markdown job summaries. JSON representations remain completely unchanged.
+_CONTROL_ENTITIES = {
+    codepoint: f"&#{codepoint};" for codepoint in (*range(9), *range(10, 32), *range(127, 160))
+}
+
+
+def escape_control_chars(text: str) -> str:
+    """Keep dangerous C0, DEL and C1 controls out; retain ordinary tabs."""
+    return text.translate(_CONTROL_ENTITIES)
+
+
 def code_span(text: str) -> str:
     """``text`` as one Markdown code span, so the backslashes of ``\\d`` or ``\\.`` show as written.
 
@@ -317,7 +330,7 @@ def code_span(text: str) -> str:
     ``text`` (padded with spaces when ``text`` starts or ends with one), and
     line breaks become spaces, so the span stays on one line.
     """
-    text = text.replace("\r", " ").replace("\n", " ")
+    text = escape_control_chars(text.replace("\r", " ").replace("\n", " "))
     longest = max((len(run) for run in re.findall("`+", text)), default=0)
     fence = "`" * (longest + 1)
     pad = " " if text.startswith("`") or text.endswith("`") else ""
