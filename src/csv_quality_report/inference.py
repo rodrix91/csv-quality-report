@@ -8,14 +8,18 @@ from collections.abc import Iterable
 from datetime import date, datetime
 from functools import lru_cache
 
-_INT_RE = re.compile(r"^[+-]?\d+$")
-_FLOAT_RE = re.compile(r"^[+-]?(\d+\.\d*|\.\d+|\d+)([eE][+-]?\d+)?$")
-_FLOAT_COMMA_RE = re.compile(r"^[+-]?(\d+,\d*|,\d+|\d+)([eE][+-]?\d+)?$")
-_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+# Keep numeric recognition ASCII-only, matching value_type's fast character filter.
+# Python's \d and int()/float() also accept Unicode decimal digits, which
+# would otherwise make infer_type disagree with value_type on the same cell.
+_INT_RE = re.compile(r"^[+-]?\d+$", re.ASCII)
+_FLOAT_RE = re.compile(r"^[+-]?(\d+\.\d*|\.\d+|\d+)([eE][+-]?\d+)?$", re.ASCII)
+_FLOAT_COMMA_RE = re.compile(r"^[+-]?(\d+,\d*|,\d+|\d+)([eE][+-]?\d+)?$", re.ASCII)
+_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$", re.ASCII)
 # ISO 8601 extended date + time: seconds and up to 6 fraction digits optional,
 # then an optional UTC designator or offset (+HH:MM, +HHMM, +HH).
 _DATETIME_RE = re.compile(
-    r"^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}(:\d{2}(\.\d{1,6})?)?(Z|[+-]\d{2}(:?\d{2})?)?$"
+    r"^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}(:\d{2}(\.\d{1,6})?)?(Z|[+-]\d{2}(:?\d{2})?)?$",
+    re.ASCII,
 )
 _BOOLS = frozenset({"true", "false"})
 # Python refuses int() on strings with more digits than its limit (4300 by
@@ -162,7 +166,7 @@ def _grouped_number(
     chars = THOUSANDS_SEPARATORS[thousands]
     sep = "[" + "".join(re.escape(c) for c in chars) + "]"
     mark = "," if decimal_comma else r"\."
-    pattern = re.compile(rf"^[+-]?\d{{1,3}}(?:{sep}\d{{3}})+(?:{mark}\d*)?$")
+    pattern = re.compile(rf"^[+-]?\d{{1,3}}(?:{sep}\d{{3}})+(?:{mark}\d*)?$", re.ASCII)
     return pattern, str.maketrans("", "", chars)
 
 
