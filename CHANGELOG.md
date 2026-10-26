@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+- Require the reusable GitHub Action to verify that its JSON report is a **fresh regular file** before advertising `report-json` or `passed=true`. Compare pre-run and post-run file identity, size, modification and change times; reject unchanged, missing or non-file artifacts even if the subprocess reports success. Preserve user-supplied previous reports, existing quality-gate exit code 8 and successful atomic replacements; add direct and end-to-end Action regressions. The standalone CLI and report schema are unchanged.
+
 - Fail closed on multiline or invisible-control GitHub Action `args` and `baseline-args` before Bash `read -a` can silently discard quality gates after the first line. Preserve legitimate tab-separated one-line options and ordinary Unicode text; avoid reflecting malformed `if-baseline-missing` raw values into workflow annotations. Add direct full-C1-range, Action end-to-end and source-package regressions without changing the standalone CLI or the CSV/JSON report formats.
 
 - Reject invisible ASCII C0, DEL and C1 control characters (including ESC, bell and backspace) in GitHub Action CSV, baseline and explicit report paths, before they reach workflow annotations, filesystem access or line-based outputs. Preserve ordinary Unicode path names and the existing workspace/path traversal guarantees. Add parameterized cross-validator and regression tests; standalone CLI handling remains unchanged.
