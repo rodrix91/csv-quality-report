@@ -447,6 +447,8 @@ def _guarded(
         yield from records
     except UnicodeDecodeError as exc:
         raise _encoding_error(path, name, compressed, encoding) from exc
+    except UnicodeError as exc:
+        raise _other_unicode_error(name, encoding, exc) from exc
     except csv.Error as exc:
         message = f"malformed CSV near line {reader.line_num}: {exc}"
         if "field larger than field limit" in str(exc):
@@ -481,6 +483,19 @@ def _encoding_error(
         advice = "check the encoding given with --encoding"
         label = encoding
     return EncodingError(f"'{name}' is not valid {label} ({where}); {advice}")
+
+
+def _other_unicode_error(name: str, encoding: str, exc: UnicodeError) -> EncodingError:
+    """Describe codec errors without byte offsets, e.g. UTF-16 without its BOM.
+
+    Some incremental decoders raise plain UnicodeError instead of
+    UnicodeDecodeError. Re-decoding to calculate an offset would raise again,
+    so report the codec's actual reason without claiming a byte position.
+    """
+    return EncodingError(
+        f"'{name}' is not valid {encoding} ({exc}); "
+        "check the encoding given with --encoding"
+    )
 
 
 @contextmanager
@@ -628,6 +643,8 @@ def _open_rows(
                     whole = True
         except UnicodeDecodeError as exc:
             raise _encoding_error(path, name, compressed, encoding) from exc
+        except UnicodeError as exc:
+            raise _other_unicode_error(name, encoding, exc) from exc
         except _STREAM_ERRORS as exc:
             raise _read_error(name, exc) from exc
         if detected:
