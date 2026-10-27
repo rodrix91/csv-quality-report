@@ -493,8 +493,7 @@ def _other_unicode_error(name: str, encoding: str, exc: UnicodeError) -> Encodin
     so report the codec's actual reason without claiming a byte position.
     """
     return EncodingError(
-        f"'{name}' is not valid {encoding} ({exc}); "
-        "check the encoding given with --encoding"
+        f"'{name}' is not valid {encoding} ({exc}); check the encoding given with --encoding"
     )
 
 
