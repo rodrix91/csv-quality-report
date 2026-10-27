@@ -22,9 +22,7 @@ def valid_report(path: Path, exit_code: int) -> bool:
     if exit_code not in (0, 8):
         return False
     try:
-        data: Any = json.loads(
-            path.read_text(encoding="utf-8"), parse_constant=_reject_nonfinite
-        )
+        data: Any = json.loads(path.read_text(encoding="utf-8"), parse_constant=_reject_nonfinite)
     except (OSError, UnicodeError, ValueError):
         return False
     if not isinstance(data, dict):
