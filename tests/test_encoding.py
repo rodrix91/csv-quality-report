@@ -94,13 +94,23 @@ def test_utf16_without_bom_is_controlled_encoding_error(
 
     previous = tmp_path / "existing-report.json"
     previous.write_text('{"preserved": true}\n', encoding="utf-8")
-    assert main([
-        str(path), "--encoding", "utf-16", "--delimiter", "auto",
-        "--json-output", str(previous)
-    ]) == 4
+    assert (
+        main(
+            [
+                str(path),
+                "--encoding",
+                "utf-16",
+                "--delimiter",
+                "auto",
+                "--json-output",
+                str(previous),
+            ]
+        )
+        == 4
+    )
     err = capsys.readouterr().err
     assert "is not valid utf-16" in err
-    assert ("invalid byte at offset 0" in err or "UTF-16 stream does not start with BOM" in err)
+    assert "invalid byte at offset 0" in err or "UTF-16 stream does not start with BOM" in err
     assert "Traceback" not in err
     assert previous.read_text(encoding="utf-8") == '{"preserved": true}\n'
 
@@ -115,7 +125,9 @@ def test_later_plain_unicode_error_is_normalized_by_row_guard() -> None:
         raise UnicodeError("codec stream state invalid")
 
     rows = _guarded(
-        Path("sample.csv"), faulty_rows(), csv.reader(io.StringIO("sample\n")),
+        Path("sample.csv"),
+        faulty_rows(),
+        csv.reader(io.StringIO("sample\n")),
         encoding="utf-16",
     )
     assert next(rows) == ["ok"]
