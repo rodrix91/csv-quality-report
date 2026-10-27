@@ -1,0 +1,114 @@
+"""A GitHub Action must verify a fresh JSON artifact before declaring success."""
+
+from __future__ import annotations
+
+import json
+import subprocess
+import sys
+from pathlib import Path
+
+import pytest
+
+from scripts.validate_action_report import main, valid_report
+
+ROOT = Path(__file__).resolve().parents[1]
+
+
+def _report(*, passed: bool = True) -> dict[str, object]:
+    return {
+        "source": "orders.csv",
+        "rows": 2,
+        "header_columns": 2,
+        "columns": [{"name": "id"}, {"name": "quantity"}],
+        "checks": [{"check": "min_rows", "passed": passed}],
+    }
+
+
+def test_accepts_valid_passing_and_failed_gate_reports(tmp_path: Path) -> None:
+    file = tmp_path / "report.json"
+    for code, passed in ((0, True), (8, False)):
+        file.write_text(json.dumps(_report(passed=passed)), encoding="utf-8")
+        assert valid_report(file, code)
+        assert main([str(file), str(code)]) == 0
+
+
+@pytest.mark.parametrize(
+    ("payload", "exit_code"),
+    [
+        ('{"rows": 2}', 0),
+        ("[]", 0),
+        ("null", 0),
+        ("{", 0),
+        ("", 0),
+        ('{"rows": NaN}', 0),
+        ('{"rows": Infinity}', 0),
+        (json.dumps({**_report(), "rows": -1}), 0),
+        (json.dumps({**_report(), "rows": True}), 0),
+        (json.dumps({**_report(), "header_columns": -1}), 0),
+        (json.dumps({**_report(), "header_columns": "2"}), 0),
+        (json.dumps({**_report(), "source": 3}), 0),
+        (json.dumps({**_report(), "columns": "invalid"}), 0),
+        (json.dumps({**_report(), "columns": [{}]}), 0),
+        (json.dumps({**_report(), "checks": {}}), 0),
+        (json.dumps({**_report(), "checks": [{"check": "min_rows", "passed": 1}]}), 0),
+        (json.dumps({**_report(), "checks": [{"passed": True}]}), 0),
+        (json.dumps(_report(passed=False)), 0),
+        (json.dumps(_report(passed=True)), 8),
+        (json.dumps({**_report(), "checks": []}), 8),
+    ],
+)
+def test_rejects_invalid_or_contradictory_reports(
+    tmp_path: Path, payload: str, exit_code: int
+) -> None:
+    file = tmp_path / "report.json"
+    file.write_text(payload, encoding="utf-8")
+    assert not valid_report(file, exit_code)
+    assert main([str(file), str(exit_code)]) == 3
+
+
+def test_reports_with_no_quality_gates_are_valid_on_success(tmp_path: Path) -> None:
+    file = tmp_path / "no-gates.json"
+    file.write_text(json.dumps({**_report(), "checks": []}), encoding="utf-8")
+    assert valid_report(file, 0)
+
+
+def test_missing_non_utf8_and_non_file_reports_fail_closed(tmp_path: Path) -> None:
+    assert not valid_report(tmp_path / "missing.json", 0)
+    assert not valid_report(tmp_path, 0)
+    bad = tmp_path / "non-utf8.json"
+    bad.write_bytes(b"\xff")
+    assert not valid_report(bad, 0)
+
+
+@pytest.mark.parametrize("args", [[], ["only.json"], ["file.json", "invalid"], ["x", "3"]])
+def test_invalid_invocations_remain_usage_errors(args: list[str]) -> None:
+    assert main(args) == 2
+
+
+def test_validator_is_packaged_and_action_exposes_only_verified_json() -> None:
+    manifest = (ROOT / "MANIFEST.in").read_text(encoding="utf-8")
+    action = (ROOT / "action.yml").read_text(encoding="utf-8")
+    assert "include scripts/validate_action_report.py" in manifest
+    script = action.split("      run: |\n", 1)[1]
+    analyzer = script.index('python -m csv_quality_report "$INPUT_PATH"')
+    freshness = script.index('report_after=$(python "$ACTION_PATH/scripts/report_freshness.py"')
+    verification = script.index(
+        'python "$ACTION_PATH/scripts/validate_action_report.py" "$json" "$code"'
+    )
+    exposed = script.index('report="$json"')
+    finish = script.index('finish "$code" "$report" "$baseline_used"')
+    assert analyzer < freshness < verification < exposed < finish
+    assert "code=3" in script[verification:exposed]
+
+
+def test_subprocess_returns_error_without_leaking_report_contents(tmp_path: Path) -> None:
+    file = tmp_path / "secret.json"
+    file.write_text("{\"private\":\"never-expose-me\"}", encoding="utf-8")
+    result = subprocess.run(
+        [sys.executable, str(ROOT / "scripts" / "validate_action_report.py"), str(file), "0"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 3
+    assert "never-expose-me" not in result.stdout + result.stderr
