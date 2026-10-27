@@ -93,7 +93,7 @@ def test_multilingual_letters_and_script_joiners_remain_unchanged() -> None:
 def test_cli_preserves_json_and_sanitizes_markdown(tmp_path: Path) -> None:
     label = "An\u200bdes\u202eNorte\u2060\ufeff"
     file = tmp_path / "operators.csv"
-    file.write_text("buyer\\n" + label + "\\n" + label + "\\n", encoding="utf-8")
+    file.write_text("buyer\n" + label + "\n" + label + "\n", encoding="utf-8")
     env = {**os.environ, "PYTHONPATH": str(ROOT / "src")}
     args = [sys.executable, "-m", "csv_quality_report", str(file), "--unique", "buyer"]
     markdown = subprocess.run(
