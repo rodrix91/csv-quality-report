@@ -398,6 +398,10 @@ jobs:
           test -z "$ESCAPE_JSON"
           test "$ESCAPE_OUTCOME" = failure
           test ! -e "$GITHUB_WORKSPACE/../csv-quality-report-escape.json"
+          # The Action's exported JSON has also passed its own contract
+          # validator; independently check both quality exit classes here.
+          python scripts/validate_action_report.py "$OK_JSON" 0
+          python scripts/validate_action_report.py "$GATE_JSON" 8
           python - <<'PY'
           import json, os
           ok = json.load(open(os.environ["OK_JSON"], encoding="utf-8"))
