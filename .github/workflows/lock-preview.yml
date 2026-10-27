@@ -1,0 +1,38 @@
+name: Prepare hashed development lock preview
+
+on:
+  pull_request:
+    paths:
+      - requirements-dev.txt
+      - .github/workflows/lock-preview.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  preview:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out proposed requirements
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7
+        with:
+          python-version: "3.12"
+      - name: Install pinned uv resolver
+        run: python -m pip install --disable-pip-version-check uv==0.12.22
+      - name: Reproduce documented universal hashed lock
+        run: uv pip compile requirements-dev.txt --generate-hashes --universal --python-version 3.11 -o requirements-dev.lock
+      - name: Compare declared pins against regenerated lock
+        run: python scripts/check_dev_lock.py
+      - name: Upload reviewable generated lock
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: hashed-dev-lock-preview
+          path: requirements-dev.lock
+          if-no-files-found: error
+          retention-days: 7
