@@ -192,6 +192,13 @@
     "about": "The same comparison two weeks later (2026-10-19T12:00:00Z), as when a pipeline stops refreshing its baseline: 13 days 14 hours is over the 8-day limit, so the run fails."
   },
   {
+    "name": "stock_counts_week2_row_growth",
+    "file": "stock_counts_week2.csv",
+    "args": ["--delimiter", "auto", "--decimal-comma", "--baseline", "tests/corpus/expected/stock_counts_week1_stamped.json", "--max-row-drop", "10", "--max-row-growth", "20"],
+    "exit_code": 8,
+    "about": "Both row gates on the weekly count: the two new bulk products took it from 8 to 10 rows, 25% more, so --max-row-drop passes and --max-row-growth 20 fails, as it would for a count exported twice into the same file."
+  },
+  {
     "name": "stock_counts_week2_unstamped_baseline",
     "file": "stock_counts_week2.csv",
     "args": ["--delimiter", "auto", "--decimal-comma", "--baseline", "tests/corpus/expected/stock_counts_week1.json", "--max-baseline-age", "8d"],
