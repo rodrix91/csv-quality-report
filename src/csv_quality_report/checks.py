@@ -36,6 +36,7 @@ CHECK_MAX_AFFIXES = "max_affixes"
 CHECK_VALUE_RANGE = "value_range"
 CHECK_SCHEMA_CHANGE = "schema_change"
 CHECK_ROW_DROP = "row_drop"
+CHECK_ROW_GROWTH = "row_growth"
 CHECK_MISSING_INCREASE = "missing_increase"
 CHECK_UNIQUE = "unique"
 CHECK_UNIQUE_KEY = "unique_key"
@@ -144,6 +145,8 @@ class CheckResult:
                 f"row count {change} since the baseline "
                 f"({self.detail} rows; limit {_fmt(self.limit)}%)"
             )
+        if self.check == CHECK_ROW_GROWTH:
+            return self._describe_row_growth()
         if self.check == CHECK_MISSING_INCREASE:
             return self._describe_missing_increase()
         if self.check == CHECK_UNIQUE:
@@ -163,6 +166,18 @@ class CheckResult:
             noun = "data row" if rows == 1 else "data rows"
             return f"the file has {rows} {noun} (at least {int(self.limit)} required)"
         return f"{_fmt(self.value)} duplicate rows (limit {_fmt(self.limit)})"
+
+    def _describe_row_growth(self) -> str:
+        before = self.detail.split(" -> ", 1)[0]
+        if before == "0" and self.detail != "0 -> 0":
+            return (
+                "row count rose since the baseline, which had no rows, so the growth cannot "
+                f"be measured ({self.detail} rows; limit {_fmt(self.limit)}%)"
+            )
+        change = f"rose {_fmt(self.value)}%" if self.value > 0 else "did not rise"
+        return (
+            f"row count {change} since the baseline ({self.detail} rows; limit {_fmt(self.limit)}%)"
+        )
 
     def _describe_schema_change(self) -> str:
         allowed = ""
@@ -493,6 +508,28 @@ def row_drop_check(comparison: Comparison, max_drop: float) -> CheckResult:
         limit=max_drop,
         value=_shown(drop),
         passed=drop <= _limit(max_drop),
+        detail=f"{before} -> {after}",
+    )
+
+
+def row_growth_check(comparison: Comparison, max_growth: float) -> CheckResult:
+    """A check that fails when the row count rose by more than ``max_growth`` % of the baseline's.
+
+    The opposite of ``row_drop_check``, for an export that ran twice into the
+    same file, a join that fans out or a filter that was lost. ``max_growth``
+    may exceed 100 (``100`` lets the file double). Fewer rows than the
+    baseline is no growth; a baseline without rows has no percentage to grow
+    from, so the check passes and its message says so. The comparison is
+    exact (fractions of the row counts); a growth equal to the limit passes.
+    """
+    before, after = comparison.rows_before, comparison.rows_after
+    growth = Fraction(100 * (after - before), before) if before and after > before else Fraction(0)
+    return CheckResult(
+        check=CHECK_ROW_GROWTH,
+        column=None,
+        limit=max_growth,
+        value=_shown(growth),
+        passed=growth <= _limit(max_growth),
         detail=f"{before} -> {after}",
     )
 

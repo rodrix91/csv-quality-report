@@ -23,6 +23,7 @@ from .checks import (
     missing_increase_checks,
     range_bounds_problem,
     row_drop_check,
+    row_growth_check,
     schema_change_check,
 )
 from .clock import current_time, format_stamp
@@ -90,6 +91,17 @@ def _percentage(text: str) -> float:
         raise argparse.ArgumentTypeError(f"invalid percentage: {text!r}") from None
     if not 0.0 <= value <= 100.0:
         raise argparse.ArgumentTypeError("must be between 0 and 100")
+    return value
+
+
+def _growth(text: str) -> float:
+    """A percentage of growth: finite and not negative, but it may exceed 100."""
+    try:
+        value = float(text)
+    except ValueError:
+        raise argparse.ArgumentTypeError(f"invalid percentage: {text!r}") from None
+    if not 0.0 <= value < math.inf:
+        raise argparse.ArgumentTypeError("must be a finite number of 0 or more")
     return value
 
 
@@ -686,6 +698,14 @@ def build_parser() -> argparse.ArgumentParser:
         "baseline's rows (0-100)",
     )
     gates.add_argument(
+        "--max-row-growth",
+        type=_growth,
+        default=None,
+        metavar="PCT",
+        help="with --baseline: fail if the row count rose by more than PCT %% of the "
+        "baseline's rows (0 or more; 100 lets the file double)",
+    )
+    gates.add_argument(
         "--max-missing-increase",
         type=_percentage,
         default=None,
@@ -815,6 +835,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             for option, given in (
                 ("--fail-on-schema-change", args.fail_on_schema_change),
                 ("--max-row-drop", args.max_row_drop is not None),
+                ("--max-row-growth", args.max_row_growth is not None),
                 ("--max-missing-increase", args.max_missing_increase is not None),
                 ("--max-missing-increase-column", bool(args.max_missing_increase_column)),
                 ("--allow-type-change", bool(args.allow_type_change)),
@@ -917,6 +938,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             )
         if args.max_row_drop is not None:
             checks.append(row_drop_check(comparison, args.max_row_drop))
+        if args.max_row_growth is not None:
+            checks.append(row_growth_check(comparison, args.max_row_growth))
         if args.max_missing_increase is not None or args.max_missing_increase_column:
             checks.extend(
                 missing_increase_checks(
