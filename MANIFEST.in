@@ -17,3 +17,4 @@ include scripts/validate_action_read_path.py
 include scripts/validate_action_args.py
 include scripts/report_freshness.py
 include scripts/__init__.py
+include scripts/check_dev_lock.py
