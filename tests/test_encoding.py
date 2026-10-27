@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
+import csv
 import gzip
 import io
 import json
 import sys
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from pathlib import Path
 from typing import Any
 
@@ -73,6 +74,50 @@ def test_utf16_with_bom_and_auto_detection(write_csv: WriteCsv) -> None:
     report = profile_file(write_csv(TEXT.encode("utf-16")), delimiter="auto", encoding="utf-16")
     assert (report.delimiter, report.rows) == (";", 3)
     assert report.columns[0].name == "ciudad"
+
+
+@pytest.mark.parametrize("compressed", [False, True])
+def test_utf16_without_bom_is_controlled_encoding_error(
+    write_csv: WriteCsv, capsys: pytest.CaptureFixture[str], compressed: bool, tmp_path: Path
+) -> None:
+    raw = TEXT.encode("utf-16-le")  # valid UTF-16 code units but missing the required BOM
+    source = gzip.compress(raw) if compressed else raw
+    path = write_csv(source, "missing-bom.csv.gz" if compressed else "missing-bom.csv")
+    with pytest.raises(EncodingError, match="UTF-16 stream does not start with BOM") as info:
+        read_table(path, encoding="utf-16", delimiter="auto")
+    assert info.value.exit_code == 4
+    assert "check the encoding given with --encoding" in info.value.message
+
+    previous = tmp_path / "existing-report.json"
+    previous.write_text('{"preserved": true}\n', encoding="utf-8")
+    assert main([
+        str(path), "--encoding", "utf-16", "--delimiter", "auto",
+        "--json-output", str(previous)
+    ]) == 4
+    err = capsys.readouterr().err
+    assert "UTF-16 stream does not start with BOM" in err
+    assert "Traceback" not in err
+    assert previous.read_text(encoding="utf-8") == '{"preserved": true}\n'
+
+
+def test_later_plain_unicode_error_is_normalized_by_row_guard() -> None:
+    # The header setup and row iterator have separate error boundaries.
+    # Exercise the iterator boundary without relying on TextIOWrapper buffering.
+    from csv_quality_report.reader import _guarded
+
+    def faulty_rows() -> Iterator[list[str]]:
+        yield ["ok"]
+        raise UnicodeError("codec stream state invalid")
+
+    rows = _guarded(
+        Path("sample.csv"), faulty_rows(), csv.reader(io.StringIO("sample\n")),
+        encoding="utf-16",
+    )
+    assert next(rows) == ["ok"]
+    with pytest.raises(EncodingError, match="codec stream state invalid") as info:
+        next(rows)
+    assert info.value.exit_code == 4
+    assert "check the encoding given with --encoding" in info.value.message
 
 
 def test_gzip_and_stdin_with_an_encoding(
