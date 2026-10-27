@@ -103,7 +103,7 @@ def test_validator_is_packaged_and_action_exposes_only_verified_json() -> None:
 
 def test_subprocess_returns_error_without_leaking_report_contents(tmp_path: Path) -> None:
     file = tmp_path / "secret.json"
-    file.write_text("{\"private\":\"never-expose-me\"}", encoding="utf-8")
+    file.write_text('{"private":"never-expose-me"}', encoding="utf-8")
     result = subprocess.run(
         [sys.executable, str(ROOT / "scripts" / "validate_action_report.py"), str(file), "0"],
         capture_output=True,
