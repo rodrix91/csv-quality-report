@@ -19,6 +19,8 @@ def _report(*, passed: bool = True) -> dict[str, object]:
         "source": "orders.csv",
         "rows": 2,
         "header_columns": 2,
+        "selected_columns": None,
+        "duplicate_rows": 0,
         "columns": [{"name": "id"}, {"name": "quantity"}],
         "checks": [{"check": "min_rows", "passed": passed}],
     }
@@ -64,6 +66,69 @@ def test_rejects_invalid_or_contradictory_reports(
     file.write_text(payload, encoding="utf-8")
     assert not valid_report(file, exit_code)
     assert main([str(file), str(exit_code)]) == 3
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        {"header_columns": 0},
+        {"header_columns": 1},
+        {"header_columns": 3},
+        {"header_columns": True},
+        {"duplicate_rows": None},
+        {"duplicate_rows": -1},
+        {"duplicate_rows": 3},
+        {"duplicate_rows": True},
+        {"duplicate_rows": "1"},
+        {"selected_columns": "id"},
+        {"selected_columns": ["id"]},
+        {"selected_columns": ["quantity", "id"]},
+        {"selected_columns": ["id", "id"]},
+        {"columns": [{"name": "id"}, {"name": "id"}]},
+        {"columns": [{"name": "id"}]},
+        {"columns": [{"name": "id"}, {"name": "quantity"}, {"name": "extra"}]},
+    ],
+)
+def test_rejects_inconsistent_column_accounting_and_duplicate_rows(
+    tmp_path: Path, change: dict[str, object]
+) -> None:
+    file = tmp_path / "report.json"
+    file.write_text(json.dumps({**_report(), **change}), encoding="utf-8")
+    assert not valid_report(file, 0)
+    assert main([str(file), "0"]) == 3
+
+
+@pytest.mark.parametrize("removed", ["selected_columns", "duplicate_rows"])
+def test_rejects_missing_column_and_duplicate_metadata(tmp_path: Path, removed: str) -> None:
+    data = _report()
+    del data[removed]
+    file = tmp_path / "missing.json"
+    file.write_text(json.dumps(data), encoding="utf-8")
+    assert not valid_report(file, 0)
+
+
+def test_accepts_genuine_selected_column_report_from_cli(tmp_path: Path) -> None:
+    from csv_quality_report.cli import main as cli_main
+
+    csv_path = tmp_path / "orders.csv"
+    csv_path.write_text(
+        "id,quantity,region\nA,3,North\nA,3,North\nB,5,South\n",
+        encoding="utf-8",
+    )
+    output = tmp_path / "report.json"
+    for selection in (None, "region,id"):
+        args = [str(csv_path), "--json-output", str(output)]
+        if selection is not None:
+            args.extend(["--columns", selection])
+        assert cli_main(args) == 0
+        profile = json.loads(output.read_text(encoding="utf-8"))
+        assert profile["rows"] == 3
+        assert profile["duplicate_rows"] == 1
+        assert profile["header_columns"] == 3
+        assert [col["name"] for col in profile["columns"]] == (
+            ["id", "quantity", "region"] if selection is None else ["region", "id"]
+        )
+        assert valid_report(output, 0)
 
 
 def test_reports_with_no_quality_gates_are_valid_on_success(tmp_path: Path) -> None:
