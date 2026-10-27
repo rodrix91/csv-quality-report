@@ -102,6 +102,11 @@ def test_cli_auto_reads_large_cr_only_legacy_export(
     assert (report["delimiter"], report["delimiter_detected"]) == (";", True)
 
 
+def test_sniff_window_without_any_physical_line_ending_remains_one_column() -> None:
+    # A lone long record has no safe completed line to trim at the window.
+    assert detect_delimiter("x" * (SNIFF_CHARS + 1)) == ","
+
+
 def test_cli_auto_reports_detected_delimiter_json(
     write_csv: WriteCsv, capsys: pytest.CaptureFixture[str]
 ) -> None:
