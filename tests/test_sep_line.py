@@ -48,6 +48,10 @@ def report_json(capsys: pytest.CaptureFixture[str], *args: str) -> dict[str, Any
         ("sep=; \n", None),
         (" sep=;\n", None),
         ('sep="\n', None),
+        ('"sep=;\n', None),
+        ('sep=;"\n', None),
+        ('"SEP=|\r\n', None),
+        ('sep=|"\r', None),
         ("separator=;\n", None),
         ("id;sep=;\n", None),
         ("sep=;\n\n", None),
@@ -56,6 +60,15 @@ def report_json(capsys: pytest.CaptureFixture[str], *args: str) -> dict[str, Any
 )
 def test_declared_delimiter(line: str, expected: str | None) -> None:
     assert declared_delimiter(line) == expected
+
+
+@pytest.mark.parametrize("invalid_hint", ['"sep=;', 'sep=;"'])
+def test_mismatched_quote_hint_is_not_discarded_as_metadata(
+    write_csv: WriteCsv, invalid_hint: str
+) -> None:
+    path = write_csv(f"{invalid_hint}\nid;buyer\nA;Andes\n")
+    with open_rows(path, delimiter=";") as stream:
+        assert stream.sep_line is False
 
 
 def test_auto_follows_the_declaration(write_csv: WriteCsv) -> None:

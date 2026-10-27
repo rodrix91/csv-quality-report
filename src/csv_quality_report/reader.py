@@ -45,7 +45,7 @@ MAX_TITLE_LINES = 20  # how many leading title lines a failed detection looks pa
 MAX_FOOTER_LINES = 20  # how many trailing footer records an error looks for
 DELIMITER_NAMES = {",": "comma", ";": "semicolon", "\t": "tab", "|": "pipe"}
 # Excel's hint line, e.g. "sep=;": one separator character, optionally quoted.
-_SEP_LINE_RE = re.compile(r'"?sep=([^"\r\n])"?(?:\r\n|\r|\n)?', re.IGNORECASE)
+_SEP_LINE_RE = re.compile(r'("?)sep=([^"\r\n])\1(?:\r\n|\r|\n)?', re.IGNORECASE)
 
 
 @dataclass(frozen=True)
@@ -71,7 +71,7 @@ def declared_delimiter(line: str) -> str | None:
     character and an optional line end, optionally inside double quotes.
     """
     match = _SEP_LINE_RE.fullmatch(line)
-    return None if match is None else match.group(1)
+    return None if match is None else match.group(2)
 
 
 class _LineCounter:
