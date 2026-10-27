@@ -80,6 +80,28 @@ def test_cut_off_last_line_of_the_sample_is_ignored() -> None:
     assert detect_delimiter(text) == ";"
 
 
+@pytest.mark.parametrize("line_ending", ["\\r", "\\n", "\\r\\n"])
+def test_sample_boundary_drops_partial_record_for_all_line_endings(line_ending: str) -> None:
+    # Longer physical records keep the 100-record sniff limit from masking
+    # a truncated record at the 64-KiB boundary. Legacy Mac exports use CR.
+    row = "x" * 720 + ";ok" + line_ending
+    text = "sku;status" + line_ending + row * 95
+    assert len(text) > SNIFF_CHARS
+    assert detect_delimiter(text) == ";"
+
+
+def test_cli_auto_reads_large_cr_only_legacy_export(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    path = tmp_path / "legacy-mac.csv"
+    text = "sku;status\\r" + ("x" * 720 + ";ok\\r") * 95
+    path.write_bytes(text.encode("ascii"))  # CR-only physical line endings
+    report = run_json(path, capsys, "--delimiter", "auto")
+    assert report["rows"] == 95
+    assert [column["name"] for column in report["columns"]] == ["sku", "status"]
+    assert (report["delimiter"], report["delimiter_detected"]) == (";", True)
+
+
 def test_cli_auto_reports_detected_delimiter_json(
     write_csv: WriteCsv, capsys: pytest.CaptureFixture[str]
 ) -> None:
