@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+- Render invisible CSV-derived Unicode formatting characters as inert `[U+XXXX]` markers in Markdown, including bidirectional controls, soft hyphens, zero-width spaces, word joiners, embedded byte-order marks and Unicode line separators. Preserve JSON values, comparisons, field names and ordinary multilingual text. Add direct helper and CLI regression tests for malicious and benign labels.
+
 - Normalize Python codecs' plain `UnicodeError` (not only `UnicodeDecodeError`) into the existing exit-4 encoding failure in the streaming CSV reader, notably UTF-16 input without a required BOM. Avoid unhandled tracebacks, retain decoder-supplied byte offsets when available, preserve existing JSON artifacts, and cover plain/gzip, early-header and late-iterator failure paths.
 
 - Verify additional JSON report invariants in the reusable GitHub Action before exposing `report-json`: reconcile total header columns with all profiled columns or the ordered `--columns` subset, reject duplicate reported column identities, and require a bounded integer duplicate-row count. Existing real CLI reports, zero-row exports and quality-gate exit codes keep their behavior; add malformed metadata and real selected-column regression coverage.
