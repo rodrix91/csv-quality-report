@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+- Verify the reusable GitHub Action's fresh JSON artifact before exposing `report-json` or reporting `passed=true`: reject invalid JSON, missing core profile fields and inconsistencies between quality-check results and exit codes 0/8. Preserve the existing freshness safeguard and genuine CLI errors. Add standalone and Action contract regression checks.
+
 - Require the reusable GitHub Action to verify that its JSON report is a **fresh regular file** before advertising `report-json` or `passed=true`. Compare pre-run and post-run file identity, size, modification and change times; reject unchanged, missing or non-file artifacts even if the subprocess reports success. Preserve user-supplied previous reports, existing quality-gate exit code 8 and successful atomic replacements; add direct and end-to-end Action regressions. The standalone CLI and report schema are unchanged.
 
 - Fail closed on multiline or invisible-control GitHub Action `args` and `baseline-args` before Bash `read -a` can silently discard quality gates after the first line. Preserve legitimate tab-separated one-line options and ordinary Unicode text; avoid reflecting malformed `if-baseline-missing` raw values into workflow annotations. Add direct full-C1-range, Action end-to-end and source-package regressions without changing the standalone CLI or the CSV/JSON report formats.
