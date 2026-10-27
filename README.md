@@ -23,6 +23,17 @@ At dataset level it reports the row count and the number of duplicate rows.
 
 Out of scope: automatic data cleaning, centralized schema-registry management, automatic encoding detection (other encodings are read when named with `--encoding`), and network sources. The CLI does support local schema-oriented gates such as required columns and types, allowed type changes, and baseline schema-change checks.
 
+## Safe Markdown presentation of CSV identifiers
+
+CSV text can contain invisible Unicode formatting characters from spreadsheets,
+copy/paste or external exports. Markdown summaries and GitHub Actions job reports
+render directional controls, zero-width spaces, soft hyphens, word joiners,
+embedded byte-order marks and Unicode line/paragraph separators using visible
+`[U+XXXX]` markers, preventing different source identifiers from looking
+identical or visually rearranging the report. **Original values remain unchanged**
+in the JSON representation and all data-quality comparisons. Common multilingual
+letters and script joiners are preserved; this is presentation-only escaping.
+
 ## Requirements
 
 - Python 3.11 or newer
