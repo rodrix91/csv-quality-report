@@ -4,7 +4,7 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
-- Normalize Python codecs' plain `UnicodeError` (not only `UnicodeDecodeError`) into the existing exit-4 encoding failure in the streaming CSV reader, notably UTF-16 input without a required BOM. Avoid unhandled tracebacks and fabricated byte offsets for these cases, preserve existing JSON artifacts, and cover plain/gzip, early-header and late-iterator failure paths.
+- Normalize Python codecs' plain `UnicodeError` (not only `UnicodeDecodeError`) into the existing exit-4 encoding failure in the streaming CSV reader, notably UTF-16 input without a required BOM. Avoid unhandled tracebacks, retain decoder-supplied byte offsets when available, preserve existing JSON artifacts, and cover plain/gzip, early-header and late-iterator failure paths.
 
 - Verify additional JSON report invariants in the reusable GitHub Action before exposing `report-json`: reconcile total header columns with all profiled columns or the ordered `--columns` subset, reject duplicate reported column identities, and require a bounded integer duplicate-row count. Existing real CLI reports, zero-row exports and quality-gate exit codes keep their behavior; add malformed metadata and real selected-column regression coverage.
 
