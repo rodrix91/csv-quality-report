@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+- Require matching opening and closing quotes in an optional quoted Excel `sep=` first-line declaration. Malformed half-quoted lines now remain CSV input rather than being silently stripped as delimiter metadata, while valid unquoted or fully quoted declarations, CR/LF/CRLF and case-insensitive `SEP=` remain supported. Add parser and real stream regression checks.
+
 - Fix automatic delimiter detection for long, classic-Mac `CR`-terminated CSV exports: discard a partial record at the 64-KiB sniff window using either `CR` or `LF` line boundaries instead of treating a truncated last record as malformed. Retain `LF`/`CRLF` and single-column behavior, with parser and real CLI regression tests.
 
 - Render invisible CSV-derived Unicode formatting characters as inert `[U+XXXX]` markers in Markdown, including bidirectional controls, soft hyphens, zero-width spaces, word joiners, embedded byte-order marks and Unicode line separators. Preserve JSON values, comparisons, field names and ordinary multilingual text. Add direct helper and CLI regression tests for malicious and benign labels.
