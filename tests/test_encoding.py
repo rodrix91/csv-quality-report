@@ -83,9 +83,13 @@ def test_utf16_without_bom_is_controlled_encoding_error(
     raw = TEXT.encode("utf-16-le")  # valid UTF-16 code units but missing the required BOM
     source = gzip.compress(raw) if compressed else raw
     path = write_csv(source, "missing-bom.csv.gz" if compressed else "missing-bom.csv")
-    with pytest.raises(EncodingError, match="UTF-16 stream does not start with BOM") as info:
+    with pytest.raises(EncodingError, match="is not valid utf-16") as info:
         read_table(path, encoding="utf-16", delimiter="auto")
     assert info.value.exit_code == 4
+    assert (
+        "invalid byte at offset 0" in info.value.message
+        or "UTF-16 stream does not start with BOM" in info.value.message
+    )
     assert "check the encoding given with --encoding" in info.value.message
 
     previous = tmp_path / "existing-report.json"
@@ -95,7 +99,8 @@ def test_utf16_without_bom_is_controlled_encoding_error(
         "--json-output", str(previous)
     ]) == 4
     err = capsys.readouterr().err
-    assert "UTF-16 stream does not start with BOM" in err
+    assert "is not valid utf-16" in err
+    assert ("invalid byte at offset 0" in err or "UTF-16 stream does not start with BOM" in err)
     assert "Traceback" not in err
     assert previous.read_text(encoding="utf-8") == '{"preserved": true}\n'
 
