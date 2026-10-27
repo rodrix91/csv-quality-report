@@ -66,7 +66,7 @@ def test_declared_delimiter(line: str, expected: str | None) -> None:
 def test_mismatched_quote_hint_is_not_discarded_as_metadata(
     write_csv: WriteCsv, invalid_hint: str
 ) -> None:
-    path = write_csv(f"{invalid_hint}\\nid;buyer\\nA;Andes\\n")
+    path = write_csv(f"{invalid_hint}\nid;buyer\nA;Andes\n")
     with open_rows(path, delimiter=";") as stream:
         assert stream.sep_line is False
 
