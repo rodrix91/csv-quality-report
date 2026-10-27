@@ -69,6 +69,12 @@ Dependabot opens weekly PRs for the pinned dev tools. These rules were first rec
 2. CI must pass the 100% coverage, Ruff, formatting and strict mypy quality gate on Python 3.12; the full test suite must also pass on Linux Python 3.11 and 3.13 and on Windows/macOS Python 3.11 and 3.13.
 3. If the PR changes the `setuptools` pin in `pyproject.toml`, rebuild from a clean clone and check that the wheel and the sdist still contain `LICENSE`.
 
+### Read-only hashed lock preview
+
+When `requirements-dev.txt` changes, the [hashed lock preview workflow](.github/workflows/lock-preview.yml) resolves dependencies using the documented universal `uv` settings, verifies direct pins, and attaches a `hashed-dev-lock-preview` artifact containing `requirements-dev.lock`. It has **read-only repository permissions**: it does not commit, merge, or modify branches.
+
+To reconcile an update: download that artifact from its GitHub Actions run, compare the extracted lock with the tracked lock, review the dependency and hash changes, and commit the reviewed file to the PR branch. The PR's normal CI must then pass with the committed lock, including installation with `pip install --require-hashes`. A successful preview alone is **not** approval to merge: all normal quality and platform jobs must pass.
+
 ## Releases
 
 1. In a PR, bump the version in `pyproject.toml` and `src/csv_quality_report/__init__.py`, and turn the `[Unreleased]` section of `CHANGELOG.md` into `## [X.Y.Z] - YYYY-MM-DD` (with its compare link at the bottom). `tests/test_release_notes.py` fails if the version in `pyproject.toml` has no CHANGELOG section.
