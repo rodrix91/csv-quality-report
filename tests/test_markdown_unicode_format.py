@@ -94,10 +94,16 @@ def test_cli_preserves_json_and_sanitizes_markdown(tmp_path: Path) -> None:
     label = "An\u200bdes\u202eNorte\u2060\ufeff"
     file = tmp_path / "operators.csv"
     file.write_text("buyer\n" + label + "\n" + label + "\n", encoding="utf-8")
-    env = {**os.environ, "PYTHONPATH": str(ROOT / "src")}
+    env = {**os.environ, "PYTHONPATH": str(ROOT / "src"), "PYTHONIOENCODING": "utf-8"}
     args = [sys.executable, "-m", "csv_quality_report", str(file), "--unique", "buyer"]
     markdown = subprocess.run(
-        args, cwd=ROOT, env=env, capture_output=True, text=True, check=False
+        args,
+        cwd=ROOT,
+        env=env,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        check=False,
     )
     data = subprocess.run(
         [*args, "--format", "json"],
@@ -105,6 +111,7 @@ def test_cli_preserves_json_and_sanitizes_markdown(tmp_path: Path) -> None:
         env=env,
         capture_output=True,
         text=True,
+        encoding="utf-8",
         check=False,
     )
     assert markdown.returncode == 8, markdown.stderr
