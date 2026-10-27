@@ -331,10 +331,30 @@ _RANGE_TYPES = {
 _CONTROL_ENTITIES = {
     codepoint: f"&#{codepoint};" for codepoint in (*range(9), *range(10, 32), *range(127, 160))
 }
+# These invisible Unicode characters can disguise distinct CSV identifiers,
+# change bidirectional display order or split rendered lines. Unlike numeric
+# HTML references, plain ASCII markers remain visible after Markdown parsing.
+# Preserve ordinary RTL and Indic script joiners (U+200C/U+200D).
+_INVISIBLE_FORMAT_CHARS = (
+    0x00AD,  # soft hyphen
+    0x061C,  # Arabic letter mark
+    0x200B,  # zero-width space
+    0x200E,  # left-to-right mark
+    0x200F,  # right-to-left mark
+    *range(0x202A, 0x202F),  # bidirectional embedding / overrides
+    0x2028,  # Unicode line separator
+    0x2029,  # Unicode paragraph separator
+    0x2060,  # word joiner
+    *range(0x2066, 0x2070),  # bidirectional isolates and deprecated controls
+    0xFEFF,  # embedded byte-order mark
+)
+_CONTROL_ENTITIES.update(
+    {codepoint: f"[U+{codepoint:04X}]" for codepoint in _INVISIBLE_FORMAT_CHARS}
+)
 
 
 def escape_control_chars(text: str) -> str:
-    """Keep dangerous C0, DEL and C1 controls out; retain ordinary tabs."""
+    """Make invisible formatting and dangerous controls visible; retain ordinary tabs."""
     return text.translate(_CONTROL_ENTITIES)
 
 
