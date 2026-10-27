@@ -146,8 +146,12 @@ def detect_delimiter(text: str) -> str:
     raises ``DelimiterDetectionError`` instead of guessing.
     """
     sample = text[:SNIFF_CHARS]
-    if len(text) > SNIFF_CHARS and "\n" in sample:
-        sample = sample[: sample.rindex("\n")]  # never judge a cut-off last line
+    if len(text) > SNIFF_CHARS:
+        # Both LF and CR can terminate physical CSV lines (including CRLF).
+        # Never judge the final partial line against complete CSV records.
+        last_line_end = max(sample.rfind("\n"), sample.rfind("\r"))
+        if last_line_end >= 0:
+            sample = sample[:last_line_end]
 
     qualifying: list[str] = []
     single_column = True
