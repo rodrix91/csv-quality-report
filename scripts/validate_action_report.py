@@ -45,6 +45,28 @@ def valid_report(path: Path, exit_code: int) -> bool:
         for check in checks
     ):
         return False
+    # Profiling all columns preserves the header count; explicit --columns
+    # selects a unique, ordered subset of the original CSV header.
+    names = [col["name"] for col in columns]
+    selected = data.get("selected_columns")
+    duplicates = data.get("duplicate_rows")
+    if (
+        "selected_columns" not in data
+        or len(names) != len(set(names))
+        or len(names) > data["header_columns"]
+        or type(duplicates) is not int
+        or not 0 <= duplicates <= data["rows"]
+    ):
+        return False
+    if selected is None:
+        if len(names) != data["header_columns"]:
+            return False
+    elif (
+        not isinstance(selected, list)
+        or not all(isinstance(name, str) for name in selected)
+        or selected != names
+    ):
+        return False
     failed = any(not check["passed"] for check in checks)
     return failed == (exit_code == 8)
 
