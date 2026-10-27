@@ -260,7 +260,18 @@ runs:
             annotate error "CSV analysis did not create a fresh JSON report"
             code=3
           else
-            report="$json"
+            # A new file alone is not enough: it must contain a usable
+            # profile and quality checks consistent with the CLI exit code.
+            set +e
+            python "$ACTION_PATH/scripts/validate_action_report.py" "$json" "$code"
+            valid_code=$?
+            set -e
+            if [ "$valid_code" -ne 0 ]; then
+              annotate error "CSV analysis did not create a valid JSON quality report"
+              code=3
+            else
+              report="$json"
+            fi
           fi
         fi
         case "$code" in
