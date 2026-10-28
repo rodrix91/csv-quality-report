@@ -210,9 +210,7 @@ def _unique_json_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
 def load_baseline(path: Path, *, check_missing_rate: bool = False) -> dict[str, Any]:
     """Read baseline JSON, optionally checking counts against percentages (exit 3 on error)."""
     try:
-        data = json.loads(
-            path.read_text(encoding="utf-8"), object_pairs_hook=_unique_json_keys
-        )
+        data = json.loads(path.read_text(encoding="utf-8"), object_pairs_hook=_unique_json_keys)
     except OSError as exc:
         raise FileReadError(f"cannot read baseline '{path}': {exc.strerror or exc}") from exc
     except (UnicodeDecodeError, json.JSONDecodeError, ValueError) as exc:
