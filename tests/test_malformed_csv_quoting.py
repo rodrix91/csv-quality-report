@@ -23,9 +23,7 @@ from csv_quality_report.reader import read_table
         'id,buyer\n1,"multiline\nstill open\n',
     ],
 )
-def test_malformed_quoted_cells_are_rejected_not_profiled(
-    tmp_path: Path, data: str
-) -> None:
+def test_malformed_quoted_cells_are_rejected_not_profiled(tmp_path: Path, data: str) -> None:
     path = tmp_path / "malformed.csv"
     path.write_bytes(data.encode("utf-8"))
     with pytest.raises(RaggedRowError, match="malformed CSV near line"):
@@ -35,9 +33,7 @@ def test_malformed_quoted_cells_are_rejected_not_profiled(
 
 
 @pytest.mark.parametrize("ending", ["\n", "\r", "\r\n"])
-def test_malformed_quotes_fail_for_all_physical_line_endings(
-    tmp_path: Path, ending: str
-) -> None:
+def test_malformed_quotes_fail_for_all_physical_line_endings(tmp_path: Path, ending: str) -> None:
     path = tmp_path / "line-endings.csv"
     path.write_bytes(ending.join(["id,buyer", '1,"unfinished', ""]).encode())
     with pytest.raises(RaggedRowError, match="malformed CSV near line"):
