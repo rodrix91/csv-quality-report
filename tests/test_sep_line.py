@@ -70,9 +70,11 @@ def test_mismatched_quote_hint_is_not_discarded_as_metadata(
     # Malformed half-quoted preambles must not be skipped as Excel metadata.
     # With strict CSV parsing they are rejected as malformed input instead.
     assert declared_delimiter(f"{invalid_hint}\n") is None
-    with pytest.raises(RaggedRowError, match="malformed CSV near line"):
-        with open_rows(path, delimiter=";") as stream:
-            list(stream)
+    with (
+        pytest.raises(RaggedRowError, match="malformed CSV near line"),
+        open_rows(path, delimiter=";") as stream,
+    ):
+        list(stream)
 
 
 def test_auto_follows_the_declaration(write_csv: WriteCsv) -> None:
