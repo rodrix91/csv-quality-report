@@ -76,7 +76,7 @@ def test_invalid_missing_rates_are_rejected_before_drift_comparison(
     message = (
         "non-standard baseline JSON numeric constant"
         if isinstance(value, float) and not math.isfinite(value)
-        else r"invalid 'missing_pct' \\(expected 0 to 100\\)"
+        else r"invalid 'missing_pct' \(expected 0 to 100\)"
     )
     with pytest.raises(FileReadError, match=message):
         load_baseline(target)
