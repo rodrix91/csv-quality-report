@@ -192,13 +192,28 @@ def _missing_count(entry: Mapping[str, Any]) -> int | None:
     return None
 
 
+def _unique_json_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    """Reject duplicate member names at every depth before a baseline is trusted.
+
+    Standard JSON decoding silently keeps the *last* occurrence of a repeated
+    name. In a historical quality report this can hide an earlier row count or
+    missingness value and make drift comparisons unreliable.
+    """
+    result: dict[str, Any] = {}
+    for name, value in pairs:
+        if name in result:
+            raise ValueError(f"duplicate baseline JSON key: {name!r}")
+        result[name] = value
+    return result
+
+
 def load_baseline(path: Path, *, check_missing_rate: bool = False) -> dict[str, Any]:
     """Read baseline JSON, optionally checking counts against percentages (exit 3 on error)."""
     try:
-        data = json.loads(path.read_text(encoding="utf-8"))
+        data = json.loads(path.read_text(encoding="utf-8"), object_pairs_hook=_unique_json_keys)
     except OSError as exc:
         raise FileReadError(f"cannot read baseline '{path}': {exc.strerror or exc}") from exc
-    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+    except (UnicodeDecodeError, json.JSONDecodeError, ValueError) as exc:
         raise FileReadError(f"baseline '{path}' is not a JSON report ({exc})") from exc
     if not isinstance(data, dict):
         raise FileReadError(f"baseline '{path}' is not a csv-quality-report JSON report")

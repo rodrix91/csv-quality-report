@@ -153,3 +153,54 @@ def test_direct_comparison_refuses_ambiguous_history(write_csv: Any) -> None:
     report = profile_file(write_csv("order,amount\nO1,3\nO2,5\nO3,7\n"))
     with pytest.raises(ValueError, match="duplicate baseline column name"):
         compare_reports(baseline, report)
+
+
+@pytest.mark.parametrize(
+    ("payload", "duplicate"),
+    [
+        ('{"rows":3,"rows":0,"columns":[]}', "rows"),
+        (
+            '{"rows":3,"columns":[{"name":"sku","type":"string",'
+            '"missing_pct":0,"missing_pct":100}]}',
+            "missing_pct",
+        ),
+        (
+            '{"rows":3,"columns":[],"metadata":{"revision":1,"revision":1}}',
+            "revision",
+        ),
+        (r'{"rows":3,"ro\u0077s":0,"columns":[]}', "rows"),
+    ],
+)
+def test_duplicate_baseline_json_members_are_rejected_before_last_wins(
+    payload: str, duplicate: str, tmp_path: Path
+) -> None:
+    path = tmp_path / "duplicate-members.json"
+    path.write_text(payload, encoding="utf-8")
+    with pytest.raises(FileReadError, match=f"duplicate baseline JSON key: '{duplicate}'"):
+        load_baseline(path)
+
+
+def test_duplicate_baseline_members_fail_before_csv_and_preserve_existing_report(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    path = tmp_path / "ambiguous-baseline.json"
+    path.write_text('{"rows":3,"rows":0,"columns":[]}', encoding="utf-8")
+    previous = tmp_path / "verified-report.json"
+    previous.write_text('{"status":"verified"}\n', encoding="utf-8")
+    exit_code = main(
+        [
+            str(tmp_path / "unreadable-input.csv"),
+            "--baseline",
+            str(path),
+            "--format",
+            "json",
+            "--json-output",
+            str(previous),
+        ]
+    )
+    output = capsys.readouterr()
+    assert exit_code == 3
+    assert "duplicate baseline JSON key: 'rows'" in output.err
+    assert "unreadable-input.csv" not in output.err
+    assert output.out == ""
+    assert previous.read_text(encoding="utf-8") == '{"status":"verified"}\n'
