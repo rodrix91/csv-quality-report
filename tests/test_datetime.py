@@ -58,6 +58,9 @@ def test_accepted_datetime_forms(value: str) -> None:
         "2026-10-05T14:30:00.1234567",  # more than 6 fraction digits
         "2026-10-05t14:30",  # lowercase separator
         "2026-10-05T24:00",  # hour 24
+        "2026-10-05T24:00Z",  # reject next-day midnight regardless of offset
+        "2026-10-05 24:00:00",  # also reject space separator and seconds
+        "2026-10-05T24:00+04:00",  # Python 3.14 may normalize this
         "2026-02-30T00:00",  # impossible date
         "2026-10-05T14:61",  # impossible minute
         "2026-10-05T14:30+25:00",  # offset of a day or more
