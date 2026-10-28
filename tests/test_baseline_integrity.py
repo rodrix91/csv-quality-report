@@ -73,7 +73,12 @@ def test_invalid_missing_rates_are_rejected_before_drift_comparison(
     baseline["columns"][0]["missing_pct"] = value
     target = tmp_path / "historical.json"
     target.write_text(json.dumps(baseline), encoding="utf-8")
-    with pytest.raises(FileReadError, match="invalid 'missing_pct' \\(expected 0 to 100\\)"):
+    message = (
+        "non-standard baseline JSON numeric constant"
+        if isinstance(value, float) and not math.isfinite(value)
+        else r"invalid 'missing_pct' \\(expected 0 to 100\\)"
+    )
+    with pytest.raises(FileReadError, match=message):
         load_baseline(target)
 
 
