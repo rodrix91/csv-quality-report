@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+- Advertise Python 3.14 in package metadata following the successful Linux, Windows and macOS CI compatibility matrix; keep runtime requirements, package version, and released tags unchanged.
+
 - Reject ISO datetime hour `24` explicitly before calling `datetime.fromisoformat`, keeping the established strict `00`–`23` contract across Python 3.11–3.14 (Python 3.14 newly accepts `24:00` as next-day midnight). Extend timezone and seconds regression cases; keep range checks and inference consistent across platforms.
 
 - Run the existing Linux, Windows and macOS test matrices under Python 3.14, preserving all earlier version checks and quality gates. Keep package metadata and releases unchanged until the exact-head PR CI succeeds.
