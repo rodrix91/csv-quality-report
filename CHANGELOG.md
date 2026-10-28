@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+- Run the existing Linux, Windows and macOS test matrices under Python 3.14, preserving all earlier version checks and quality gates. Keep package metadata and releases unchanged until the exact-head PR CI succeeds.
+
 - Reject unterminated quoted fields and extra text after a closing quote while profiling CSV files (including gzip, stdin, and legacy CR-only records) instead of silently accepting corrupted cells. Keep valid quoted multiline fields unchanged, report malformed CSV using existing exit code `6`, and preserve previously written JSON reports on parse failure. Add streaming, CLI, source and cross-line-ending regression tests.
 
 - Require matching opening and closing quotes in an optional quoted Excel `sep=` first-line declaration. Malformed half-quoted lines now remain CSV input rather than being silently stripped as delimiter metadata, while valid unquoted or fully quoted declarations, CR/LF/CRLF and case-insensitive `SEP=` remain supported. Add parser and real stream regression checks.
