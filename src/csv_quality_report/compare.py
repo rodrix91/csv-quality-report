@@ -10,6 +10,7 @@ the ones that break consumers (columns added or removed, types changed).
 from __future__ import annotations
 
 import json
+import math
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
@@ -207,10 +208,28 @@ def _unique_json_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
     return result
 
 
+def _reject_json_constant(text: str) -> float:
+    """Reject Python's permissive NaN/Infinity extensions to standard JSON."""
+    raise ValueError(f"non-standard baseline JSON numeric constant: {text}")
+
+
+def _finite_json_float(text: str) -> float:
+    """Do not silently turn a very large, valid JSON exponent into infinity."""
+    value = float(text)
+    if not math.isfinite(value):
+        raise ValueError(f"non-finite baseline JSON numeric value: {text}")
+    return value
+
+
 def load_baseline(path: Path, *, check_missing_rate: bool = False) -> dict[str, Any]:
     """Read baseline JSON, optionally checking counts against percentages (exit 3 on error)."""
     try:
-        data = json.loads(path.read_text(encoding="utf-8"), object_pairs_hook=_unique_json_keys)
+        data = json.loads(
+            path.read_text(encoding="utf-8"),
+            object_pairs_hook=_unique_json_keys,
+            parse_constant=_reject_json_constant,
+            parse_float=_finite_json_float,
+        )
     except OSError as exc:
         raise FileReadError(f"cannot read baseline '{path}': {exc.strerror or exc}") from exc
     except (UnicodeDecodeError, json.JSONDecodeError, ValueError) as exc:
