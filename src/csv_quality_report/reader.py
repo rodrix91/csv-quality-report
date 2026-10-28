@@ -664,7 +664,9 @@ def _open_rows(
         # Parse what was read ahead again, then continue with the rest of the stream.
         lines = chain(io.StringIO(sample, newline=""), handle)
 
-        reader = csv.reader(lines, delimiter=delimiter)
+        # Fail closed on malformed quoted cells: permissive csv.reader silently
+        # accepts unterminated quotes and stray text after a closing quote.
+        reader = csv.reader(lines, delimiter=delimiter, strict=True)
         records = iter(reader)
         counter = _LineCounter(reader, (0 if declared is None else 1) + skip_lines)
         header = next(

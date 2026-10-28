@@ -327,7 +327,7 @@ Errors are printed to stderr as `error: ...`; nothing is written to stdout.
 | 3 | File cannot be read (missing, directory, permissions) | `error: cannot read 'x.csv': No such file or directory` |
 | 4 | Not valid UTF-8 (or not valid in the `--encoding` given) | `error: '/tmp/lat.csv' is not valid UTF-8 (invalid byte at offset 8); re-save the file as UTF-8, or name its encoding with --encoding (spreadsheet exports are often cp1252)` |
 | 5 | Empty file (no header row) | `error: '/tmp/empty.csv' is empty (no header row)` |
-| 6 | Ragged row (cell count differs from header) or malformed CSV | `error: row at line 3 has 2 fields, expected 3 (from the header)` |
+| 6 | Ragged row (cell count differs from header) or malformed CSV (including unterminated or incorrectly closed quoted fields) | `error: row at line 3 has 2 fields, expected 3 (from the header)` |
 | 7 | `--delimiter auto` cannot pick one separator | `error: cannot detect the delimiter: several separators fit every line (comma, semicolon); pass it explicitly with --delimiter` |
 | 8 | A quality gate failed (`--max-missing`, `--max-missing-column`, `--max-duplicates`, `--require-columns`, `--require-type`, and the later ones: `--min-rows`, `--max-affixes`, `--range`, `--unique`, `--unique-key`, `--allowed-values`, `--pattern`, `--max-age` and the `--baseline` gates); the report is still printed | `check failed: column 'weight_kg' has 12.5% missing values (limit 5%)` |
 | 9 | The `--json-output` file cannot be written | `error: cannot write 'out/report.json': No such file or directory` |
