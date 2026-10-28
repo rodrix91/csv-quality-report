@@ -204,3 +204,69 @@ def test_duplicate_baseline_members_fail_before_csv_and_preserve_existing_report
     assert "unreadable-input.csv" not in output.err
     assert output.out == ""
     assert previous.read_text(encoding="utf-8") == '{"status":"verified"}\n'
+
+
+@pytest.mark.parametrize("token", ["NaN", "Infinity", "-Infinity", "1e309", "-1e309"])
+@pytest.mark.parametrize("placement", ["root", "nested", "column"])
+def test_nonfinite_baseline_json_numbers_are_rejected_everywhere(
+    token: str, placement: str, tmp_path: Path
+) -> None:
+    """Never trust non-JSON constants or silently overflowed numeric metadata."""
+    if placement == "root":
+        content = '{"rows":3,"columns":[],"unexpected":' + token + "}"
+    elif placement == "nested":
+        content = '{"rows":3,"columns":[],"metadata":{"limit":' + token + "}}"
+    else:
+        content = (
+            '{"rows":3,"columns":[{"name":"sku","type":"string",'
+            '"missing_pct":0,"unexpected":' + token + "}]}"
+        )
+    target = tmp_path / "nonfinite-baseline.json"
+    target.write_text(content, encoding="utf-8")
+    expected = (
+        "non-standard baseline JSON numeric constant"
+        if token in ("NaN", "Infinity", "-Infinity")
+        else "non-finite baseline JSON numeric value"
+    )
+    with pytest.raises(FileReadError, match=expected):
+        load_baseline(target)
+
+
+def test_valid_numeric_metadata_and_quoted_special_text_still_load(tmp_path: Path) -> None:
+    target = tmp_path / "valid-baseline.json"
+    target.write_text(
+        '{"rows":3,"columns":[{"name":"sku","type":"string","missing_pct":0.0}],'
+        '"metadata":{"label":"NaN","limit":1e2,"threshold":-0.05}}',
+        encoding="utf-8",
+    )
+    loaded = load_baseline(target)
+    assert loaded["columns"][0]["missing_pct"] == 0.0
+    assert loaded["metadata"] == {"label": "NaN", "limit": 100.0, "threshold": -0.05}
+
+
+def test_cli_rejects_nonfinite_historical_metadata_before_csv_and_preserves_output(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    baseline = tmp_path / "not-a-standard-json-baseline.json"
+    baseline.write_text(
+        '{"rows":3,"columns":[],"metadata":{"limit":NaN}}', encoding="utf-8"
+    )
+    verified = tmp_path / "previously-verified.json"
+    verified.write_text('{"source":"untouched"}\n', encoding="utf-8")
+    code = main(
+        [
+            str(tmp_path / "missing-input.csv"),
+            "--baseline",
+            str(baseline),
+            "--format",
+            "json",
+            "--json-output",
+            str(verified),
+        ]
+    )
+    printed = capsys.readouterr()
+    assert code == 3
+    assert "non-standard baseline JSON numeric constant: NaN" in printed.err
+    assert "missing-input.csv" not in printed.err
+    assert printed.out == ""
+    assert verified.read_text(encoding="utf-8") == '{"source":"untouched"}\n'
