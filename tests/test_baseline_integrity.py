@@ -194,7 +194,7 @@ def test_duplicate_baseline_members_fail_before_csv_and_preserve_existing_report
             str(path),
             "--format",
             "json",
-            "--output",
+            "--json-output",
             str(previous),
         ]
     )
