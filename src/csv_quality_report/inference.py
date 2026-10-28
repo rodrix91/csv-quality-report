@@ -15,10 +15,10 @@ _INT_RE = re.compile(r"^[+-]?\d+$", re.ASCII)
 _FLOAT_RE = re.compile(r"^[+-]?(\d+\.\d*|\.\d+|\d+)([eE][+-]?\d+)?$", re.ASCII)
 _FLOAT_COMMA_RE = re.compile(r"^[+-]?(\d+,\d*|,\d+|\d+)([eE][+-]?\d+)?$", re.ASCII)
 _DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$", re.ASCII)
-# ISO 8601 extended date + time: seconds and up to 6 fraction digits optional,
+# ISO 8601 extended date + time: hours strictly 00-23 on every Python version;\n# seconds and up to 6 fraction digits optional,
 # then an optional UTC designator or offset (+HH:MM, +HHMM, +HH).
 _DATETIME_RE = re.compile(
-    r"^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}(:\d{2}(\.\d{1,6})?)?(Z|[+-]\d{2}(:?\d{2})?)?$",
+    r"^\d{4}-\d{2}-\d{2}[T ](?:[01]\d|2[0-3]):\d{2}(:\d{2}(\.\d{1,6})?)?(Z|[+-]\d{2}(:?\d{2})?)?$",
     re.ASCII,
 )
 _BOOLS = frozenset({"true", "false"})
@@ -61,14 +61,14 @@ def parse_datetime(value: str) -> datetime | None:
     """Parse a strict ISO 8601 date-time (or a plain date, as midnight); else ``None``.
 
     The regex keeps the accepted forms identical on every supported Python
-    version: ``datetime.fromisoformat`` itself also takes compact or partial
+    version, explicitly excluding 24:00 (accepted by Python 3.14 as next-day midnight): ``datetime.fromisoformat`` itself also takes compact or partial
     forms (``20261005T1430``, ``2026-10-05T14``) that are not accepted here.
     """
     if not (_DATETIME_RE.match(value) or _DATE_RE.match(value)):
         return None
     try:
         return datetime.fromisoformat(value)
-    except ValueError:  # impossible calendar values, hour 24, offset >= 24h
+    except ValueError:  # impossible calendar values and offsets >= 24h
         return None
 
 
