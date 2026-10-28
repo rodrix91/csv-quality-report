@@ -253,9 +253,7 @@ def test_cli_rejects_nonfinite_historical_metadata_before_csv_and_preserves_outp
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     baseline = tmp_path / "not-a-standard-json-baseline.json"
-    baseline.write_text(
-        '{"rows":3,"columns":[],"metadata":{"limit":NaN}}', encoding="utf-8"
-    )
+    baseline.write_text('{"rows":3,"columns":[],"metadata":{"limit":NaN}}', encoding="utf-8")
     verified = tmp_path / "previously-verified.json"
     verified.write_text('{"source":"untouched"}\n', encoding="utf-8")
     code = main(
