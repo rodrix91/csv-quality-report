@@ -44,6 +44,35 @@ def test_quoted_newlines_do_not_break_detection() -> None:
     assert detect_delimiter(text) == ";"
 
 
+def test_short_unterminated_quoted_cell_fails_auto_detection() -> None:
+    # Non-strict csv.reader silently treats this malformed field as a cell.
+    with pytest.raises(DelimiterDetectionError, match="no separator gives"):
+        detect_delimiter('sku\\n"unterminated\\n'.replace("\\n", "\n"))
+
+
+def test_short_quote_with_trailing_text_fails_auto_detection() -> None:
+    with pytest.raises(DelimiterDetectionError, match="no separator gives"):
+        detect_delimiter('sku\\n"closed" unexpected\\n'.replace("\\n", "\n"))
+
+
+def test_short_malformed_quoted_file_returns_detection_exit(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    path = tmp_path / "malformed.csv"
+    path.write_text('sku\\n"unterminated\\n'.replace("\\n", "\n"), encoding="utf-8")
+    assert main([str(path), "--delimiter", "auto"]) == EXIT_DELIMITER
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "cannot detect the delimiter" in captured.err
+
+
+def test_valid_long_quoted_cell_across_sniff_window_still_detects() -> None:
+    # A prefix of this valid file ends inside a quoted cell. Later strict
+    # reading sees its closing quote; the sniff prefix must not reject it.
+    text = 'id;note\\n1;"'.replace("\\n", "\n") + "x" * (SNIFF_CHARS + 100) + '"\\n2;ok\\n'.replace("\\n", "\n")
+    assert detect_delimiter(text) == ";"
+
+
 def test_single_column_file_defaults_to_comma() -> None:
     assert detect_delimiter("value\n1\n2\n") == ","
 
