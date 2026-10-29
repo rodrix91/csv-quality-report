@@ -114,6 +114,29 @@ jobs:
       - name: Run tests
         run: python -m pytest -p no:cacheprovider -ra
 
+  installed-cli:
+    # Smoke-test the wheel as users install it, not just via PYTHONPATH=src.
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7
+        with:
+          python-version: "3.12"
+
+      - name: Build and smoke-test installed wheel
+        run: python scripts/check_wheel_smoke.py
+
   sdist:
     # Builds the source distribution and runs the test suite from the unpacked
     # archive, outside the checkout, so a file the tests need but MANIFEST.in
