@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+- Verify installable wheel artifacts and the real `csv-quality-report` console command in clean virtual environments across Linux, Windows and macOS, from outside the source checkout with `PYTHONPATH` removed. Check installed metadata, PEP 561 marker and a real JSON report with delimiter autodetection; preserve package version and all release tags.
+
 - Reject non-standard `NaN`, `Infinity` and `-Infinity` numeric tokens in historical baseline JSON, including nested unused metadata. Also reject JSON float literals whose exponents overflow Python floating-point range (such as `1e309`), rather than accepting non-finite values. Keep finite JSON numbers and quoted text unchanged; fail with existing baseline-read exit code `3` before reading input or overwriting output. Add API, CLI and cross-platform regression tests.
 
 - Reject duplicate JSON object property names when loading historical `--baseline` reports, including nested metadata and differently escaped spellings of the same key. Prevent Python's default JSON last-value-wins parsing from masking contradictory historical row counts or missingness; fail with existing input-error exit `3` before reading a new CSV or overwriting an existing report. Add API and CLI regression tests; keep valid baselines and report schema unchanged.
