@@ -43,9 +43,7 @@ def main() -> int:
         subprocess.run([sys.executable, "-m", "venv", str(venv)], check=True)
         binary = venv / ("Scripts" if os.name == "nt" else "bin")
         python = binary / ("python.exe" if os.name == "nt" else "python")
-        command = binary / (
-            "csv-quality-report.exe" if os.name == "nt" else "csv-quality-report"
-        )
+        command = binary / ("csv-quality-report.exe" if os.name == "nt" else "csv-quality-report")
         subprocess.run(
             [
                 str(python),
