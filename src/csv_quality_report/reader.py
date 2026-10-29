@@ -109,10 +109,12 @@ def dedupe_header(header: list[str]) -> list[str]:
     return result
 
 
-def _record_widths(sample: str, delimiter: str) -> set[int] | None:
-    """Field counts of the first records of ``sample``; ``None`` if it does not parse."""
+def _record_widths(
+    sample: str, delimiter: str, *, strict: bool = True
+) -> set[int] | None:
+    """Field counts of sample records; reject malformed quotes if complete."""
     widths: set[int] = set()
-    reader = csv.reader(io.StringIO(sample, newline=""), delimiter=delimiter)
+    reader = csv.reader(io.StringIO(sample, newline=""), delimiter=delimiter, strict=strict)
     try:
         for record in reader:
             if not record:
@@ -156,7 +158,9 @@ def detect_delimiter(text: str) -> str:
     qualifying: list[str] = []
     single_column = True
     for candidate in DELIMITER_CANDIDATES:
-        widths = _record_widths(sample, candidate)
+        # When the sniff window truncates a quoted record, postpone strict
+        # quote validation until the full file reader processes it.
+        widths = _record_widths(sample, candidate, strict=len(text) <= SNIFF_CHARS)
         if widths is None or len(widths) > 1:
             single_column = False
             continue
