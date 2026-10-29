@@ -109,9 +109,7 @@ def dedupe_header(header: list[str]) -> list[str]:
     return result
 
 
-def _record_widths(
-    sample: str, delimiter: str, *, strict: bool = True
-) -> set[int] | None:
+def _record_widths(sample: str, delimiter: str, *, strict: bool = True) -> set[int] | None:
     """Field counts of sample records; reject malformed quotes if complete."""
     widths: set[int] = set()
     reader = csv.reader(io.StringIO(sample, newline=""), delimiter=delimiter, strict=strict)
