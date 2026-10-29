@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+- Validate CSV quoting strictly during automatic separator detection for complete short samples; reject unterminated quotes and stray text after a closing quote instead of briefly treating corrupt records as valid. Retain permissive sniff parsing only when the 64 KiB sample may be truncated, while the full reader still validates quoting strictly. Add regressions for valid oversized quoted cells and malformed inputs.
+
 - Verify installable wheel artifacts and the real `csv-quality-report` console command in clean virtual environments across Linux, Windows and macOS, from outside the source checkout with `PYTHONPATH` removed. Check installed metadata, PEP 561 marker and a real JSON report with delimiter autodetection; preserve package version and all release tags.
 
 - Reject non-standard `NaN`, `Infinity` and `-Infinity` numeric tokens in historical baseline JSON, including nested unused metadata. Also reject JSON float literals whose exponents overflow Python floating-point range (such as `1e309`), rather than accepting non-finite values. Keep finite JSON numbers and quoted text unchanged; fail with existing baseline-read exit code `3` before reading input or overwriting output. Add API, CLI and cross-platform regression tests.
