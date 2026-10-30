@@ -37,9 +37,7 @@ def test_invalid_row_limit_fails_before_reading_missing_input(
 
 
 @pytest.mark.parametrize("api", ["stream", "table", "profile"])
-def test_negative_integer_row_limit_fails_before_opening_input(
-    tmp_path: Path, api: str
-) -> None:
+def test_negative_integer_row_limit_fails_before_opening_input(tmp_path: Path, api: str) -> None:
     with pytest.raises(ValueError, match="max_rows must be >= 0, got -1"):
         read_with(api, tmp_path / "missing.csv", -1)
 
