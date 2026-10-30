@@ -12,6 +12,7 @@ from typing import Any, NoReturn
 
 import pytest
 
+from csv_quality_report import output
 from csv_quality_report.cli import main
 from csv_quality_report.errors import EXIT_WRITE, OutputWriteError
 from csv_quality_report.output import write_atomic
@@ -145,7 +146,7 @@ def test_failure_halfway_through_write_leaves_no_partial_report(
 
     monkeypatch.setattr(os, "fdopen", HalfWriter)
     with pytest.raises(OutputWriteError):
-        write_atomic(target, '{"new": "report"}\n')
+        write_atomic(target, "new report")
     assert target.read_text(encoding="utf-8") == OLD
     assert leftovers(tmp_path) == []
 
@@ -153,8 +154,6 @@ def test_failure_halfway_through_write_leaves_no_partial_report(
 def test_fdopen_failure_closes_descriptor_and_preserves_previous_report(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    from csv_quality_report import output
-
     target = tmp_path / "report.json"
     target.write_text(OLD, encoding="utf-8")
     raw_create = output._create_temporary
