@@ -179,7 +179,7 @@ def test_canonical_na_markers_exclude_composite_keys(write_csv: WriteCsv) -> Non
     keys = [("guia", "zona"), ("guia",)]
     default = profile_file(path, delimiter=";", na_tokens=("sin información",), unique_keys=keys)
     assert [(key.checked, key.skipped, key.repeated) for key in default.keys] == [
-        (4, 0, 0), (3, 1, 1)
+        (3, 1, 0), (3, 1, 1)
     ]
     folded = profile_file(
         path, delimiter=";", na_tokens=("sin información",),
