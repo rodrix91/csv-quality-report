@@ -591,8 +591,12 @@ def open_rows(
     in the ``csv`` module, so the previous value is restored when the stream
     closes, also after an error.
     """
+    if isinstance(skip_lines, bool) or not isinstance(skip_lines, int):
+        raise ValueError("skip_lines must be a non-negative integer")
     if skip_lines < 0:
         raise ValueError(f"skip_lines must be >= 0, got {skip_lines}")
+    if isinstance(skip_footer, bool) or not isinstance(skip_footer, int):
+        raise ValueError("skip_footer must be a non-negative integer")
     if skip_footer < 0:
         raise ValueError(f"skip_footer must be >= 0, got {skip_footer}")
     name = display_name(path)  # as given: Path() would change the separators on Windows
