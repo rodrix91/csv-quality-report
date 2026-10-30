@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+- Normalize opt-in `--na-ignore-case` missing markers using Unicode NFC after `casefold`, so canonically equivalent composed/decomposed accents (for example `información` and `información`) are treated as the same marker. Apply consistently to missing counts and type inference, `--unique-key` skips, and `--allowed-values`/`--pattern` gates without changing stored CSV values, default exact matching, output schemas, versions or releases. Add API/CLI regression tests.
+
 - Add `--na-ignore-case` (with `--na`): match the missing-value tokens in any case with Unicode case folding, so `--na s/d` also counts `S/D` and `S/d`, as hand-filled Spanish-language exports often mix the spellings of one marker (#231). It applies to missing counts and type inference, rows skipped by `--unique-key` and cells left out of `--allowed-values` and `--pattern`. Without the option matching stays exact and reports are byte-identical; with it, JSON adds `"na_ignore_case": true` and Markdown marks the missing-values line `(any case)`. Without `--na` it is a usage error (exit code 2); the Python API takes `na_ignore_case=True` in `profile_rows`, `build_report` and `profile_file` (a `ValueError` without `na_tokens`). The corpus gains a courier export with mixed-case `S/D` markers.
 
 - Verify installable wheel artifacts and the real `csv-quality-report` console command in clean virtual environments across Linux, Windows and macOS, from outside the source checkout with `PYTHONPATH` removed. Check installed metadata, PEP 561 marker and a real JSON report with delimiter autodetection; preserve package version and all release tags.
