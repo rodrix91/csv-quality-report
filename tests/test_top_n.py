@@ -10,7 +10,7 @@ from typing import Any
 import pytest
 
 from csv_quality_report.cli import main
-from csv_quality_report.profile import TOP_N, build_report, profile_file
+from csv_quality_report.profile import TOP_N, build_report, profile_file, profile_rows
 from csv_quality_report.reader import read_table
 
 WriteCsv = Callable[..., Path]
@@ -79,3 +79,42 @@ def test_invalid_top_is_usage_error(
 def test_streaming_and_in_memory_agree(write_csv: WriteCsv) -> None:
     path = write_csv(DATA)
     assert profile_file(path, top_n=6) == build_report(read_table(path), top_n=6)
+
+
+@pytest.mark.parametrize("invalid", [-1, -7])
+def test_python_api_rejects_negative_top_without_consuming_rows(
+    write_csv: WriteCsv, invalid: int
+) -> None:
+    def unreadable_rows():
+        raise AssertionError("negative top_n must fail before reading rows")
+        yield ["unreadable"]
+
+    with pytest.raises(ValueError, match="top_n must be 0 or greater"):
+        profile_rows(["carrier"], unreadable_rows(), top_n=invalid)
+
+    path = write_csv(DATA)
+    with pytest.raises(ValueError, match="top_n must be 0 or greater"):
+        build_report(read_table(path), top_n=invalid)
+
+    with pytest.raises(ValueError, match="top_n must be 0 or greater"):
+        profile_file(path, top_n=invalid)
+
+    # File profiling validates the option before trying to open its input.
+    with pytest.raises(ValueError, match="top_n must be 0 or greater"):
+        profile_file(path.parent / "not-found.csv", top_n=invalid)
+
+
+def test_top_zero_is_valid_and_keeps_distinct_counts_in_all_python_apis(
+    write_csv: WriteCsv,
+) -> None:
+    path = write_csv(DATA)
+    stream = profile_file(path, top_n=0)
+    memory = build_report(read_table(path), top_n=0)
+    direct = profile_rows(
+        ["carrier"], (row for row in read_table(path).rows), top_n=0
+    )
+    assert stream == memory
+    assert stream.top_n == 0
+    assert stream.columns[0].top_values == direct.columns[0].top_values == []
+    assert stream.columns[0].distinct == direct.columns[0].distinct == 8
+    assert stream.rows == direct.rows == 52
