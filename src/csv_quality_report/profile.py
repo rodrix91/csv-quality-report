@@ -724,6 +724,8 @@ def profile_rows(
     so ``S/D`` and ``s/d`` are both missing for the token ``s/d``; without
     ``na_tokens`` it raises ``ValueError`` before any row is read.
     """
+    if top_n < 0:
+        raise ValueError("top_n must be 0 or greater")
     # Materialize one-shot iterables before validation and missing-cell accounting.
     na_tokens = tuple(na_tokens)
     check_na_ignore_case(na_ignore_case, na_tokens)
@@ -976,6 +978,8 @@ def profile_file(
     the data are dropped (``Report.skipped_footer``). ``month_names`` and
     ``na_ignore_case`` are as in ``build_report``.
     """
+    if top_n < 0:
+        raise ValueError("top_n must be 0 or greater")
     tokens = tuple(na_tokens)
     with open_rows(
         path,
