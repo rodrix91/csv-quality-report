@@ -724,6 +724,8 @@ def profile_rows(
     so ``S/D`` and ``s/d`` are both missing for the token ``s/d``; without
     ``na_tokens`` it raises ``ValueError`` before any row is read.
     """
+    # Materialize one-shot iterables before validation and missing-cell accounting.
+    na_tokens = tuple(na_tokens)
     check_na_ignore_case(na_ignore_case, na_tokens)
     rules = _reading_rules(
         decimal_comma,
@@ -873,7 +875,7 @@ def _report(
 def build_report(
     table: Table,
     decimal_comma: bool = False,
-    na_tokens: tuple[str, ...] = (),
+    na_tokens: Iterable[str] = (),
     top_n: int = TOP_N,
     thousands: str | None = None,
     date_order: str | None = None,
@@ -906,11 +908,12 @@ def build_report(
     Spanish or English month names such as ``05-oct-2026``; ``na_ignore_case``
     matches ``na_tokens`` after case folding and NFC (``Report.na_ignore_case``).
     """
+    tokens = tuple(na_tokens)
     result = profile_rows(
         table.header,
         table.rows,
         decimal_comma,
-        na_tokens,
+        tokens,
         top_n,
         thousands,
         date_order,
@@ -927,7 +930,7 @@ def build_report(
     return _report(
         result,
         table,
-        na_tokens,
+        tokens,
         top_n,
         thousands,
         date_order,
@@ -945,7 +948,7 @@ def profile_file(
     max_rows: int | None = None,
     delimiter: str = ",",
     decimal_comma: bool = False,
-    na_tokens: tuple[str, ...] = (),
+    na_tokens: Iterable[str] = (),
     top_n: int = TOP_N,
     encoding: str = DEFAULT_ENCODING,
     max_field_size: int | None = None,
@@ -973,6 +976,7 @@ def profile_file(
     the data are dropped (``Report.skipped_footer``). ``month_names`` and
     ``na_ignore_case`` are as in ``build_report``.
     """
+    tokens = tuple(na_tokens)
     with open_rows(
         path,
         max_rows=max_rows,
@@ -986,7 +990,7 @@ def profile_file(
             stream.header,
             stream,
             decimal_comma,
-            na_tokens,
+            tokens,
             top_n,
             thousands,
             date_order,
@@ -1003,7 +1007,7 @@ def profile_file(
         return _report(
             result,
             stream,
-            na_tokens,
+            tokens,
             top_n,
             thousands,
             date_order,
