@@ -110,9 +110,7 @@ def test_top_zero_is_valid_and_keeps_distinct_counts_in_all_python_apis(
     path = write_csv(DATA)
     stream = profile_file(path, top_n=0)
     memory = build_report(read_table(path), top_n=0)
-    direct = profile_rows(
-        ["carrier"], (row for row in read_table(path).rows), top_n=0
-    )
+    direct = profile_rows(["carrier"], (row for row in read_table(path).rows), top_n=0)
     assert stream == memory
     assert stream.top_n == 0
     assert stream.columns[0].top_values == direct.columns[0].top_values == []
