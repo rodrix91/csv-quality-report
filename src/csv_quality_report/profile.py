@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from itertools import compress, islice, repeat
 from operator import itemgetter
 from typing import Any
+from unicodedata import normalize
 
 from .errors import ColumnSelectionError
 from .inference import (
@@ -422,6 +423,15 @@ def _split_affixes(
     return numbers, tuple(found.most_common())
 
 
+def _fold_missing(value: str) -> str:
+    """Compare opt-in missing markers under Unicode case and NFC equivalence.
+
+    Both the configured tokens and CSV cells use the same normalization.
+    Values retained in reports and unique-key fingerprints remain unmodified.
+    """
+    return normalize("NFC", value.casefold())
+
+
 class _ColumnAccumulator:
     """Statistics for one column: missing count and value frequencies.
 
@@ -447,7 +457,7 @@ class _ColumnAccumulator:
         first raw spelling.
 
         With ``fold`` (``--na-ignore-case``), ``na`` holds case-folded tokens
-        and a value is missing when its ``str.casefold()`` is one of them.
+        and a value is missing when its case-folded NFC form is one of them.
         """
         raw = self.counts
         if any(key != key.strip() for key in raw):
@@ -455,11 +465,11 @@ class _ColumnAccumulator:
             for key, count in raw.items():
                 value = key.strip()
                 merged[value] += count
-                if value != key and (value.casefold() if fold else value) not in na:
+                if value != key and (_fold_missing(value) if fold else value) not in na:
                     self.untrimmed += count
             self.counts = merged
         if fold:
-            tokens = [value for value in self.counts if value.casefold() in na]
+            tokens = [value for value in self.counts if _fold_missing(value) in na]
             self.missing = sum(self.counts.pop(token) for token in tokens)
         else:
             self.missing = sum(self.counts.pop(token, 0) for token in na)
@@ -543,7 +553,7 @@ class _KeyAccumulator:
             keys = [
                 key
                 for key in zip(*cells, strict=True)
-                if na.isdisjoint([cell.casefold() for cell in key])
+                if na.isdisjoint([_fold_missing(cell) for cell in key])
             ]
         else:
             keys = [key for key in zip(*cells, strict=True) if na.isdisjoint(key)]
@@ -710,7 +720,7 @@ def profile_rows(
     a name that is not profiled is skipped, and an empty or invalid pattern
     raises ``ValueError`` before any row is read.
 
-    ``na_ignore_case`` matches ``na_tokens`` in any case (``str.casefold``),
+    ``na_ignore_case`` matches ``na_tokens`` after Unicode case folding and NFC,
     so ``S/D`` and ``s/d`` are both missing for the token ``s/d``; without
     ``na_tokens`` it raises ``ValueError`` before any row is read.
     """
@@ -738,7 +748,7 @@ def profile_rows(
     seen: set[bytes] = set()
     na = {token.strip() for token in na_tokens} | {""}
     if na_ignore_case:
-        na = {token.casefold() for token in na}
+        na = {_fold_missing(token) for token in na}
     keys = _key_accumulators(header, unique_keys, top_n)
     total = 0
     # Work on batches of rows transposed into columns, so counting runs inside
@@ -894,7 +904,7 @@ def build_report(
     maps column names to regular expressions their values must match
     (``Report.patterns``); ``month_names``, with a ``date_order``, also reads
     Spanish or English month names such as ``05-oct-2026``; ``na_ignore_case``
-    matches ``na_tokens`` in any case (``Report.na_ignore_case``).
+    matches ``na_tokens`` after case folding and NFC (``Report.na_ignore_case``).
     """
     result = profile_rows(
         table.header,
