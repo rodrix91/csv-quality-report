@@ -589,8 +589,15 @@ def open_rows(
     ``max_field_size`` raises Python's ``csv`` field size limit (131,072
     characters by default) while the file is read. The limit is process-wide
     in the ``csv`` module, so the previous value is restored when the stream
-    closes, also after an error.
+    closes, also after an error. Python API callers must supply a positive
+    integer at most ``sys.maxsize``; malformed values fail before changing
+    the process-wide limit or touching the input file.
     """
+    if max_field_size is not None:
+        if isinstance(max_field_size, bool) or not isinstance(max_field_size, int):
+            raise ValueError("max_field_size must be a positive integer")
+        if not 1 <= max_field_size <= sys.maxsize:
+            raise ValueError(f"max_field_size must be between 1 and {sys.maxsize}")
     if max_rows is not None:
         if isinstance(max_rows, bool) or not isinstance(max_rows, int):
             raise ValueError("max_rows must be a non-negative integer or None")
