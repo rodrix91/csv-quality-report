@@ -23,6 +23,16 @@ At dataset level it reports the row count and the number of duplicate rows.
 
 Out of scope: automatic data cleaning, centralized schema-registry management, automatic encoding detection (other encodings are read when named with `--encoding`), and network sources. The CLI does support local schema-oriented gates such as required columns and types, allowed type changes, and baseline schema-change checks.
 
+## Python API: missing-value tokens
+
+The `na_tokens` argument of `profile_rows()`, `build_report()` and `profile_file()`
+accepts reusable sequences and one-shot iterables (such as generators).
+Tokens are captured once before optional Unicode case-fold validation, profiling
+and report creation. A generator therefore produces the same missing counts,
+column types, key checks and `Report.na_tokens` metadata as a tuple. This does
+not change the CLI's `--na` / `--na-ignore-case` behavior or the original CSV
+values. Avoid passing an unbounded generator of missing tokens.
+
 ## Safe Markdown presentation of CSV identifiers
 
 CSV text can contain invisible Unicode formatting characters from spreadsheets,
