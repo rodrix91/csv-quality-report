@@ -591,6 +591,11 @@ def open_rows(
     in the ``csv`` module, so the previous value is restored when the stream
     closes, also after an error.
     """
+    if max_rows is not None:
+        if isinstance(max_rows, bool) or not isinstance(max_rows, int):
+            raise ValueError("max_rows must be a non-negative integer or None")
+        if max_rows < 0:
+            raise ValueError(f"max_rows must be >= 0, got {max_rows}")
     if isinstance(skip_lines, bool) or not isinstance(skip_lines, int):
         raise ValueError("skip_lines must be a non-negative integer")
     if skip_lines < 0:

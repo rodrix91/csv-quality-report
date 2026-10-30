@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+- Require `max_rows=None` or a non-negative integer for public `open_rows()`, `read_table()` and `profile_file()` APIs. Reject booleans and other non-integer values before opening input, and reject negative limits rather than silently reporting zero processed rows. Preserve unlimited reads, explicit `max_rows=0` behavior, valid positive limits, CLI validation, report schema and package version; add 39 regression cases across all three entrypoints.
+
 - Require actual non-negative integers for `skip_lines` and `skip_footer` in the public `open_rows()`, `read_table()` and `profile_file()` APIs, rejecting booleans and non-integral values before opening the CSV. Preserve existing negative-integer errors, valid counts, and CLI parsing. Add regression tests for all three entrypoints.
 
 - Enforce integral, non-boolean `top_n` values in the public Python profiling APIs. Reject booleans, floats, strings and `None` with `ValueError` before reading data, consuming missing-value generators or opening input files; retain existing negative-value errors, `top_n=0`, CLI behavior and report schemas. Add regression coverage for all three entry points.
