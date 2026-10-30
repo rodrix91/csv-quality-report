@@ -134,9 +134,7 @@ def test_python_apis_reject_non_integer_top_before_consuming_inputs(
 
     message = "top_n must be a non-negative integer"
     with pytest.raises(ValueError, match=message):
-        profile_rows(
-            ["carrier"], unreadable_rows(), top_n=invalid, na_tokens=unreadable_tokens()
-        )
+        profile_rows(["carrier"], unreadable_rows(), top_n=invalid, na_tokens=unreadable_tokens())
 
     path = write_csv(DATA)
     with pytest.raises(ValueError, match=message):
@@ -144,6 +142,4 @@ def test_python_apis_reject_non_integer_top_before_consuming_inputs(
 
     # The invalid limit must be reported before even attempting to open the file.
     with pytest.raises(ValueError, match=message):
-        profile_file(
-            path.parent / "missing.csv", top_n=invalid, na_tokens=unreadable_tokens()
-        )
+        profile_file(path.parent / "missing.csv", top_n=invalid, na_tokens=unreadable_tokens())
