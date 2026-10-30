@@ -195,15 +195,22 @@ def test_canonical_na_markers_exclude_composite_keys(write_csv: WriteCsv) -> Non
 
 def test_canonical_na_markers_do_not_fail_domains_or_patterns(write_csv: WriteCsv) -> None:
     path = write_csv("estado;codigo\nOK;1234\nsin informacio\u0301n;SIN INFORMACIO\u0301N\n")
-    extra = {
-        "delimiter": ";",
-        "na_tokens": ("SIN INFORMACIÓN",),
-        "allowed_values": {"estado": ["OK"]},
-        "patterns": {"codigo": r"[0-9]{4}"},
-    }
-    exact = profile_file(path, **extra)
+    exact = profile_file(
+        path,
+        delimiter=";",
+        na_tokens=("SIN INFORMACIÓN",),
+        allowed_values={"estado": ["OK"]},
+        patterns={"codigo": r"[0-9]{4}"},
+    )
     assert (exact.domains[0].unexpected, exact.patterns[0].mismatched) == (1, 1)
-    folded = profile_file(path, na_ignore_case=True, **extra)
+    folded = profile_file(
+        path,
+        delimiter=";",
+        na_tokens=("SIN INFORMACIÓN",),
+        na_ignore_case=True,
+        allowed_values={"estado": ["OK"]},
+        patterns={"codigo": r"[0-9]{4}"},
+    )
     assert (folded.domains[0].unexpected, folded.patterns[0].mismatched) == (0, 0)
 
 
