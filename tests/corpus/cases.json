@@ -326,5 +326,19 @@
     "args": ["--delimiter", "auto", "--decimal-comma", "--thousands", "dot", "--date-order", "dmy", "--na", "s/d", "--require-type", "Fecha pedido=date", "--require-type", "Entrega=datetime"],
     "exit_code": 8,
     "about": "The same export without --month-names: the date columns stay text and --require-type fails for both."
+  },
+  {
+    "name": "bo_courier_mixed_na",
+    "file": "bo_courier_mixed_na.csv",
+    "args": ["--delimiter", "auto", "--decimal-comma", "--date-order", "dmy", "--na", "s/d,n/d", "--na-ignore-case", "--require-type", "Peso kg=float", "--unique", "Guía", "--allowed-values", "Estado=Entregado,En tránsito,Pendiente"],
+    "exit_code": 0,
+    "about": "Bolivian courier export whose gaps are written s/d, S/D, S/d and N/D, n/d, read with --na-ignore-case: the weights are floats, the missing guide number is not checked by --unique and the N/D status is not checked by --allowed-values."
+  },
+  {
+    "name": "bo_courier_mixed_na_exact",
+    "file": "bo_courier_mixed_na.csv",
+    "args": ["--delimiter", "auto", "--decimal-comma", "--date-order", "dmy", "--na", "s/d,n/d", "--require-type", "Peso kg=float", "--unique", "Guía", "--allowed-values", "Estado=Entregado,En tránsito,Pendiente"],
+    "exit_code": 8,
+    "about": "The same export with exact --na matching: S/D keeps the weights as text, so --require-type fails, and N/D fails --allowed-values."
   }
 ]

@@ -484,7 +484,14 @@ def build_parser() -> argparse.ArgumentParser:
         type=_na_tokens,
         default=(),
         metavar="TOKENS",
-        help="comma-separated cell values to count as missing, e.g. NA,null,- (case-sensitive)",
+        help="comma-separated cell values to count as missing, e.g. NA,null,- (case-sensitive "
+        "unless --na-ignore-case)",
+    )
+    parser.add_argument(
+        "--na-ignore-case",
+        action="store_true",
+        help="with --na: match its values in any case, so --na s/d also counts S/D and S/d "
+        "as missing",
     )
     parser.add_argument(
         "--top",
@@ -865,6 +872,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                 )
         if args.month_names and args.date_order is None:
             raise ValueError("--month-names needs --date-order (the order of day, month and year)")
+        if args.na_ignore_case and not args.na:
+            raise ValueError("--na-ignore-case needs --na (the missing-value texts to match)")
         if args.utc_offset is not None and not args.max_age:
             raise ValueError("--utc-offset needs --max-age (it only places times for that check)")
         if args.record_time and args.format != "json" and args.json_output is None:
@@ -903,6 +912,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             skip_lines=args.skip_lines,
             skip_footer=args.skip_footer,
             month_names=args.month_names,
+            na_ignore_case=args.na_ignore_case,
         )
     except CsvQualityError as exc:
         print(f"error: {exc.message}", file=sys.stderr)

@@ -19,6 +19,7 @@ csv-quality-report never guesses these conventions: each one is turned on with a
 | `05-oct-2026`, `05-oct.-2026 14:30`, `30-set-2026` (Excel's `dd-mmm-aaaa`) | `--date-order dmy --month-names` |
 | `VERDADERO`/`FALSO`, `Sí`/`No`, `S`/`N` | `--bool-words verdadero,falso --bool-words sí,no` |
 | `s/d`, `N/A`, `-` for missing values | `--na s/d,N/A,-` |
+| The same missing marker in several cases (`s/d`, `S/D`, `S/d`) | `--na s/d --na-ignore-case` |
 | `$ 1.234,56`, `Gs. 50.000`, `12,5 kg`, `15 %` | `--number-affix '$' --number-affix Gs. ...` |
 | `(1.234,56)` or `1.234,56-` for negatives | `--accounting-negatives` |
 | A column that mixes currencies or units | `--max-affixes NAME=1` (with `--number-affix`) |

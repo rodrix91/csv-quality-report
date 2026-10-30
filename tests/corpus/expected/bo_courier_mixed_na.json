@@ -1,0 +1,205 @@
+{
+  "source": "tests/corpus/bo_courier_mixed_na.csv",
+  "rows": 8,
+  "truncated": false,
+  "delimiter": ";",
+  "delimiter_detected": true,
+  "sep_line": false,
+  "na_tokens": [
+    "s/d",
+    "n/d"
+  ],
+  "na_ignore_case": true,
+  "top_n": 3,
+  "compressed": false,
+  "encoding": "utf-8",
+  "thousands": null,
+  "date_order": "dmy",
+  "bool_words": [],
+  "number_affixes": [],
+  "accounting_negatives": false,
+  "selected_columns": null,
+  "header_columns": 5,
+  "duplicate_rows": 0,
+  "untrimmed_columns": [],
+  "columns": [
+    {
+      "name": "Guía",
+      "type": "string",
+      "type_hint": null,
+      "missing": 1,
+      "missing_pct": 12.5,
+      "distinct": 7,
+      "min": null,
+      "max": null,
+      "mean": null,
+      "min_length": 7,
+      "max_length": 7,
+      "top_values": [
+        {
+          "value": "BO-2001",
+          "count": 1
+        },
+        {
+          "value": "BO-2002",
+          "count": 1
+        },
+        {
+          "value": "BO-2003",
+          "count": 1
+        }
+      ],
+      "untrimmed": 0,
+      "affixes": {}
+    },
+    {
+      "name": "Fecha",
+      "type": "date",
+      "type_hint": null,
+      "missing": 0,
+      "missing_pct": 0.0,
+      "distinct": 3,
+      "min": "2026-10-12",
+      "max": "2026-10-14",
+      "mean": null,
+      "min_length": 10,
+      "max_length": 10,
+      "top_values": [
+        {
+          "value": "13/10/2026",
+          "count": 3
+        },
+        {
+          "value": "14/10/2026",
+          "count": 3
+        },
+        {
+          "value": "12/10/2026",
+          "count": 2
+        }
+      ],
+      "untrimmed": 0,
+      "affixes": {}
+    },
+    {
+      "name": "Peso kg",
+      "type": "float",
+      "type_hint": null,
+      "missing": 3,
+      "missing_pct": 37.5,
+      "distinct": 5,
+      "min": 0.8,
+      "max": 12.4,
+      "mean": 4.01,
+      "min_length": 3,
+      "max_length": 4,
+      "top_values": [
+        {
+          "value": "1,5",
+          "count": 1
+        },
+        {
+          "value": "2,25",
+          "count": 1
+        },
+        {
+          "value": "0,8",
+          "count": 1
+        }
+      ],
+      "untrimmed": 0,
+      "affixes": {}
+    },
+    {
+      "name": "Estado",
+      "type": "string",
+      "type_hint": null,
+      "missing": 2,
+      "missing_pct": 25.0,
+      "distinct": 3,
+      "min": null,
+      "max": null,
+      "mean": null,
+      "min_length": 9,
+      "max_length": 11,
+      "top_values": [
+        {
+          "value": "Entregado",
+          "count": 3
+        },
+        {
+          "value": "Pendiente",
+          "count": 2
+        },
+        {
+          "value": "En tránsito",
+          "count": 1
+        }
+      ],
+      "untrimmed": 0,
+      "affixes": {}
+    },
+    {
+      "name": "Destino",
+      "type": "string",
+      "type_hint": null,
+      "missing": 1,
+      "missing_pct": 12.5,
+      "distinct": 7,
+      "min": null,
+      "max": null,
+      "mean": null,
+      "min_length": 5,
+      "max_length": 10,
+      "top_values": [
+        {
+          "value": "La Paz",
+          "count": 1
+        },
+        {
+          "value": "El Alto",
+          "count": 1
+        },
+        {
+          "value": "Cochabamba",
+          "count": 1
+        }
+      ],
+      "untrimmed": 0,
+      "affixes": {}
+    }
+  ],
+  "baseline": null,
+  "checks": [
+    {
+      "check": "column_type",
+      "column": "Peso kg",
+      "limit": 1,
+      "value": 1,
+      "passed": true,
+      "expected": "float",
+      "actual": "float"
+    },
+    {
+      "check": "unique",
+      "column": "Guía",
+      "limit": 0,
+      "value": 0,
+      "passed": true,
+      "repeated": {}
+    },
+    {
+      "check": "allowed_values",
+      "column": "Estado",
+      "limit": 0,
+      "value": 0,
+      "passed": true,
+      "allowed": [
+        "Entregado",
+        "En tránsito",
+        "Pendiente"
+      ],
+      "unexpected": {}
+    }
+  ]
+}
