@@ -47,9 +47,7 @@ def test_negative_integer_skip_count_keeps_legacy_error(
 
 
 @pytest.mark.parametrize("api", ["stream", "table", "profile"])
-def test_valid_zero_and_positive_skip_counts_preserve_data(
-    tmp_path: Path, api: str
-) -> None:
+def test_valid_zero_and_positive_skip_counts_preserve_data(tmp_path: Path, api: str) -> None:
     path = tmp_path / "export.csv"
     path.write_text("Report title\nid,buyer\nS1,Andes\nS2,Paz\nTotal\n", encoding="utf-8")
 
