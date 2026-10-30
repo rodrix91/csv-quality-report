@@ -8,6 +8,7 @@ checked separately by report_freshness.py.
 from __future__ import annotations
 
 import json
+import math
 import sys
 from pathlib import Path
 from typing import Any
@@ -15,6 +16,14 @@ from typing import Any
 
 def _reject_nonfinite(value: str) -> None:
     raise ValueError(f"non-standard JSON number: {value}")
+
+
+def _finite_json_float(value: str) -> float:
+    """Reject JSON numbers whose exponents overflow to nonfinite Python floats."""
+    number = float(value)
+    if not math.isfinite(number):
+        raise ValueError("nonfinite JSON number")
+    return number
 
 
 def _unique_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
@@ -35,6 +44,7 @@ def valid_report(path: Path, exit_code: int) -> bool:
         data: Any = json.loads(
             path.read_text(encoding="utf-8"),
             parse_constant=_reject_nonfinite,
+            parse_float=_finite_json_float,
             object_pairs_hook=_unique_object,
         )
     except (OSError, UnicodeError, ValueError):
