@@ -127,6 +127,33 @@ def test_rejects_duplicate_keys_at_any_report_depth(
     assert main([str(file), "0"]) == 3
 
 
+@pytest.mark.parametrize("number", ["1e999", "-1e999", "1e309", "-1e309"])
+def test_rejects_json_float_overflow_at_any_report_depth(
+    tmp_path: Path, number: str
+) -> None:
+    clean = json.dumps(_report())
+    top_level = clean[:-1] + f', "extra": {number}' + "}"
+    nested = clean.replace('"name": "id"', f'"name": "id", "extra": {number}', 1)
+    assert nested != clean
+    file = tmp_path / "overflow.json"
+    for payload in (top_level, nested):
+        file.write_text(payload, encoding="utf-8")
+        assert not valid_report(file, 0)
+        assert main([str(file), "0"]) == 3
+
+
+@pytest.mark.parametrize("number", ["1e308", "-1e308", "0.125", "1e-999"])
+def test_valid_finite_json_floats_remain_accepted(
+    tmp_path: Path, number: str
+) -> None:
+    clean = json.dumps(_report())
+    file = tmp_path / "finite.json"
+    payload = clean[:-1] + f', "extra": {number}' + "}"
+    file.write_text(payload, encoding="utf-8")
+    assert valid_report(file, 0)
+    assert main([str(file), "0"]) == 0
+
+
 def test_accepts_genuine_selected_column_report_from_cli(tmp_path: Path) -> None:
     from csv_quality_report.cli import main as cli_main
 
