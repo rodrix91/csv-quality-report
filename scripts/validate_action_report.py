@@ -17,12 +17,26 @@ def _reject_nonfinite(value: str) -> None:
     raise ValueError(f"non-standard JSON number: {value}")
 
 
+def _unique_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    """Reject ambiguous duplicate JSON keys, including nested report objects."""
+    result: dict[str, Any] = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError("duplicate JSON object key")
+        result[key] = value
+    return result
+
+
 def valid_report(path: Path, exit_code: int) -> bool:
     """Require the CLI's core report structure and matching quality status."""
     if exit_code not in (0, 8):
         return False
     try:
-        data: Any = json.loads(path.read_text(encoding="utf-8"), parse_constant=_reject_nonfinite)
+        data: Any = json.loads(
+            path.read_text(encoding="utf-8"),
+            parse_constant=_reject_nonfinite,
+            object_pairs_hook=_unique_object,
+        )
     except (OSError, UnicodeError, ValueError):
         return False
     if not isinstance(data, dict):
