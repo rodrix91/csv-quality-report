@@ -166,7 +166,7 @@ def test_fdopen_failure_closes_descriptor_and_preserves_previous_report(
 
     with monkeypatch.context() as patches:
         patches.setattr(output, "_create_temporary", create_and_track)
-        patches.setattr(output.os, "fdopen", fail)
+        patches.setattr(os, "fdopen", fail)
         with pytest.raises(OutputWriteError, match="No space left on device"):
             write_atomic(target, "new report")
 
