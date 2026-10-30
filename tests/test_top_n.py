@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from pathlib import Path
 from typing import Any
 
@@ -85,7 +85,7 @@ def test_streaming_and_in_memory_agree(write_csv: WriteCsv) -> None:
 def test_python_api_rejects_negative_top_without_consuming_rows(
     write_csv: WriteCsv, invalid: int
 ) -> None:
-    def unreadable_rows():
+    def unreadable_rows() -> Iterator[list[str]]:
         raise AssertionError("negative top_n must fail before reading rows")
         yield ["unreadable"]
 
