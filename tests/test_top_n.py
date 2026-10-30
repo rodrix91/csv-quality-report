@@ -116,3 +116,30 @@ def test_top_zero_is_valid_and_keeps_distinct_counts_in_all_python_apis(
     assert stream.columns[0].top_values == direct.columns[0].top_values == []
     assert stream.columns[0].distinct == direct.columns[0].distinct == 8
     assert stream.rows == direct.rows == 52
+
+
+@pytest.mark.parametrize("invalid", [True, False, 1.5, "2", None])
+def test_python_apis_reject_non_integer_top_before_consuming_inputs(
+    write_csv: WriteCsv, invalid: Any
+) -> None:
+    """Invalid API limits must fail before opening files or touching generators."""
+
+    def unreadable_rows() -> Iterator[list[str]]:
+        raise AssertionError("invalid top_n consumed rows")
+        yield ["unreadable"]
+
+    def unreadable_tokens() -> Iterator[str]:
+        raise AssertionError("invalid top_n consumed missing-value tokens")
+        yield "unreadable"
+
+    message = "top_n must be a non-negative integer"
+    with pytest.raises(ValueError, match=message):
+        profile_rows(["carrier"], unreadable_rows(), top_n=invalid, na_tokens=unreadable_tokens())
+
+    path = write_csv(DATA)
+    with pytest.raises(ValueError, match=message):
+        build_report(read_table(path), top_n=invalid, na_tokens=unreadable_tokens())
+
+    # The invalid limit must be reported before even attempting to open the file.
+    with pytest.raises(ValueError, match=message):
+        profile_file(path.parent / "missing.csv", top_n=invalid, na_tokens=unreadable_tokens())

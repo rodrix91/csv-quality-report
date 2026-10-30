@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+- Enforce integral, non-boolean `top_n` values in the public Python profiling APIs. Reject booleans, floats, strings and `None` with `ValueError` before reading data, consuming missing-value generators or opening input files; retain existing negative-value errors, `top_n=0`, CLI behavior and report schemas. Add regression coverage for all three entry points.
+
 - Reject negative `top_n` values in the public `profile_rows()`, `build_report()` and `profile_file()` Python APIs, consistent with the existing CLI `--top` validation. Raise `ValueError` before reading rows or opening a file instead of silently emitting no top values; keep `top_n=0` valid, with the original row/distinct counts and report schema unchanged. Add direct, in-memory and streaming regression tests.
 
 - Materialize one-shot Python iterables for `na_tokens` exactly once in `profile_rows()`, `build_report()` and `profile_file()`. Previously a generator could be consumed by `na_ignore_case` validation or lost from report metadata, yielding understated missing counts and inconsistent `--unique-key` results. Preserve tuple callers and default CLI behavior; cover exact and casefold/NFC matching, stream/in-memory parity, composite keys and fail-before-reading errors.
