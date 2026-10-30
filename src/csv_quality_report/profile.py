@@ -664,6 +664,14 @@ def _selection(header: list[str], columns: Sequence[str] | None) -> list[int] | 
     return [position[name] for name in names]
 
 
+def _validate_top_n(top_n: int) -> None:
+    """Validate the public API top-N limit before consuming input iterables."""
+    if isinstance(top_n, bool) or not isinstance(top_n, int):
+        raise ValueError("top_n must be a non-negative integer")
+    if top_n < 0:
+        raise ValueError("top_n must be 0 or greater")
+
+
 def profile_rows(
     header: list[str],
     rows: Iterable[list[str]],
@@ -724,8 +732,7 @@ def profile_rows(
     so ``S/D`` and ``s/d`` are both missing for the token ``s/d``; without
     ``na_tokens`` it raises ``ValueError`` before any row is read.
     """
-    if top_n < 0:
-        raise ValueError("top_n must be 0 or greater")
+    _validate_top_n(top_n)
     # Materialize one-shot iterables before validation and missing-cell accounting.
     na_tokens = tuple(na_tokens)
     check_na_ignore_case(na_ignore_case, na_tokens)
@@ -910,6 +917,7 @@ def build_report(
     Spanish or English month names such as ``05-oct-2026``; ``na_ignore_case``
     matches ``na_tokens`` after case folding and NFC (``Report.na_ignore_case``).
     """
+    _validate_top_n(top_n)
     tokens = tuple(na_tokens)
     result = profile_rows(
         table.header,
@@ -978,8 +986,7 @@ def profile_file(
     the data are dropped (``Report.skipped_footer``). ``month_names`` and
     ``na_ignore_case`` are as in ``build_report``.
     """
-    if top_n < 0:
-        raise ValueError("top_n must be 0 or greater")
+    _validate_top_n(top_n)
     tokens = tuple(na_tokens)
     with open_rows(
         path,
