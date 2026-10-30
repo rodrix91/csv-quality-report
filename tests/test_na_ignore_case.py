@@ -160,42 +160,41 @@ def test_casefold_matching_also_respects_canonical_unicode(
     path = write_csv(f"peso\n1\n  {cell}  \n2\n")
     exact = profile_file(path, na_tokens=(token,))
     assert (exact.columns[0].type, exact.columns[0].missing, exact.columns[0].untrimmed) == (
-        "string", 0, 1
+        "string",
+        0,
+        1,
     )
     folded = profile_file(path, na_tokens=(token,), na_ignore_case=True)
     assert (folded.columns[0].type, folded.columns[0].missing, folded.columns[0].untrimmed) == (
-        "int", 1, 0
+        "int",
+        1,
+        0,
     )
 
 
 def test_canonical_na_markers_exclude_composite_keys(write_csv: WriteCsv) -> None:
-    path = write_csv(
-        "guia;zona\n"
-        "A;1\n"
-        "SIN INFORMACIO\u0301N;2\n"
-        "sin información;3\n"
-        "A;4\n"
-    )
+    path = write_csv("guia;zona\nA;1\nSIN INFORMACIO\u0301N;2\nsin información;3\nA;4\n")
     keys = [("guia", "zona"), ("guia",)]
     default = profile_file(path, delimiter=";", na_tokens=("sin información",), unique_keys=keys)
     assert [(key.checked, key.skipped, key.repeated) for key in default.keys] == [
-        (3, 1, 0), (3, 1, 1)
+        (3, 1, 0),
+        (3, 1, 1),
     ]
     folded = profile_file(
-        path, delimiter=";", na_tokens=("sin información",),
-        na_ignore_case=True, unique_keys=keys,
+        path,
+        delimiter=";",
+        na_tokens=("sin información",),
+        na_ignore_case=True,
+        unique_keys=keys,
     )
     assert [(key.checked, key.skipped, key.repeated) for key in folded.keys] == [
-        (2, 2, 0), (2, 2, 1)
+        (2, 2, 0),
+        (2, 2, 1),
     ]
 
 
 def test_canonical_na_markers_do_not_fail_domains_or_patterns(write_csv: WriteCsv) -> None:
-    path = write_csv(
-        "estado;codigo\n"
-        "OK;1234\n"
-        "sin informacio\u0301n;SIN INFORMACIO\u0301N\n"
-    )
+    path = write_csv("estado;codigo\nOK;1234\nsin informacio\u0301n;SIN INFORMACIO\u0301N\n")
     extra = {
         "delimiter": ";",
         "na_tokens": ("SIN INFORMACIÓN",),
