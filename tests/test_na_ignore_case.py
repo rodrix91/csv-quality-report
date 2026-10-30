@@ -147,6 +147,78 @@ def test_cli_needs_na(write_csv: WriteCsv, capsys: pytest.CaptureFixture[str]) -
     assert "--na-ignore-case needs --na" in capsys.readouterr().err
 
 
+@pytest.mark.parametrize(
+    ("token", "cell"),
+    [
+        ("sin información", "SIN INFORMACIO\u0301N"),
+        ("sin informacio\u0301n", "SIN INFORMACIÓN"),
+    ],
+)
+def test_casefold_matching_also_respects_canonical_unicode(
+    write_csv: WriteCsv, token: str, cell: str
+) -> None:
+    path = write_csv(f"peso\n1\n  {cell}  \n2\n")
+    exact = profile_file(path, na_tokens=(token,))
+    assert (exact.columns[0].type, exact.columns[0].missing, exact.columns[0].untrimmed) == (
+        "string", 0, 1
+    )
+    folded = profile_file(path, na_tokens=(token,), na_ignore_case=True)
+    assert (folded.columns[0].type, folded.columns[0].missing, folded.columns[0].untrimmed) == (
+        "int", 1, 0
+    )
+
+
+def test_canonical_na_markers_exclude_composite_keys(write_csv: WriteCsv) -> None:
+    path = write_csv(
+        "guia;zona\n"
+        "A;1\n"
+        "SIN INFORMACIO\u0301N;2\n"
+        "sin información;3\n"
+        "A;4\n"
+    )
+    keys = [("guia", "zona"), ("guia",)]
+    default = profile_file(path, delimiter=";", na_tokens=("sin información",), unique_keys=keys)
+    assert [(key.checked, key.skipped, key.repeated) for key in default.keys] == [
+        (4, 0, 0), (3, 1, 1)
+    ]
+    folded = profile_file(
+        path, delimiter=";", na_tokens=("sin información",),
+        na_ignore_case=True, unique_keys=keys,
+    )
+    assert [(key.checked, key.skipped, key.repeated) for key in folded.keys] == [
+        (2, 2, 0), (2, 2, 1)
+    ]
+
+
+def test_canonical_na_markers_do_not_fail_domains_or_patterns(write_csv: WriteCsv) -> None:
+    path = write_csv(
+        "estado;codigo\n"
+        "OK;1234\n"
+        "sin informacio\u0301n;SIN INFORMACIO\u0301N\n"
+    )
+    extra = {
+        "delimiter": ";",
+        "na_tokens": ("SIN INFORMACIÓN",),
+        "allowed_values": {"estado": ["OK"]},
+        "patterns": {"codigo": r"[0-9]{4}"},
+    }
+    exact = profile_file(path, **extra)
+    assert (exact.domains[0].unexpected, exact.patterns[0].mismatched) == (1, 1)
+    folded = profile_file(path, na_ignore_case=True, **extra)
+    assert (folded.domains[0].unexpected, folded.patterns[0].mismatched) == (0, 0)
+
+
+def test_cli_canonical_missing_marker_type_gate(
+    write_csv: WriteCsv, capsys: pytest.CaptureFixture[str]
+) -> None:
+    path = write_csv("peso\n1\nSIN INFORMACIO\u0301N\n2\n")
+    args = [str(path), "--na", "sin información", "--require-type", "peso=int"]
+    assert main([*args, "--na-ignore-case"]) == 0
+    capsys.readouterr()
+    assert main(args) == 8
+    capsys.readouterr()
+
+
 def test_report_serves_as_baseline(
     write_csv: WriteCsv, tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
