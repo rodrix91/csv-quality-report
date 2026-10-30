@@ -12,13 +12,7 @@ from csv_quality_report.reader import read_table
 
 WriteCsv = Callable[..., Path]
 
-CSV = (
-    "sku,qty\n"
-    "A1,7\n"
-    "A2,S/D\n"
-    "A3, s/d \n"
-    "A4,2\n"
-)
+CSV = "sku,qty\nA1,7\nA2,S/D\nA3, s/d \nA4,2\n"
 
 
 @pytest.mark.parametrize("fold", [False, True])
@@ -42,9 +36,7 @@ def test_generator_preserves_report_metadata_for_stream_and_memory(
     path = write_csv(CSV)
     expected = profile_file(path, na_tokens=("s/d",), na_ignore_case=fold)
     streamed = profile_file(path, na_tokens=(t for t in ["s/d"]), na_ignore_case=fold)
-    in_memory = build_report(
-        read_table(path), na_tokens=(t for t in ["s/d"]), na_ignore_case=fold
-    )
+    in_memory = build_report(read_table(path), na_tokens=(t for t in ["s/d"]), na_ignore_case=fold)
     assert streamed == expected
     assert in_memory == expected
     assert streamed.na_tokens == in_memory.na_tokens == ("s/d",)
@@ -55,12 +47,12 @@ def test_generator_matches_unicode_folded_marker_in_all_three_paths(write_csv: W
     marker = "sin información"
     expected = profile_file(path, na_tokens=(marker,), na_ignore_case=True)
     streamed = profile_file(path, na_tokens=(x for x in [marker]), na_ignore_case=True)
-    in_memory = build_report(
-        read_table(path), na_tokens=(x for x in [marker]), na_ignore_case=True
-    )
+    in_memory = build_report(read_table(path), na_tokens=(x for x in [marker]), na_ignore_case=True)
     direct = profile_rows(
-        ["qty"], [["5"], ["SIN INFORMACIO\u0301N"], ["9"]],
-        na_tokens=(x for x in [marker]), na_ignore_case=True,
+        ["qty"],
+        [["5"], ["SIN INFORMACIO\u0301N"], ["9"]],
+        na_tokens=(x for x in [marker]),
+        na_ignore_case=True,
     )
     assert streamed == in_memory == expected
     assert expected.columns[0].missing == direct.columns[0].missing == 1
@@ -71,17 +63,15 @@ def test_generator_matches_unicode_folded_marker_in_all_three_paths(write_csv: W
 def test_one_shot_tokens_are_applied_to_composite_key_missingness(write_csv: WriteCsv) -> None:
     path = write_csv("sku,region\nA,1\nS/D,1\ns/d,1\nA,1\n")
     keys = [("sku", "region")]
-    expected = profile_file(
-        path, na_tokens=("s/d",), na_ignore_case=True, unique_keys=keys
-    )
+    expected = profile_file(path, na_tokens=("s/d",), na_ignore_case=True, unique_keys=keys)
     actual = profile_file(
-        path, na_tokens=(x for x in ["s/d"]), na_ignore_case=True,
+        path,
+        na_tokens=(x for x in ["s/d"]),
+        na_ignore_case=True,
         unique_keys=keys,
     )
     assert actual.keys == expected.keys
-    assert (actual.keys[0].checked, actual.keys[0].skipped, actual.keys[0].repeated) == (
-        2, 2, 1
-    )
+    assert (actual.keys[0].checked, actual.keys[0].skipped, actual.keys[0].repeated) == (2, 2, 1)
 
 
 def test_blank_one_shot_tokens_rejected_before_rows_are_consumed() -> None:
@@ -91,6 +81,8 @@ def test_blank_one_shot_tokens_rejected_before_rows_are_consumed() -> None:
 
     with pytest.raises(ValueError, match="na_ignore_case needs na_tokens"):
         profile_rows(
-            ["x"], unreadable_rows(), na_tokens=(x for x in [" ", ""]),
+            ["x"],
+            unreadable_rows(),
+            na_tokens=(x for x in [" ", ""]),
             na_ignore_case=True,
         )
