@@ -107,6 +107,26 @@ def test_rejects_missing_column_and_duplicate_metadata(tmp_path: Path, removed: 
     assert not valid_report(file, 0)
 
 
+@pytest.mark.parametrize(
+    ("key", "original"),
+    [
+        ("rows", '"rows": 2'),
+        ("column name", '"name": "id"'),
+        ("quality flag", '"passed": true'),
+    ],
+)
+def test_rejects_duplicate_keys_at_any_report_depth(
+    tmp_path: Path, key: str, original: str
+) -> None:
+    payload = json.dumps(_report())
+    assert original in payload
+    corrupted = payload.replace(original, original + ", " + original, 1)
+    file = tmp_path / "duplicate-keys.json"
+    file.write_text(corrupted, encoding="utf-8")
+    assert not valid_report(file, 0), key
+    assert main([str(file), "0"]) == 3
+
+
 def test_accepts_genuine_selected_column_report_from_cli(tmp_path: Path) -> None:
     from csv_quality_report.cli import main as cli_main
 
