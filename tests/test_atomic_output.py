@@ -150,6 +150,34 @@ def test_failure_halfway_through_write_leaves_no_partial_report(
     assert leftovers(tmp_path) == []
 
 
+def test_fdopen_failure_closes_descriptor_and_preserves_previous_report(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from csv_quality_report import output
+
+    target = tmp_path / "report.json"
+    target.write_text(OLD, encoding="utf-8")
+    raw_create = output._create_temporary
+    opened: list[int] = []
+
+    def create_and_track(directory: Path, name: str) -> tuple[Path, int]:
+        temporary, descriptor = raw_create(directory, name)
+        opened.append(descriptor)
+        return temporary, descriptor
+
+    with monkeypatch.context() as patches:
+        patches.setattr(output, "_create_temporary", create_and_track)
+        patches.setattr(output.os, "fdopen", fail)
+        with pytest.raises(OutputWriteError, match="No space left on device"):
+            write_atomic(target, '{"new": "report"}\\n')
+
+    assert len(opened) == 1
+    with pytest.raises(OSError):
+        os.fstat(opened[0])
+    assert target.read_text(encoding="utf-8") == OLD
+    assert leftovers(tmp_path) == []
+
+
 def test_new_target_is_not_created_on_failure(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
