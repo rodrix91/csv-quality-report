@@ -5,7 +5,6 @@ from __future__ import annotations
 import csv
 import math
 import sys
-from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
