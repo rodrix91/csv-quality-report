@@ -146,7 +146,7 @@ def test_failure_halfway_through_write_leaves_no_partial_report(
 
     monkeypatch.setattr(os, "fdopen", HalfWriter)
     with pytest.raises(OutputWriteError):
-        write_atomic(target, "new report")
+        write_atomic(target, '{"new": "report"}\n')
     assert target.read_text(encoding="utf-8") == OLD
     assert leftovers(tmp_path) == []
 
@@ -168,7 +168,7 @@ def test_fdopen_failure_closes_descriptor_and_preserves_previous_report(
         patches.setattr(output, "_create_temporary", create_and_track)
         patches.setattr(output.os, "fdopen", fail)
         with pytest.raises(OutputWriteError, match="No space left on device"):
-            write_atomic(target, '{"new": "report"}\\n')
+            write_atomic(target, "new report")
 
     assert len(opened) == 1
     with pytest.raises(OSError):
