@@ -157,6 +157,12 @@ class PatternProfile:
     examples: tuple[tuple[str, int], ...] = ()
 
 
+def check_na_ignore_case(na_ignore_case: bool, na_tokens: Iterable[str]) -> None:
+    """``ValueError`` if ``na_ignore_case`` is set without any non-blank ``na_tokens``."""
+    if na_ignore_case and not any(token.strip() for token in na_tokens):
+        raise ValueError("na_ignore_case needs na_tokens (the missing-value texts to match)")
+
+
 def compile_pattern(pattern: str) -> re.Pattern[str]:
     """``pattern`` compiled; ``ValueError`` if it is empty or not a valid regular expression."""
     if not pattern:
@@ -196,6 +202,7 @@ class Report:
     keys: tuple[KeyProfile, ...] = ()  # --unique-key: one per key whose columns all exist
     domains: tuple[DomainProfile, ...] = ()  # --allowed-values: one per profiled column
     patterns: tuple[PatternProfile, ...] = ()  # --pattern: one per profiled column
+    na_ignore_case: bool = False  # --na-ignore-case: na_tokens were matched in any case
 
 
 def _untrimmed_names(header: list[str]) -> tuple[str, ...]:
@@ -429,7 +436,7 @@ class _ColumnAccumulator:
         self.untrimmed = 0
         self.counts: Counter[str] = Counter()
 
-    def strip_counts(self, na: set[str]) -> None:
+    def strip_counts(self, na: set[str], fold: bool = False) -> None:
         """Turn raw cell-text counts into stripped-value counts.
 
         The pass counts cells exactly as read; this merges them by stripped
@@ -438,6 +445,9 @@ class _ColumnAccumulator:
         or in ``na``) out of the counter. First-seen order, which decides ties
         in top values, is kept: each stripped value takes the position of its
         first raw spelling.
+
+        With ``fold`` (``--na-ignore-case``), ``na`` holds case-folded tokens
+        and a value is missing when its ``str.casefold()`` is one of them.
         """
         raw = self.counts
         if any(key != key.strip() for key in raw):
@@ -445,10 +455,14 @@ class _ColumnAccumulator:
             for key, count in raw.items():
                 value = key.strip()
                 merged[value] += count
-                if value != key and value not in na:
+                if value != key and (value.casefold() if fold else value) not in na:
                     self.untrimmed += count
             self.counts = merged
-        self.missing = sum(self.counts.pop(token, 0) for token in na)
+        if fold:
+            tokens = [value for value in self.counts if value.casefold() in na]
+            self.missing = sum(self.counts.pop(token) for token in tokens)
+        else:
+            self.missing = sum(self.counts.pop(token, 0) for token in na)
 
     def finish(self, total: int, top_n: int = TOP_N, rules: _Rules = _NO_RULES) -> ColumnProfile:
         decimal_comma = rules.decimal_comma
@@ -521,11 +535,18 @@ class _KeyAccumulator:
         self.repeated = 0
         self.examples: dict[bytes, list[Any]] = {}  # fingerprint -> [key, rows]
 
-    def update(self, batch: list[list[str]], na: set[str]) -> None:
+    def update(self, batch: list[list[str]], na: set[str], fold: bool = False) -> None:
         # Hashing the keys is most of the cost; a C-level fast path for
         # batches without repeats measured within 5% of this loop.
         cells = [[row[position].strip() for row in batch] for position in self.positions]
-        keys = [key for key in zip(*cells, strict=True) if na.isdisjoint(key)]
+        if fold:  # --na-ignore-case: ``na`` holds case-folded tokens
+            keys = [
+                key
+                for key in zip(*cells, strict=True)
+                if na.isdisjoint([cell.casefold() for cell in key])
+            ]
+        else:
+            keys = [key for key in zip(*cells, strict=True) if na.isdisjoint(key)]
         self.skipped += len(batch) - len(keys)
         seen, examples = self.seen, self.examples
         for key in keys:
@@ -649,6 +670,7 @@ def profile_rows(
     allowed_values: Mapping[str, Iterable[str]] | None = None,
     patterns: Mapping[str, str] | None = None,
     month_names: bool = False,
+    na_ignore_case: bool = False,
 ) -> _Profiled:
     """Profile ``rows`` in a single pass; each row must have ``len(header)`` cells.
 
@@ -687,7 +709,12 @@ def profile_rows(
     ``allowed_values``, each distinct value is matched once after the pass;
     a name that is not profiled is skipped, and an empty or invalid pattern
     raises ``ValueError`` before any row is read.
+
+    ``na_ignore_case`` matches ``na_tokens`` in any case (``str.casefold``),
+    so ``S/D`` and ``s/d`` are both missing for the token ``s/d``; without
+    ``na_tokens`` it raises ``ValueError`` before any row is read.
     """
+    check_na_ignore_case(na_ignore_case, na_tokens)
     rules = _reading_rules(
         decimal_comma,
         thousands,
@@ -710,6 +737,8 @@ def profile_rows(
     pick = None if selected is None or len(selected) < 2 else itemgetter(*selected)
     seen: set[bytes] = set()
     na = {token.strip() for token in na_tokens} | {""}
+    if na_ignore_case:
+        na = {token.casefold() for token in na}
     keys = _key_accumulators(header, unique_keys, top_n)
     total = 0
     # Work on batches of rows transposed into columns, so counting runs inside
@@ -722,13 +751,13 @@ def profile_rows(
         total += len(batch)
         seen.update(map(_row_digest, batch))
         for key in keys:
-            key.update(batch, na)
+            key.update(batch, na, na_ignore_case)
         # The transposed batch is built inside the loop header, so nothing keeps
         # it alive while the next batch is read (one batch in memory at a time).
         for counter, column in zip(counters, _columns(batch, selected, pick), strict=True):
             counter.update(column)
     for acc in accumulators:
-        acc.strip_counts(na)
+        acc.strip_counts(na, na_ignore_case)
     return _Profiled(
         columns=[acc.finish(total, top_n, rules) for acc in accumulators],
         rows=total,
@@ -798,6 +827,7 @@ def _report(
     accounting_negatives: bool,
     columns: Sequence[str] | None,
     month_names: bool = False,
+    na_ignore_case: bool = False,
 ) -> Report:
     """The ``Report`` of a profiled ``Table`` or ``RowStream`` and the options used."""
     return Report(
@@ -826,6 +856,7 @@ def _report(
         keys=result.keys,
         domains=result.domains,
         patterns=result.patterns,
+        na_ignore_case=na_ignore_case,
     )
 
 
@@ -844,6 +875,7 @@ def build_report(
     allowed_values: Mapping[str, Iterable[str]] | None = None,
     patterns: Mapping[str, str] | None = None,
     month_names: bool = False,
+    na_ignore_case: bool = False,
 ) -> Report:
     """Profile every column of an in-memory ``table``.
 
@@ -861,7 +893,8 @@ def build_report(
     names to the values they may hold (``Report.domains``); ``patterns``
     maps column names to regular expressions their values must match
     (``Report.patterns``); ``month_names``, with a ``date_order``, also reads
-    Spanish or English month names such as ``05-oct-2026``.
+    Spanish or English month names such as ``05-oct-2026``; ``na_ignore_case``
+    matches ``na_tokens`` in any case (``Report.na_ignore_case``).
     """
     result = profile_rows(
         table.header,
@@ -879,6 +912,7 @@ def build_report(
         allowed_values,
         patterns,
         month_names,
+        na_ignore_case,
     )
     return _report(
         result,
@@ -892,6 +926,7 @@ def build_report(
         accounting_negatives,
         columns,
         month_names,
+        na_ignore_case,
     )
 
 
@@ -916,6 +951,7 @@ def profile_file(
     skip_lines: int = 0,
     skip_footer: int = 0,
     month_names: bool = False,
+    na_ignore_case: bool = False,
 ) -> Report:
     """Stream ``path`` and profile it without loading the whole file into memory.
 
@@ -924,8 +960,8 @@ def profile_file(
     Same rules and errors as ``reader.open_rows``; same result as
     ``build_report(read_table(...))``. ``skip_lines`` lines before the header
     are skipped (``Report.skipped_lines``), and ``skip_footer`` records after
-    the data are dropped (``Report.skipped_footer``). ``month_names`` is as
-    in ``build_report``.
+    the data are dropped (``Report.skipped_footer``). ``month_names`` and
+    ``na_ignore_case`` are as in ``build_report``.
     """
     with open_rows(
         path,
@@ -952,6 +988,7 @@ def profile_file(
             allowed_values,
             patterns,
             month_names,
+            na_ignore_case,
         )
         return _report(
             result,
@@ -965,4 +1002,5 @@ def profile_file(
             accounting_negatives,
             columns,
             month_names,
+            na_ignore_case,
         )

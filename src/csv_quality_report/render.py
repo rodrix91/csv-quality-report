@@ -103,7 +103,10 @@ def _na_line(report: Report) -> list[str]:
     """Markdown line listing the extra missing-value tokens, only when there are some."""
     if not report.na_tokens:
         return []
-    return ["- Also counted as missing: " + ", ".join(_md_code(t) for t in report.na_tokens)]
+    tokens = ", ".join(_md_code(t) for t in report.na_tokens)
+    return [
+        "- Also counted as missing: " + tokens + (" (any case)" if report.na_ignore_case else "")
+    ]
 
 
 def _checks_section(checks: Sequence[CheckResult]) -> list[str]:
@@ -341,6 +344,7 @@ def render_json(
         **({"skipped_lines": report.skipped_lines} if report.skipped_lines else {}),
         **({"skipped_footer": report.skipped_footer} if report.skipped_footer else {}),
         "na_tokens": list(report.na_tokens),
+        **({"na_ignore_case": True} if report.na_ignore_case else {}),
         "top_n": report.top_n,
         "compressed": report.compressed,
         "encoding": report.encoding,
