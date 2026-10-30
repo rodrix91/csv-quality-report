@@ -41,7 +41,14 @@ def _replace(target: Path, text: str, mode: int | None) -> None:
     """Write ``text`` to a temporary file and move it onto ``target``; clean up on failure."""
     temporary, descriptor = _create_temporary(target.parent, target.name)
     try:
-        with os.fdopen(descriptor, "w", encoding="utf-8", newline="\n") as handle:
+        try:
+            handle = os.fdopen(descriptor, "w", encoding="utf-8", newline="\n")
+        except BaseException:
+            # fdopen can fail before it owns the descriptor; do not leak it.
+            with contextlib.suppress(OSError):
+                os.close(descriptor)
+            raise
+        with handle:
             handle.write(text)
             handle.flush()
             os.fsync(handle.fileno())
