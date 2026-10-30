@@ -59,6 +59,14 @@ def _positive_int(text: str) -> int:
     return value
 
 
+def _field_size_limit(text: str) -> int:
+    """Keep the requested parser limit inside Python's C-sized integer range."""
+    value = _positive_int(text)
+    if value > sys.maxsize:
+        raise argparse.ArgumentTypeError(f"must be <= {sys.maxsize}")
+    return value
+
+
 _DELIMITER_ALIASES = {"tab": "\t", "\\t": "\t", "comma": ",", "semicolon": ";", "pipe": "|"}
 
 
@@ -509,7 +517,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--max-field-size",
-        type=_positive_int,
+        type=_field_size_limit,
         default=None,
         metavar="N",
         help="allow CSV fields up to N characters (Python's default limit is 131072)",
