@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+- Reject negative `top_n` values in the public `profile_rows()`, `build_report()` and `profile_file()` Python APIs, consistent with the existing CLI `--top` validation. Raise `ValueError` before reading rows or opening a file instead of silently emitting no top values; keep `top_n=0` valid, with the original row/distinct counts and report schema unchanged. Add direct, in-memory and streaming regression tests.
+
 - Materialize one-shot Python iterables for `na_tokens` exactly once in `profile_rows()`, `build_report()` and `profile_file()`. Previously a generator could be consumed by `na_ignore_case` validation or lost from report metadata, yielding understated missing counts and inconsistent `--unique-key` results. Preserve tuple callers and default CLI behavior; cover exact and casefold/NFC matching, stream/in-memory parity, composite keys and fail-before-reading errors.
 
 - Normalize opt-in `--na-ignore-case` missing markers using Unicode NFC after `casefold`, so canonically equivalent composed/decomposed accents (for example `información` and `información`) are treated as the same marker. Apply consistently to missing counts and type inference, `--unique-key` skips, and `--allowed-values`/`--pattern` gates without changing stored CSV values, default exact matching, output schemas, versions or releases. Add API/CLI regression tests.
