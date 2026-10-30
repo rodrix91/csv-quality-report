@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+- Validate public `max_field_size` as a positive integer within Python's supported parser range before touching CSV input or the process-wide `csv.field_size_limit`. Reject booleans, decimals, text, zero, negatives and oversized integers with an actionable `ValueError`; reject oversized CLI `--max-field-size` as a usage error instead of allowing an overflow traceback. Preserve `None`, valid limits, process-global restoration and report schemas, with 46 new regression cases.
+
 - Require `max_rows=None` or a non-negative integer for public `open_rows()`, `read_table()` and `profile_file()` APIs. Reject booleans and other non-integer values before opening input, and reject negative limits rather than silently reporting zero processed rows. Preserve unlimited reads, explicit `max_rows=0` behavior, valid positive limits, CLI validation, report schema and package version; add 39 regression cases across all three entrypoints.
 
 - Require actual non-negative integers for `skip_lines` and `skip_footer` in the public `open_rows()`, `read_table()` and `profile_file()` APIs, rejecting booleans and non-integral values before opening the CSV. Preserve existing negative-integer errors, valid counts, and CLI parsing. Add regression tests for all three entrypoints.
