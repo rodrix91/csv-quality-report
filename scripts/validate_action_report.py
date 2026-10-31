@@ -43,6 +43,9 @@ def _valid_column_accounting(column: dict[str, Any], rows: int) -> bool:
     untrimmed = column.get("untrimmed")
     missing_pct = column.get("missing_pct")
     top_values = column.get("top_values")
+    # Narrow the numeric union for static typing and reject bool explicitly.
+    if isinstance(missing_pct, bool) or not isinstance(missing_pct, (int, float)):
+        return False
     if (
         type(missing) is not int
         or not 0 <= missing <= rows
@@ -50,7 +53,6 @@ def _valid_column_accounting(column: dict[str, Any], rows: int) -> bool:
         or not 0 <= distinct <= rows - missing
         or type(untrimmed) is not int
         or not 0 <= untrimmed <= rows - missing
-        or type(missing_pct) not in (int, float)
         or not math.isfinite(missing_pct)
         or not 0 <= missing_pct <= 100
         or not isinstance(top_values, list)
