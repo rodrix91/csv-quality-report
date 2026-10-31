@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+- Validate per-column statistics in the reusable GitHub Action's JSON report: missing, distinct and untrimmed counters must be nonnegative integers within the analyzed row totals; missing percentages must match those counts; top-value frequencies must be positive, distinct and collectively within the nonmissing rows. Reject malformed or contradictory reports before the Action advertises success, with synthetic and real CLI regression tests. Profiling calculations, published tags, and report output formats are unchanged.
+
 - Refuse ambiguous, duplicated or incorrectly dated release headings when generating changelog-based GitHub release notes. Require exactly one `## [VERSION] - YYYY-MM-DD` section with a real calendar date; add synthetic leap-day, duplicate-heading and malformed-date regressions. Existing tagged releases, package versions and report behavior are unchanged.
 
 - Cover the plain-`UnicodeError` branch at the header boundary of the CSV reader on every Python version. CPython 3.11 and 3.12 raise a plain `UnicodeError` for a UTF-16 file without its BOM, but 3.13 and later raise `UnicodeDecodeError`, so that branch was exercised only on the version CI measures coverage on (3.12) and was uncovered on 3.13. The tests register a codec whose decoder raises a plain `UnicodeError` and check the exit-4 message from the API and the CLI (with an existing `--json-output` left untouched); removing the branch now fails them on 3.11, 3.12 and 3.13. Tests only: no change to behavior or reports.
