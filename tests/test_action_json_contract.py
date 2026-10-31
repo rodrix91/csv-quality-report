@@ -21,7 +21,24 @@ def _report(*, passed: bool = True) -> dict[str, object]:
         "header_columns": 2,
         "selected_columns": None,
         "duplicate_rows": 0,
-        "columns": [{"name": "id"}, {"name": "quantity"}],
+        "columns": [
+            {
+                "name": "id",
+                "missing": 0,
+                "missing_pct": 0.0,
+                "distinct": 2,
+                "untrimmed": 0,
+                "top_values": [{"value": "A", "count": 1}, {"value": "B", "count": 1}],
+            },
+            {
+                "name": "quantity",
+                "missing": 1,
+                "missing_pct": 50.0,
+                "distinct": 1,
+                "untrimmed": 0,
+                "top_values": [{"value": "3", "count": 1}],
+            },
+        ],
         "checks": [{"check": "min_rows", "passed": passed}],
     }
 
