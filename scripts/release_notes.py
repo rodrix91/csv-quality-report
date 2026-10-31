@@ -25,9 +25,7 @@ def section(text: str, version: str) -> str | None:
     # Never guess which release to publish if the CHANGELOG is ambiguous.
     if re.fullmatch(r"(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)", version) is None:
         return None
-    headings = list(
-        re.finditer(rf"^## \[{re.escape(version)}\][^\n]*$", text, flags=re.MULTILINE)
-    )
+    headings = list(re.finditer(rf"^## \[{re.escape(version)}\][^\n]*$", text, flags=re.MULTILINE))
     if len(headings) != 1:
         return None
     match = headings[0]
