@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import codecs
 import csv
 import gzip
 import io
@@ -135,6 +136,73 @@ def test_later_plain_unicode_error_is_normalized_by_row_guard() -> None:
         next(rows)
     assert info.value.exit_code == 4
     assert "check the encoding given with --encoding" in info.value.message
+
+
+# A codec whose incremental decoder raises a plain UnicodeError, as the UTF-16
+# decoder does for a missing BOM on Python 3.11 and 3.12 (3.13 raises
+# UnicodeDecodeError instead). Registering it makes the header boundary in
+# ``_open_rows`` take the plain-UnicodeError branch on every Python version,
+# so its coverage does not depend on which version CI measures.
+PLAIN_ERROR_CODEC = "cqr_test_plain_unicode_error"
+
+
+class _PlainErrorDecoder(codecs.IncrementalDecoder):
+    def decode(self, input: object, final: bool = False) -> str:
+        if input:
+            raise UnicodeError("codec stream state invalid")
+        return ""
+
+
+def _find_plain_error_codec(name: str) -> codecs.CodecInfo | None:
+    if name != PLAIN_ERROR_CODEC:
+        return None
+    return codecs.CodecInfo(
+        name=PLAIN_ERROR_CODEC,
+        encode=codecs.utf_8_encode,
+        decode=codecs.utf_8_decode,
+        incrementalencoder=codecs.getincrementalencoder("utf-8"),
+        incrementaldecoder=_PlainErrorDecoder,
+    )
+
+
+@pytest.fixture
+def plain_error_codec() -> Iterator[str]:
+    codecs.register(_find_plain_error_codec)
+    try:
+        yield PLAIN_ERROR_CODEC
+    finally:
+        codecs.unregister(_find_plain_error_codec)
+
+
+@pytest.mark.parametrize("delimiter", [";", "auto"])
+def test_plain_unicode_error_while_reading_the_header_is_normalized(
+    write_csv: WriteCsv, plain_error_codec: str, delimiter: str
+) -> None:
+    path = write_csv(TEXT.encode("utf-8"), "plain-error.csv")
+    with pytest.raises(EncodingError) as info:
+        read_table(path, encoding=normalize_encoding(plain_error_codec), delimiter=delimiter)
+    assert info.value.exit_code == 4
+    assert info.value.message == (
+        f"'{path}' is not valid {plain_error_codec} (codec stream state invalid); "
+        "check the encoding given with --encoding"
+    )
+
+
+def test_plain_unicode_error_while_reading_the_header_exits_4_in_the_cli(
+    write_csv: WriteCsv,
+    plain_error_codec: str,
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+) -> None:
+    path = write_csv(TEXT.encode("utf-8"), "plain-error.csv")
+    previous = tmp_path / "existing-report.json"
+    previous.write_text('{"preserved": true}\n', encoding="utf-8")
+    code = main([str(path), *OPTS, "--encoding", plain_error_codec, "--json-output", str(previous)])
+    assert code == 4
+    err = capsys.readouterr().err
+    assert f"is not valid {plain_error_codec} (codec stream state invalid)" in err
+    assert "Traceback" not in err
+    assert previous.read_text(encoding="utf-8") == '{"preserved": true}\n'
 
 
 def test_gzip_and_stdin_with_an_encoding(
