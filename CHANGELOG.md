@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+- Refuse ambiguous, duplicated or incorrectly dated release headings when generating changelog-based GitHub release notes. Require exactly one `## [VERSION] - YYYY-MM-DD` section with a real calendar date; add synthetic leap-day, duplicate-heading and malformed-date regressions. Existing tagged releases, package versions and report behavior are unchanged.
+
 - Cover the plain-`UnicodeError` branch at the header boundary of the CSV reader on every Python version. CPython 3.11 and 3.12 raise a plain `UnicodeError` for a UTF-16 file without its BOM, but 3.13 and later raise `UnicodeDecodeError`, so that branch was exercised only on the version CI measures coverage on (3.12) and was uncovered on 3.13. The tests register a codec whose decoder raises a plain `UnicodeError` and check the exit-4 message from the API and the CLI (with an existing `--json-output` left untouched); removing the branch now fails them on 3.11, 3.12 and 3.13. Tests only: no change to behavior or reports.
 
 - Validate public `max_field_size` as a positive integer within Python's supported parser range before touching CSV input or the process-wide `csv.field_size_limit`. Reject booleans, decimals, text, zero, negatives and oversized integers with an actionable `ValueError`; reject oversized CLI `--max-field-size` as a usage error instead of allowing an overflow traceback. Preserve `None`, valid limits, process-global restoration and report schemas, with 46 new regression cases.
