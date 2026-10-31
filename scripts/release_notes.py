@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import re
 import sys
+from datetime import date
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -21,9 +22,23 @@ FULL_CHANGELOG = "https://github.com/rodrix91/csv-quality-report/blob/main/CHANG
 
 def section(text: str, version: str) -> str | None:
     """The body of the ``version`` section of ``text``, stripped, or ``None``."""
-    heading = re.compile(rf"^## \[{re.escape(version)}\][^\n]*\n", re.MULTILINE)
-    match = heading.search(text)
-    if match is None:
+    # Never guess which release to publish if the CHANGELOG is ambiguous.
+    if re.fullmatch(r"(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)", version) is None:
+        return None
+    headings = list(re.finditer(rf"^## \[{re.escape(version)}\][^\n]*$", text, flags=re.MULTILINE))
+    if len(headings) != 1:
+        return None
+    match = headings[0]
+    # Require one canonical heading and a real Gregorian calendar date.
+    heading = re.fullmatch(
+        rf"## \[{re.escape(version)}\] - ([0-9]{{4}}-[0-9]{{2}}-[0-9]{{2}})",
+        match.group(),
+    )
+    if heading is None:
+        return None
+    try:
+        date.fromisoformat(heading.group(1))
+    except ValueError:
         return None
     following = re.compile(r"^## \[", re.MULTILINE).search(text, match.end())
     end = following.start() if following else len(text)
