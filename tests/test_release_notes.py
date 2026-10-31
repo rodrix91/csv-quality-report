@@ -57,6 +57,42 @@ def test_missing_or_empty_sections() -> None:
     assert rn.section(SAMPLE, "1.1") is None  # no prefix matches
 
 
+@pytest.mark.parametrize(
+    "heading",
+    [
+        "## [1.1.0]",
+        "## [1.1.0] - 2026-02-29",
+        "## [1.1.0] - 2026-02-30",
+        "## [1.1.0] - 2026-04-31",
+        "## [1.1.0] - 2026-13-06",
+        "## [1.1.0] - 2026-10-06 extra text",
+        "## [1.1.0]  - 2026-10-06",
+    ],
+)
+def test_release_notes_reject_noncanonical_or_invalid_dates(heading: str) -> None:
+    malformed = SAMPLE.replace("## [1.1.0] - 2026-10-06", heading)
+    assert rn.section(malformed, "1.1.0") is None
+    assert rn.notes(malformed, "1.1.0") is None
+
+
+def test_duplicate_release_headings_cannot_generate_notes() -> None:
+    duplicate = SAMPLE + "\n## [1.1.0] - 2026-10-07\n\n- A conflicting release.\n"
+    assert rn.section(duplicate, "1.1.0") is None
+    assert rn.notes(duplicate, "1.1.0") is None
+    assert rn.section(duplicate, "1.0.0") == "- First release."
+
+
+def test_real_leap_day_is_accepted_and_version_prefixes_are_rejected() -> None:
+    text = (
+        "# Changelog\n\n"
+        "## [1.1.0] - 2024-02-29\n\n- Valid leap-day notes.\n\n"
+        "## [1.1.0.1] - 2024-03-01\n\n- Not a semantic release.\n"
+    )
+    assert rn.section(text, "1.1.0") == "- Valid leap-day notes."
+    assert rn.section(text, "1.1.0.1") is None
+    assert rn.section(text, "Unreleased") is None
+
+
 def test_notes_end_with_the_full_changelog_link() -> None:
     assert rn.notes(SAMPLE, "1.0.0") == f"- First release.\n\nFull changelog: {rn.FULL_CHANGELOG}\n"
     assert rn.notes(SAMPLE, "9.9.9") is None
