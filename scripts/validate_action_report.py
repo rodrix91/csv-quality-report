@@ -36,7 +36,6 @@ def _unique_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
     return result
 
 
-
 def _valid_column_accounting(column: dict[str, Any], rows: int) -> bool:
     """Check public CLI column counters without inspecting any source CSV."""
     missing = column.get("missing")
