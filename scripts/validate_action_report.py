@@ -36,6 +36,51 @@ def _unique_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
     return result
 
 
+
+def _valid_column_accounting(column: dict[str, Any], rows: int) -> bool:
+    """Check public CLI column counters without inspecting any source CSV."""
+    missing = column.get("missing")
+    distinct = column.get("distinct")
+    untrimmed = column.get("untrimmed")
+    missing_pct = column.get("missing_pct")
+    top_values = column.get("top_values")
+    if (
+        type(missing) is not int
+        or not 0 <= missing <= rows
+        or type(distinct) is not int
+        or not 0 <= distinct <= rows - missing
+        or type(untrimmed) is not int
+        or not 0 <= untrimmed <= rows - missing
+        or type(missing_pct) not in (int, float)
+        or not math.isfinite(missing_pct)
+        or not 0 <= missing_pct <= 100
+        or not isinstance(top_values, list)
+    ):
+        return False
+
+    # Profile.round uses one decimal and zero on header-only files.
+    expected_pct = round(100.0 * missing / rows, 1) if rows else 0.0
+    if missing_pct != expected_pct or (distinct == 0) != (rows == missing):
+        return False
+
+    top_count = 0
+    seen_values: set[str] = set()
+    for item in top_values:
+        if not isinstance(item, dict):
+            return False
+        value, count = item.get("value"), item.get("count")
+        if (
+            not isinstance(value, str)
+            or value in seen_values
+            or type(count) is not int
+            or count <= 0
+        ):
+            return False
+        seen_values.add(value)
+        top_count += count
+    return len(top_values) <= distinct and top_count <= rows - missing
+
+
 def valid_report(path: Path, exit_code: int) -> bool:
     """Require the CLI's core report structure and matching quality status."""
     if exit_code not in (0, 8):
@@ -90,6 +135,8 @@ def valid_report(path: Path, exit_code: int) -> bool:
         or not all(isinstance(name, str) for name in selected)
         or selected != names
     ):
+        return False
+    if not all(_valid_column_accounting(column, data["rows"]) for column in columns):
         return False
     failed = any(not check["passed"] for check in checks)
     return failed == (exit_code == 8)
