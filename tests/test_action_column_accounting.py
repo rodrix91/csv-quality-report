@@ -108,11 +108,12 @@ def test_rejects_missing_column_counters(tmp_path: Path, removed: str) -> None:
 
 def test_valid_top_zero_and_all_missing_or_header_only_rows(tmp_path: Path) -> None:
     assert _valid(tmp_path, _report())
-    for rows, missing, missing_pct, distinct, top_values in (
+    cases: tuple[tuple[int, int, float, int, list[dict[str, object]]], ...] = (
         (0, 0, 0.0, 0, []),
         (2, 2, 100.0, 0, []),
         (4, 1, 25.0, 2, []),
-    ):
+    )
+    for rows, missing, missing_pct, distinct, top_values in cases:
         report = _report()
         report["rows"] = rows
         columns = report["columns"]
