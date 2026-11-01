@@ -17,14 +17,16 @@ from csv_quality_report.render import _md_check_text, _md_literal, render_json, 
 ROOT = Path(__file__).resolve().parents[1]
 FORMAT_CHARS = (
     0x00AD,
+    0x034F,
     0x061C,
+    0x180E,
     0x200B,
     0x200E,
     0x200F,
     *range(0x202A, 0x202F),
     0x2028,
     0x2029,
-    0x2060,
+    *range(0x2060, 0x2065),
     *range(0x2066, 0x2070),
     0xFEFF,
 )
@@ -45,8 +47,8 @@ def test_invisible_format_characters_display_as_literal_ascii_markers(point: int
 
 
 def test_rendered_reports_keep_original_json_identifiers_and_values() -> None:
-    column = "order\u202eid"
-    value = "An\u200bdes\u00adNorte\u2060\ufeff"
+    column = "order\u034f\u202eid"
+    value = "An\u034f\u200bdes\u00adNorte\u180e\u2060\u2063\ufeff"
     report = Report(
         rows=2,
         duplicate_rows=1,
@@ -73,7 +75,7 @@ def test_rendered_reports_keep_original_json_identifiers_and_values() -> None:
         repeated=((value, 2),),
     )
     markdown = render_markdown(report, "file\u2028source.csv", checks=(check,))
-    for point in (0x202E, 0x200B, 0x00AD, 0x2060, 0xFEFF, 0x2028):
+    for point in (0x034F, 0x202E, 0x200B, 0x00AD, 0x180E, 0x2060, 0x2063, 0xFEFF, 0x2028):
         assert chr(point) not in markdown
         assert f"[U+{point:04X}]" in markdown
     parsed = json.loads(render_json(report, "file\u2028source.csv", checks=(check,)))
@@ -91,7 +93,7 @@ def test_multilingual_letters_and_script_joiners_remain_unchanged() -> None:
 
 
 def test_cli_preserves_json_and_sanitizes_markdown(tmp_path: Path) -> None:
-    label = "An\u200bdes\u202eNorte\u2060\ufeff"
+    label = "An\u034f\u200bdes\u202eNorte\u180e\u2060\u2063\ufeff"
     file = tmp_path / "operators.csv"
     file.write_text("buyer\n" + label + "\n" + label + "\n", encoding="utf-8")
     env = {**os.environ, "PYTHONPATH": str(ROOT / "src"), "PYTHONIOENCODING": "utf-8"}
@@ -116,7 +118,7 @@ def test_cli_preserves_json_and_sanitizes_markdown(tmp_path: Path) -> None:
     )
     assert markdown.returncode == 8, markdown.stderr
     assert data.returncode == 8, data.stderr
-    for point in (0x200B, 0x202E, 0x2060, 0xFEFF):
+    for point in (0x034F, 0x200B, 0x202E, 0x180E, 0x2060, 0x2063, 0xFEFF):
         assert chr(point) not in markdown.stdout
         assert f"[U+{point:04X}]" in markdown.stdout
     parsed = json.loads(data.stdout)

@@ -37,9 +37,11 @@ values. Avoid passing an unbounded generator of missing tokens.
 
 CSV text can contain invisible Unicode formatting characters from spreadsheets,
 copy/paste or external exports. Markdown summaries and GitHub Actions job reports
-render directional controls, zero-width spaces, soft hyphens, word joiners,
-embedded byte-order marks and Unicode line/paragraph separators using visible
-`[U+XXXX]` markers, preventing different source identifiers from looking
+render directional controls, zero-width spaces, soft hyphens, combining
+grapheme joiners (U+034F), Mongolian vowel separators (U+180E), word joiners,
+invisible mathematical separators (U+2061–U+2064), embedded byte-order marks,
+and Unicode line/paragraph separators using visible `[U+XXXX]` markers,
+preventing different source identifiers from looking
 identical or visually rearranging the report. **Original values remain unchanged**
 in the JSON representation and all data-quality comparisons. Common multilingual
 letters and script joiners are preserved; this is presentation-only escaping.
