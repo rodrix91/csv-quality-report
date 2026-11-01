@@ -10,6 +10,7 @@ from typing import Any
 from .checks import (
     CHECK_ALLOWED_VALUES,
     CHECK_BASELINE_AGE,
+    CHECK_CHECK_DIGIT,
     CHECK_MAX_AFFIXES,
     CHECK_MAX_AGE,
     CHECK_PATTERN,
@@ -410,6 +411,11 @@ def render_json(
                 **(
                     {"pattern": c.pattern, "mismatched": dict(c.mismatched)}
                     if c.check == CHECK_PATTERN
+                    else {}
+                ),
+                **(
+                    {"scheme": c.scheme, "invalid": dict(c.invalid)}
+                    if c.check == CHECK_CHECK_DIGIT
                     else {}
                 ),
             }

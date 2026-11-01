@@ -14,10 +14,12 @@ from datetime import date, datetime, timedelta, timezone
 from fractions import Fraction
 from typing import Any
 
+from .checkdigits import check_scheme, scheme_label
 from .clock import format_stamp, parse_stamp
 from .compare import Comparison, TypeChange
 from .inference import parse_datetime
 from .profile import (
+    CheckDigitProfile,
     ColumnProfile,
     DomainProfile,
     KeyProfile,
@@ -45,6 +47,7 @@ CHECK_MAX_AGE = "max_age"
 CHECK_MIN_ROWS = "min_rows"
 CHECK_ALLOWED_VALUES = "allowed_values"
 CHECK_PATTERN = "pattern"
+CHECK_CHECK_DIGIT = "check_digit"
 # A baseline stamped up to this many seconds after the clock counts as 0
 # seconds old (clocks of two machines differ a little); later is an error.
 CLOCK_SKEW_TOLERANCE = 300
@@ -109,6 +112,8 @@ class CheckResult:
     unexpected: tuple[tuple[str, int], ...] = ()  # allowed_values: most frequent (value, cells)
     pattern: str = ""  # pattern checks: the regular expression given
     mismatched: tuple[tuple[str, int], ...] = ()  # pattern checks: most frequent (value, cells)
+    scheme: str = ""  # check_digit checks: the scheme given, such as "cuit"
+    invalid: tuple[tuple[str, int], ...] = ()  # check_digit: most frequent (value, cells)
 
     def describe(self) -> str:
         """One-line, human-readable explanation used on stderr and in Markdown."""
@@ -161,6 +166,8 @@ class CheckResult:
             return self._describe_allowed_values()
         if self.check == CHECK_PATTERN:
             return self._describe_pattern()
+        if self.check == CHECK_CHECK_DIGIT:
+            return self._describe_check_digit()
         if self.check == CHECK_MIN_ROWS:
             rows = int(self.value)
             noun = "data row" if rows == 1 else "data rows"
@@ -271,6 +278,22 @@ class CheckResult:
         return f"column '{self.column}' has {count} {noun} not match the pattern {shown}" + (
             f": {examples}" if examples else ""
         )
+
+    def _describe_check_digit(self) -> str:
+        label = scheme_label(self.scheme)
+        if self.passed:
+            return f"column '{self.column}' has only valid {label} numbers"
+        count = int(self.value)
+        noun = (
+            f"cell that is not a valid {label} number"
+            if count == 1
+            else (f"cells that are not valid {label} numbers")
+        )
+        examples = ", ".join(
+            f'"{value}" in {cells} cell' + ("s" if cells != 1 else "")
+            for value, cells in self.invalid
+        )
+        return f"column '{self.column}' has {count} {noun}" + (f": {examples}" if examples else "")
 
     def _describe_max_age(self) -> str:
         limit = format_duration(int(self.limit))
@@ -890,6 +913,19 @@ def _pattern_check(profile: PatternProfile) -> CheckResult:
     )
 
 
+def _check_digit_check(profile: CheckDigitProfile) -> CheckResult:
+    """A check that fails when a non-missing cell is not a valid ``profile.scheme`` identifier."""
+    return CheckResult(
+        check=CHECK_CHECK_DIGIT,
+        column=profile.column,
+        limit=0,
+        value=profile.invalid,
+        passed=profile.invalid == 0,
+        scheme=profile.scheme,
+        invalid=profile.examples,
+    )
+
+
 def _unique_key_check(key: KeyProfile) -> CheckResult:
     """A check that fails when two checked rows share the values of ``key``'s columns."""
     return CheckResult(
@@ -928,6 +964,7 @@ def evaluate(
     min_rows: int | None = None,
     allowed_values: Mapping[str, Iterable[str]] | None = None,
     patterns: Mapping[str, str] | None = None,
+    check_digits: Mapping[str, str] | None = None,
 ) -> list[CheckResult]:
     """Evaluate the requested thresholds; a value equal to its limit passes.
 
@@ -1016,6 +1053,15 @@ def evaluate(
     ``mismatched`` names the most frequent of their values. Unknown names
     fail as ``required_column``.
 
+    ``check_digits`` maps column names to a check-digit scheme (``"cuit"``,
+    ``"rut"``, ``"cpf"``, ``"cnpj"`` or ``"gtin"``, see ``checkdigits``) that
+    every non-missing value must satisfy, such as a tax id or a barcode. As
+    with ``patterns``, the report must have been built with the same schemes
+    (``Report.check_digits``); one it lacks raises ``ValueError``, and so
+    does an unknown scheme. The check's ``value`` is the exact number of
+    cells that are not valid identifiers and ``invalid`` names the most
+    frequent of their values. Unknown names fail as ``required_column``.
+
     ``required_columns`` are matched exactly (case-sensitive) against the
     file's whole header (``Report.header``, after duplicate-name suffixes),
     also when only some columns were profiled; each one gives a check with
@@ -1078,7 +1124,8 @@ def evaluate(
     formats = dict(patterns or {})
     for pattern in formats.values():
         compile_pattern(pattern)  # ValueError when empty or invalid
-    gated += [*(column_ranges or {}), *unique, *max_ages, *domains, *formats]
+    schemes = {name: check_scheme(scheme) for name, scheme in (check_digits or {}).items()}
+    gated += [*(column_ranges or {}), *unique, *max_ages, *domains, *formats, *schemes]
     unprofiled = [name for name in gated if name in present]
     unprofiled = [name for name in unprofiled if name not in by_name]
     if unprofiled:
@@ -1172,6 +1219,17 @@ def evaluate(
                 "profiled with the same pattern"
             )
         results.append(_pattern_check(profile))
+    measured_schemes = {profile.column: profile for profile in report.check_digits}
+    for name, scheme in schemes.items():
+        if name not in by_name:
+            continue  # reported below as a missing required column
+        digits = measured_schemes.get(name)
+        if digits is None or digits.scheme != scheme:
+            raise ValueError(
+                f"column {name!r} has a check_digit check but the report was not "
+                "profiled with the same scheme"
+            )
+        results.append(_check_digit_check(digits))
     keys = list(dict.fromkeys(key_columns(key) for key in unique_keys))
     measured = {key.columns: key for key in report.keys}
     for columns in keys:
@@ -1195,6 +1253,7 @@ def evaluate(
             *max_ages,
             *domains,
             *formats,
+            *schemes,
         ]
         if name not in present
     )

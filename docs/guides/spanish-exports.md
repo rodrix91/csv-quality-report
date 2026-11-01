@@ -26,6 +26,7 @@ csv-quality-report never guesses these conventions: each one is turned on with a
 | An invoice number or tracking code that repeats in rows that differ elsewhere | `--unique Factura` (add `--max-missing-column Factura=0` to also require it) |
 | A status, currency or unit column that gained a value the consumers do not handle (`Devuelto`, a hand-typed `usd`) | `--allowed-values "Estado=Entregado,En tránsito,Pendiente"` |
 | A tax id, postal code or tracking code written in another format (`20300000049` without dashes, a postal code cut to `C1425`) | `--pattern 'CUIT=\d{2}-\d{8}-\d'` |
+| A tax id or barcode with a mistyped or swapped digit, which keeps its format but not its check digit, or a barcode that Excel turned into `7,79123E+12` | `--check-digit CUIT=cuit`, `--check-digit EAN=gtin` (also `rut`, `cpf`, `cnpj`) |
 | An invoice line or document identified by several columns (branch, invoice, line) that appears twice | `--unique-key Sucursal,Factura,Línea` |
 | An export whose columns or types changed since last time | `--baseline yesterday.json --fail-on-schema-change` |
 | A quantity that started carrying decimals (`12,5` kilos) or a date that gained a time, which consumers handle | `--fail-on-schema-change --allow-type-change Cantidad=int:float --allow-type-change date:datetime` |

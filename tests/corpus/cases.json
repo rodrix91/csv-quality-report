@@ -340,5 +340,12 @@
     "args": ["--delimiter", "auto", "--decimal-comma", "--date-order", "dmy", "--na", "s/d,n/d", "--require-type", "Peso kg=float", "--unique", "Guía", "--allowed-values", "Estado=Entregado,En tránsito,Pendiente"],
     "exit_code": 8,
     "about": "The same export with exact --na matching: S/D keeps the weights as text, so --require-type fails, and N/D fails --allowed-values."
+  },
+  {
+    "name": "ar_product_catalog_check_digits",
+    "file": "ar_product_catalog.csv",
+    "args": ["--delimiter", "auto", "--decimal-comma", "--thousands", "dot", "--na", "s/d", "--check-digit", "EAN=gtin", "--check-digit", "CUIT proveedor=cuit"],
+    "exit_code": 8,
+    "about": "A product catalog whose barcodes and supplier tax ids have the right format but not always the right check digit: a mistyped EAN, two swapped digits, an EAN turned into 7,79123E+12 by Excel and a UPC that lost its leading zero fail --check-digit EAN=gtin, and a CUIT with two swapped digits fails CUIT proveedor=cuit; the EAN-8, the 12-digit UPC and the s/d cell pass or are not checked."
   }
 ]
