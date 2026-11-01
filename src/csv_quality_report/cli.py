@@ -13,6 +13,7 @@ from datetime import date, timedelta
 from pathlib import Path
 
 from . import __version__
+from .checkdigits import SCHEMES, check_scheme
 from .checks import (
     COLUMN_TYPES,
     Bound,
@@ -140,6 +141,23 @@ def _column_allowed(text: str) -> tuple[str, tuple[str, ...]]:
         raise argparse.ArgumentTypeError(
             usage + "Moneda=PYG,USD; every value must be non-empty)"
         ) from None
+
+
+def _column_check_digit(text: str) -> tuple[str, str]:
+    """Split ``NAME=SCHEME`` at the last '=' (scheme names have none, column names may)."""
+    name, _, scheme = text.rpartition("=")
+    if not name or not scheme:
+        raise argparse.ArgumentTypeError(
+            f"invalid --check-digit value: {text!r} (use NAME=SCHEME, such as CUIT=cuit; "
+            f"schemes: {', '.join(SCHEMES)})"
+        )
+    try:
+        check_scheme(scheme)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError(
+            f"invalid --check-digit value for {name!r}: {exc}"
+        ) from None
+    return name, scheme
 
 
 def _column_pattern(text: str) -> tuple[str, str]:
@@ -654,6 +672,17 @@ def build_parser() -> argparse.ArgumentParser:
         "repeatable",
     )
     gates.add_argument(
+        "--check-digit",
+        type=_column_check_digit,
+        action="append",
+        default=[],
+        metavar="NAME=SCHEME",
+        help="fail if a non-missing cell of column NAME is not a valid identifier of SCHEME: "
+        "cuit (Argentina), rut (Chile), cpf or cnpj (Brazil), gtin (EAN/UPC barcodes), "
+        "such as CUIT=cuit (stripped text; the separators . - / and spaces are ignored); "
+        "repeatable",
+    )
+    gates.add_argument(
         "--max-age",
         type=_column_age,
         action="append",
@@ -778,6 +807,7 @@ def _check_selected(args: argparse.Namespace) -> None:
         ("--max-age", [name for name, _ in args.max_age]),
         ("--allowed-values", [name for name, _ in args.allowed_values]),
         ("--pattern", [name for name, _ in args.pattern]),
+        ("--check-digit", [name for name, _ in args.check_digit]),
         ("--allow-type-change", [r.column for r in args.allow_type_change if r.column]),
         ("--allow-added-column", args.allow_added_column),
         ("--allow-removed-column", args.allow_removed_column),
@@ -917,6 +947,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             unique_keys=args.unique_key,
             allowed_values=dict(args.allowed_values),  # the last list for a name wins
             patterns=dict(args.pattern),  # the last pattern for a name wins
+            check_digits=dict(args.check_digit),  # the last scheme for a name wins
             skip_lines=args.skip_lines,
             skip_footer=args.skip_footer,
             month_names=args.month_names,
@@ -932,6 +963,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         min_rows=args.min_rows,
         allowed_values=dict(args.allowed_values),
         patterns=dict(args.pattern),
+        check_digits=dict(args.check_digit),
         required_columns=args.require_columns,
         column_max_missing=dict(args.max_missing_column),  # the last limit for a name wins
         column_types=dict(args.require_type),  # the last type for a name wins

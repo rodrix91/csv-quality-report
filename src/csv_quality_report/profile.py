@@ -14,6 +14,7 @@ from operator import itemgetter
 from typing import Any
 from unicodedata import normalize
 
+from .checkdigits import check_scheme, validator
 from .errors import ColumnSelectionError
 from .inference import (
     TYPE_BOOL,
@@ -158,6 +159,25 @@ class PatternProfile:
     examples: tuple[tuple[str, int], ...] = ()
 
 
+@dataclass(frozen=True)
+class CheckDigitProfile:
+    """Which values of a column are not valid identifiers of a scheme (``--check-digit``).
+
+    ``scheme`` is a name from ``checkdigits.SCHEMES`` (``cuit``, ``rut``,
+    ``cpf``, ``cnpj`` or ``gtin``). Values are checked as the report counts
+    them: stripped of surrounding whitespace, as text; missing cells are not
+    checked. ``invalid`` is the exact number of non-missing cells whose value
+    is not a valid identifier (wrong length, characters or check digit);
+    ``examples`` are the most frequent of those values, up to ``top_n``, with
+    their cells (first seen on ties).
+    """
+
+    column: str
+    scheme: str
+    invalid: int
+    examples: tuple[tuple[str, int], ...] = ()
+
+
 def check_na_ignore_case(na_ignore_case: bool, na_tokens: Iterable[str]) -> None:
     """``ValueError`` if ``na_ignore_case`` is set without any non-blank ``na_tokens``."""
     if na_ignore_case and not any(token.strip() for token in na_tokens):
@@ -204,6 +224,7 @@ class Report:
     domains: tuple[DomainProfile, ...] = ()  # --allowed-values: one per profiled column
     patterns: tuple[PatternProfile, ...] = ()  # --pattern: one per profiled column
     na_ignore_case: bool = False  # --na-ignore-case: na_tokens were matched in any case
+    check_digits: tuple[CheckDigitProfile, ...] = ()  # --check-digit: one per profiled column
 
 
 def _untrimmed_names(header: list[str]) -> tuple[str, ...]:
@@ -621,6 +642,7 @@ class _Profiled:
     keys: tuple[KeyProfile, ...] = ()
     domains: tuple[DomainProfile, ...] = ()
     patterns: tuple[PatternProfile, ...] = ()
+    check_digits: tuple[CheckDigitProfile, ...] = ()
 
 
 def _columns(
@@ -689,6 +711,7 @@ def profile_rows(
     patterns: Mapping[str, str] | None = None,
     month_names: bool = False,
     na_ignore_case: bool = False,
+    check_digits: Mapping[str, str] | None = None,
 ) -> _Profiled:
     """Profile ``rows`` in a single pass; each row must have ``len(header)`` cells.
 
@@ -731,6 +754,12 @@ def profile_rows(
     ``na_ignore_case`` matches ``na_tokens`` after Unicode case folding and NFC,
     so ``S/D`` and ``s/d`` are both missing for the token ``s/d``; without
     ``na_tokens`` it raises ``ValueError`` before any row is read.
+
+    ``check_digits`` maps column names to a check-digit scheme from
+    ``checkdigits.SCHEMES`` (see ``CheckDigitProfile``). Like ``patterns``,
+    each distinct value is checked once after the pass; a name that is not
+    profiled is skipped, and an unknown scheme raises ``ValueError`` before
+    any row is read.
     """
     _validate_top_n(top_n)
     # Materialize one-shot iterables before validation and missing-cell accounting.
@@ -747,6 +776,7 @@ def profile_rows(
     )
     domains = {name: allowed_list(values) for name, values in (allowed_values or {}).items()}
     formats = {name: compile_pattern(pattern) for name, pattern in (patterns or {}).items()}
+    schemes = {name: check_scheme(scheme) for name, scheme in (check_digits or {}).items()}
     selected = _selection(header, columns)
     accumulators = [
         _ColumnAccumulator(name)
@@ -790,6 +820,11 @@ def profile_rows(
         patterns=tuple(
             _pattern(acc, formats[acc.name], top_n) for acc in accumulators if acc.name in formats
         ),
+        check_digits=tuple(
+            _check_digit(acc, schemes[acc.name], top_n)
+            for acc in accumulators
+            if acc.name in schemes
+        ),
     )
 
 
@@ -806,6 +841,12 @@ def _pattern(acc: _ColumnAccumulator, pattern: re.Pattern[str], top_n: int) -> P
     return PatternProfile(
         column=acc.name, pattern=pattern.pattern, mismatched=mismatched, examples=examples
     )
+
+
+def _check_digit(acc: _ColumnAccumulator, scheme: str, top_n: int) -> CheckDigitProfile:
+    """The cells of ``acc`` (stripped, without missing ones) that are not valid ``scheme`` ids."""
+    invalid, examples = _outside(acc.counts, validator(scheme), top_n)
+    return CheckDigitProfile(column=acc.name, scheme=scheme, invalid=invalid, examples=examples)
 
 
 def _outside(
@@ -878,6 +919,7 @@ def _report(
         domains=result.domains,
         patterns=result.patterns,
         na_ignore_case=na_ignore_case,
+        check_digits=result.check_digits,
     )
 
 
@@ -897,6 +939,7 @@ def build_report(
     patterns: Mapping[str, str] | None = None,
     month_names: bool = False,
     na_ignore_case: bool = False,
+    check_digits: Mapping[str, str] | None = None,
 ) -> Report:
     """Profile every column of an in-memory ``table``.
 
@@ -915,7 +958,9 @@ def build_report(
     maps column names to regular expressions their values must match
     (``Report.patterns``); ``month_names``, with a ``date_order``, also reads
     Spanish or English month names such as ``05-oct-2026``; ``na_ignore_case``
-    matches ``na_tokens`` after case folding and NFC (``Report.na_ignore_case``).
+    matches ``na_tokens`` after case folding and NFC (``Report.na_ignore_case``);
+    ``check_digits`` maps column names to check-digit schemes such as
+    ``"cuit"`` or ``"gtin"`` their values must satisfy (``Report.check_digits``).
     """
     _validate_top_n(top_n)
     tokens = tuple(na_tokens)
@@ -936,6 +981,7 @@ def build_report(
         patterns,
         month_names,
         na_ignore_case,
+        check_digits=check_digits,
     )
     return _report(
         result,
@@ -975,6 +1021,7 @@ def profile_file(
     skip_footer: int = 0,
     month_names: bool = False,
     na_ignore_case: bool = False,
+    check_digits: Mapping[str, str] | None = None,
 ) -> Report:
     """Stream ``path`` and profile it without loading the whole file into memory.
 
@@ -983,8 +1030,8 @@ def profile_file(
     Same rules and errors as ``reader.open_rows``; same result as
     ``build_report(read_table(...))``. ``skip_lines`` lines before the header
     are skipped (``Report.skipped_lines``), and ``skip_footer`` records after
-    the data are dropped (``Report.skipped_footer``). ``month_names`` and
-    ``na_ignore_case`` are as in ``build_report``.
+    the data are dropped (``Report.skipped_footer``). ``month_names``,
+    ``na_ignore_case`` and ``check_digits`` are as in ``build_report``.
     """
     _validate_top_n(top_n)
     tokens = tuple(na_tokens)
@@ -1014,6 +1061,7 @@ def profile_file(
             patterns,
             month_names,
             na_ignore_case,
+            check_digits=check_digits,
         )
         return _report(
             result,
