@@ -104,7 +104,10 @@ def test_every_released_version_of_the_real_changelog_has_notes() -> None:
     assert "0.1.0" in versions
     for version in versions:
         notes = rn.notes(text, version)
-        assert notes is not None and "## [" not in notes, version
+        # An entry may mention a heading in inline code (`## [VERSION] - ...`),
+        # so only a line that starts a section means the notes ran into the next one.
+        assert notes is not None, version
+        assert re.search(r"^## \[", notes, flags=re.MULTILINE) is None, version
 
 
 def test_the_current_version_has_notes() -> None:

@@ -4,13 +4,79 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.23.0] - 2026-11-01
+
+### Added
+
+- `--skip-lines N`: skips the first `N` lines of the file before the header, for ERP and spreadsheet exports that start with title lines (report name, period, issue time, a blank line), which could not be profiled at all: the first title became a one-field header, so the real header failed as a ragged row (exit code 6), and `--delimiter auto` failed (exit code 7). The lines are skipped as text, before anything is parsed, after decoding (so `--encoding`, gzip and standard input work as usual) and after a `sep=` first line, which is not counted in `N`; `--delimiter auto` samples the lines after them, and error line numbers still count them. A file that ends before a header is found stops with exit code 5 (`has no header row: it ends within the 4 lines skipped by --skip-lines`). JSON reports `skipped_lines` right after `sep_line`, and Markdown `Skipped lines: N (before the header)`, only when `N > 0`, so reports without the option are byte-identical. `open_rows()`, `read_table()` and `profile_file()` gain `skip_lines`; `Table`, `RowStream` and `Report` gain `skipped_lines`. The corpus gains an ERP sales export in cp1252 with three title lines and a blank line, and the guide to Spanish and Latin American exports a section on it (#161).
+
+- Without `--skip-lines`, the two usual symptoms of title lines suggest the count to skip. A one-field header followed by a wider row fails with `...expected 1 (from the header); if this row is the header and the lines before it are titles, skip them with --skip-lines 4`; a failed `--delimiter auto` adds `if the file starts with 3 title lines before the header, skip them with --skip-lines 3` when dropping up to 20 leading lines without separators (`title_lines()` in `csv_quality_report.reader`) lets one separator fit every remaining line. Other errors are unchanged (#161).
+
+- `--skip-footer N`: drops the last `N` records of the file, for ERP and spreadsheet exports that end with a footer after the data (a totals row, a record count, a generated-by line). Without it, a one-field footer failed as a ragged row (exit code 6) or made `--delimiter auto` fail (exit code 7), and a totals row of the header's width was profiled as data: it could turn a date column into `string`, became the maximum of an amount column and failed `--range`, `--unique` or `--pattern`. The footer is counted in CSV records after the header, so blank lines are not counted, and its records are never checked against the header's width. The file is still read once (ADR 0002): each row is held until `N` more were read, so the extra memory is `N` rows, and the 1,000,000-row benchmark keeps its time and peak memory. `--max-rows` still counts data rows. A file with fewer than `N` records after the header stops with exit code 5 (`has 2 records after the header, fewer than the 3 skipped by --skip-footer`). With `--delimiter auto`, when the file fits in the detection sample, its last `N` non-blank lines are left out of it. JSON reports `skipped_footer` right after `sep_line` (after `skipped_lines` when both are present), and Markdown `Skipped footer: N records (after the data)`, only when `N > 0`, so reports without the option are byte-identical. `open_rows()`, `read_table()` and `profile_file()` gain `skip_footer`; `Table`, `RowStream` and `Report` gain `skipped_footer`. The corpus gains an ERP dispatch export in cp1252 with title lines and a footer, used four times, and the guide to Spanish and Latin American exports a section on it (#192).
+
+- Without `--skip-footer`, the two usual symptoms of a footer suggest the count to drop. A ragged row among the last 20 records whose following records are all ragged too fails with `...expected 5 (from the header); if this record and the 1 after it are a footer, skip both with --skip-footer 2 (add one for each totals row above them)`; a failed `--delimiter auto` on a file that fits in the sample adds `if the file ends with 2 footer lines after the data, skip them with --skip-footer 2 ...` when dropping up to 20 trailing lines (`footer_lines()` in `csv_quality_report.reader`) lets one separator fit every remaining line. A title-line suggestion (#161) takes precedence, and neither suggestion is made once its option is given (#192).
+
+- Add `--month-names` (with `--date-order`) for dates whose month is written as a word, as Excel's `dd-mmm-aaaa` format and many ERPs export them: `05-oct-2026`, `05-oct.-2026 14:30`, `5/Octubre/2026`, `30-set-2026` with `dmy`, `Oct-05-2026` with `mdy`, `2026-oct-05` with `ymd`. Spanish and English names and abbreviations are read in any case (also `sept`, and `set`/`setiembre` as written in Peru and Uruguay); a dot may follow an abbreviation, except after a dot separator. Words that are not months leave the value as written, so it shows in the `type_hint`. Reports without the option are unchanged; with it, JSON adds `"month_names": true` and Markdown a `Month names:` line. The Python API gains a `month_names=False` keyword on `profile_rows`, `build_report` and `profile_file`; the corpus gains a Spanish Excel export with month names, and the Spanish exports guide a section on them (#202).
+
+- Add `--max-row-growth PCT` (with `--baseline`), the counterpart of `--max-row-drop`: fail with exit code 8 when the row count rose by more than `PCT` % of the baseline's rows, for an export job that ran twice into the same file, a join that fans out or a lost date or branch filter, which keep the schema, the types and the missing-value shares and so passed every other gate. `PCT` is a finite percentage of 0 or more without the 0-100 cap (`100` lets the file double); `nan`, `inf` and negative values are usage errors (exit code 2). Exact `Fraction` arithmetic, a growth equal to the limit passes, fewer rows never fail, and a baseline with no rows passes with a message that says the growth cannot be measured. New file-level `row_growth` check in JSON; reports without the option are unchanged. The corpus gains a weekly stock count compared with both row gates, and the Spanish exports guide a line in its table (#216).
+
+- Add opt-in `--check-baseline-missing-rate` when using `--baseline`: reject a historical `missing_pct` that contradicts its exact integer `missing` count beyond the one-decimal precision of generated reports (±0.05 points). This protects baseline drift analyses against conflicting historical metadata, while preserving default permissive behavior, legacy reports without a valid optional count, rounding boundaries, and unchanged report JSON schemas. The strict check runs before reading the new CSV and returns the existing baseline error code 3. Add API, boundary, legacy and CLI regression tests.
+
+- Support literal `=` characters in `--pattern` CSV header names using `\=` (e.g. `SLA\=met=OK=[0-9]+`) while retaining unescaped `=` as the name/pattern delimiter and allowing regex patterns themselves to contain `=`. Add CLI regressions for passing, failing and malformed pattern selectors.
+
+- Add `--na-ignore-case` (with `--na`): match the missing-value tokens in any case with Unicode case folding, so `--na s/d` also counts `S/D` and `S/d`, as hand-filled Spanish-language exports often mix the spellings of one marker (#231). It applies to missing counts and type inference, rows skipped by `--unique-key` and cells left out of `--allowed-values` and `--pattern`. Without the option matching stays exact and reports are byte-identical; with it, JSON adds `"na_ignore_case": true` and Markdown marks the missing-values line `(any case)`. Without `--na` it is a usage error (exit code 2); the Python API takes `na_ignore_case=True` in `profile_rows`, `build_report` and `profile_file` (a `ValueError` without `na_tokens`). The corpus gains a courier export with mixed-case `S/D` markers.
+
+- Normalize opt-in `--na-ignore-case` missing markers using Unicode NFC after `casefold`, so canonically equivalent composed/decomposed accents (for example `información` and `información`) are treated as the same marker. Apply consistently to missing counts and type inference, `--unique-key` skips, and `--allowed-values`/`--pattern` gates without changing stored CSV values, default exact matching, output schemas, versions or releases. Add API/CLI regression tests.
+
 - Add the `--check-digit NAME=SCHEME` quality gate (repeatable): fails with exit code 8 when a non-missing cell of a column is not a valid identifier of a check-digit scheme, for tax ids and barcodes whose format is right but whose digits are not, which `--pattern` cannot see: `column 'CUIT proveedor' has 1 cell that is not a valid CUIT number: "30-71234576-1" in 1 cell`. Schemes: `cuit` (Argentine CUIT/CUIL), `rut` (Chilean RUT/RUN, check digit `K`), `cpf` and `cnpj` (Brazil, including the alphanumeric CNPJ issued since July 2026) and `gtin` (EAN-8, UPC-A, EAN-13, GTIN-14). The separators `.`, `-`, `/` and spaces are ignored; values are stripped and missing cells are not checked; CPF and CNPJ made of one repeated digit are invalid. The count is exact and comes from the value counts the pass already keeps, each distinct value checked once (on 1,000,000 distinct barcodes, about 5.6 s instead of 4.0 s, same peak memory). An unknown scheme is a usage error (exit code 2). Per-column `check_digit` check in JSON with `scheme` and `invalid`; reports without the option are unchanged. `profile_rows()`, `profile_file()`, `build_report()` and `evaluate()` gain `check_digits`, `Report` gains `check_digits` (`CheckDigitProfile` in `csv_quality_report.profile`), and the new module `csv_quality_report.checkdigits` has one validator per scheme. Each scheme is tested against published valid numbers, every single-digit substitution and adjacent swap, and an independent textbook implementation on random numbers. The corpus gains a product catalog with a mistyped EAN, two swapped digits, an EAN in scientific notation, a UPC that lost its leading zero and a CUIT with swapped digits (#247).
 
-- Validate per-column statistics in the reusable GitHub Action's JSON report: missing, distinct and untrimmed counters must be nonnegative integers within the analyzed row totals; missing percentages must match those counts; top-value frequencies must be positive, distinct and collectively within the nonmissing rows. Reject malformed or contradictory reports before the Action advertises success, with synthetic and real CLI regression tests. Profiling calculations, published tags, and report output formats are unchanged.
+- The package now ships a PEP 561 `py.typed` marker so downstream type checkers can recognize the public Python API as typed. CI verifies the marker survives source-distribution packaging and installation.
+
+- Package metadata now includes project URLs, search keywords, and classifiers so built distributions expose the repository, changelog, issues, contribution guide, documentation, supported Python versions, and project status more clearly.
+
+- The distribution metadata now links directly to the repository security page alongside documentation, issues, and contribution guidance.
+
+- Release builds now generate GitHub artifact provenance attestations for the wheel and source distribution, signed through GitHub OIDC/Sigstore and pinned to `actions/attest` v4.2.2 by commit SHA.
+
+- Release artifacts now include a `SHA256SUMS` file so downloaded wheels and source distributions can be independently verified.
+
+- README now links the private vulnerability-reporting guidance in `SECURITY.md` from the security notes.
+
+- README now documents how to verify release SHA-256 checksums and GitHub provenance attestations, while noting that historical releases may predate those guarantees.
+
+### Changed
+
+- Advertise Python 3.14 in package metadata following the successful Linux, Windows and macOS CI compatibility matrix; keep runtime requirements, package version, and released tags unchanged.
+
+- Run the existing Linux, Windows and macOS test matrices under Python 3.14, preserving all earlier version checks and quality gates. Keep package metadata and releases unchanged until the exact-head PR CI succeeds.
+
+- CI now measures 100% coverage, Ruff, formatting, and strict mypy once on Python 3.12 while retaining full Linux compatibility tests on Python 3.11/3.13 and the existing Windows/macOS matrix, reducing redundant runner work without lowering quality gates.
+
+- The source distribution now retains `CONTRIBUTING.md`, `SECURITY.md`, and `CITATION.cff`; CI verifies those files plus the installed `py.typed` marker, and package metadata links directly to citation guidance.
+
+- GitHub Actions checkouts now disable persisted Git credentials because CI and release jobs do not push repository changes.
+
+- The release job now has an explicit timeout so a stuck build, install, or release test cannot occupy a runner indefinitely.
+
+- CI jobs now have explicit conservative timeouts so a hung test or platform runner cannot consume GitHub Actions indefinitely.
+
+- The contribution guide now names the current `setuptools==84.2.1` build-backend pin instead of the superseded 84.0.0 value.
+
+- GitHub Actions are pinned to the verified commit SHAs behind `actions/checkout@v7` and `actions/setup-python@v7`, with version comments retained for readable Dependabot updates.
+
+- CI cancels superseded runs for the same pull request or branch, avoiding redundant validation after a newer commit is pushed.
+
+- Verify installable wheel artifacts and the real `csv-quality-report` console command in clean virtual environments across Linux, Windows and macOS, from outside the source checkout with `PYTHONPATH` removed. Check installed metadata, PEP 561 marker and a real JSON report with delimiter autodetection; preserve package version and all release tags.
+
+- The corpus test that checks error messages name the file relatively now applies to the messages that name a file (delimiter detection and ragged-row errors only give a line), checks that no message holds an absolute path, and still requires at least one error case that names its file.
+
+- Cover the plain-`UnicodeError` branch at the header boundary of the CSV reader on every Python version. CPython 3.11 and 3.12 raise a plain `UnicodeError` for a UTF-16 file without its BOM, but 3.13 and later raise `UnicodeDecodeError`, so that branch was exercised only on the version CI measures coverage on (3.12) and was uncovered on 3.13. The tests register a codec whose decoder raises a plain `UnicodeError` and check the exit-4 message from the API and the CLI (with an existing `--json-output` left untouched); removing the branch now fails them on 3.11, 3.12 and 3.13. Tests only: no change to behavior or reports.
 
 - Refuse ambiguous, duplicated or incorrectly dated release headings when generating changelog-based GitHub release notes. Require exactly one `## [VERSION] - YYYY-MM-DD` section with a real calendar date; add synthetic leap-day, duplicate-heading and malformed-date regressions. Existing tagged releases, package versions and report behavior are unchanged.
 
-- Cover the plain-`UnicodeError` branch at the header boundary of the CSV reader on every Python version. CPython 3.11 and 3.12 raise a plain `UnicodeError` for a UTF-16 file without its BOM, but 3.13 and later raise `UnicodeDecodeError`, so that branch was exercised only on the version CI measures coverage on (3.12) and was uncovered on 3.13. The tests register a codec whose decoder raises a plain `UnicodeError` and check the exit-4 message from the API and the CLI (with an existing `--json-output` left untouched); removing the branch now fails them on 3.11, 3.12 and 3.13. Tests only: no change to behavior or reports.
+- Two release-history tests tolerate this release: the README pin may name the newest tagged version while two dated versions wait for their tags (v0.22.0 and v0.23.0), and the check that release notes do not run into the next section now looks for a line that starts a heading, since an entry mentions `## [VERSION] - YYYY-MM-DD` in inline code.
+
+### Fixed
 
 - Validate public `max_field_size` as a positive integer within Python's supported parser range before touching CSV input or the process-wide `csv.field_size_limit`. Reject booleans, decimals, text, zero, negatives and oversized integers with an actionable `ValueError`; reject oversized CLI `--max-field-size` as a usage error instead of allowing an overflow traceback. Preserve `None`, valid limits, process-global restoration and report schemas, with 46 new regression cases.
 
@@ -24,21 +90,11 @@ All notable changes to this project are documented here. The format follows [Kee
 
 - Materialize one-shot Python iterables for `na_tokens` exactly once in `profile_rows()`, `build_report()` and `profile_file()`. Previously a generator could be consumed by `na_ignore_case` validation or lost from report metadata, yielding understated missing counts and inconsistent `--unique-key` results. Preserve tuple callers and default CLI behavior; cover exact and casefold/NFC matching, stream/in-memory parity, composite keys and fail-before-reading errors.
 
-- Normalize opt-in `--na-ignore-case` missing markers using Unicode NFC after `casefold`, so canonically equivalent composed/decomposed accents (for example `información` and `información`) are treated as the same marker. Apply consistently to missing counts and type inference, `--unique-key` skips, and `--allowed-values`/`--pattern` gates without changing stored CSV values, default exact matching, output schemas, versions or releases. Add API/CLI regression tests.
-
-- Add `--na-ignore-case` (with `--na`): match the missing-value tokens in any case with Unicode case folding, so `--na s/d` also counts `S/D` and `S/d`, as hand-filled Spanish-language exports often mix the spellings of one marker (#231). It applies to missing counts and type inference, rows skipped by `--unique-key` and cells left out of `--allowed-values` and `--pattern`. Without the option matching stays exact and reports are byte-identical; with it, JSON adds `"na_ignore_case": true` and Markdown marks the missing-values line `(any case)`. Without `--na` it is a usage error (exit code 2); the Python API takes `na_ignore_case=True` in `profile_rows`, `build_report` and `profile_file` (a `ValueError` without `na_tokens`). The corpus gains a courier export with mixed-case `S/D` markers.
-
-- Verify installable wheel artifacts and the real `csv-quality-report` console command in clean virtual environments across Linux, Windows and macOS, from outside the source checkout with `PYTHONPATH` removed. Check installed metadata, PEP 561 marker and a real JSON report with delimiter autodetection; preserve package version and all release tags.
-
 - Reject non-standard `NaN`, `Infinity` and `-Infinity` numeric tokens in historical baseline JSON, including nested unused metadata. Also reject JSON float literals whose exponents overflow Python floating-point range (such as `1e309`), rather than accepting non-finite values. Keep finite JSON numbers and quoted text unchanged; fail with existing baseline-read exit code `3` before reading input or overwriting output. Add API, CLI and cross-platform regression tests.
 
 - Reject duplicate JSON object property names when loading historical `--baseline` reports, including nested metadata and differently escaped spellings of the same key. Prevent Python's default JSON last-value-wins parsing from masking contradictory historical row counts or missingness; fail with existing input-error exit `3` before reading a new CSV or overwriting an existing report. Add API and CLI regression tests; keep valid baselines and report schema unchanged.
 
-- Advertise Python 3.14 in package metadata following the successful Linux, Windows and macOS CI compatibility matrix; keep runtime requirements, package version, and released tags unchanged.
-
 - Reject ISO datetime hour `24` explicitly before calling `datetime.fromisoformat`, keeping the established strict `00`–`23` contract across Python 3.11–3.14 (Python 3.14 newly accepts `24:00` as next-day midnight). Extend timezone and seconds regression cases; keep range checks and inference consistent across platforms.
-
-- Run the existing Linux, Windows and macOS test matrices under Python 3.14, preserving all earlier version checks and quality gates. Keep package metadata and releases unchanged until the exact-head PR CI succeeds.
 
 - Reject unterminated quoted fields and extra text after a closing quote while profiling CSV files (including gzip, stdin, and legacy CR-only records) instead of silently accepting corrupted cells. Keep valid quoted multiline fields unchanged, report malformed CSV using existing exit code `6`, and preserve previously written JSON reports on parse failure. Add streaming, CLI, source and cross-line-ending regression tests.
 
@@ -46,37 +102,13 @@ All notable changes to this project are documented here. The format follows [Kee
 
 - Fix automatic delimiter detection for long, classic-Mac `CR`-terminated CSV exports: discard a partial record at the 64-KiB sniff window using either `CR` or `LF` line boundaries instead of treating a truncated last record as malformed. Retain `LF`/`CRLF` and single-column behavior, with parser and real CLI regression tests.
 
-- Render invisible CSV-derived Unicode formatting characters as inert `[U+XXXX]` markers in Markdown, including bidirectional controls, soft hyphens, zero-width spaces, word joiners, embedded byte-order marks and Unicode line separators. Preserve JSON values, comparisons, field names and ordinary multilingual text. Add direct helper and CLI regression tests for malicious and benign labels.
-
 - Normalize Python codecs' plain `UnicodeError` (not only `UnicodeDecodeError`) into the existing exit-4 encoding failure in the streaming CSV reader, notably UTF-16 input without a required BOM. Avoid unhandled tracebacks, retain decoder-supplied byte offsets when available, preserve existing JSON artifacts, and cover plain/gzip, early-header and late-iterator failure paths.
 
-- Verify additional JSON report invariants in the reusable GitHub Action before exposing `report-json`: reconcile total header columns with all profiled columns or the ordered `--columns` subset, reject duplicate reported column identities, and require a bounded integer duplicate-row count. Existing real CLI reports, zero-row exports and quality-gate exit codes keep their behavior; add malformed metadata and real selected-column regression coverage.
-
-- Add `--max-row-growth PCT` (with `--baseline`), the counterpart of `--max-row-drop`: fail with exit code 8 when the row count rose by more than `PCT` % of the baseline's rows, for an export job that ran twice into the same file, a join that fans out or a lost date or branch filter, which keep the schema, the types and the missing-value shares and so passed every other gate. `PCT` is a finite percentage of 0 or more without the 0-100 cap (`100` lets the file double); `nan`, `inf` and negative values are usage errors (exit code 2). Exact `Fraction` arithmetic, a growth equal to the limit passes, fewer rows never fail, and a baseline with no rows passes with a message that says the growth cannot be measured. New file-level `row_growth` check in JSON; reports without the option are unchanged. The corpus gains a weekly stock count compared with both row gates, and the Spanish exports guide a line in its table (#216).
-
-- Verify the reusable GitHub Action's fresh JSON artifact before exposing `report-json` or reporting `passed=true`: reject invalid JSON, missing core profile fields and inconsistencies between quality-check results and exit codes 0/8. Preserve the existing freshness safeguard and genuine CLI errors. Add standalone and Action contract regression checks.
-
-- Require the reusable GitHub Action to verify that its JSON report is a **fresh regular file** before advertising `report-json` or `passed=true`. Compare pre-run and post-run file identity, size, modification and change times; reject unchanged, missing or non-file artifacts even if the subprocess reports success. Preserve user-supplied previous reports, existing quality-gate exit code 8 and successful atomic replacements; add direct and end-to-end Action regressions. The standalone CLI and report schema are unchanged.
-
-- Fail closed on multiline or invisible-control GitHub Action `args` and `baseline-args` before Bash `read -a` can silently discard quality gates after the first line. Preserve legitimate tab-separated one-line options and ordinary Unicode text; avoid reflecting malformed `if-baseline-missing` raw values into workflow annotations. Add direct full-C1-range, Action end-to-end and source-package regressions without changing the standalone CLI or the CSV/JSON report formats.
-
-- Reject invisible ASCII C0, DEL and C1 control characters (including ESC, bell and backspace) in GitHub Action CSV, baseline and explicit report paths, before they reach workflow annotations, filesystem access or line-based outputs. Preserve ordinary Unicode path names and the existing workspace/path traversal guarantees. Add parameterized cross-validator and regression tests; standalone CLI handling remains unchanged.
-
-- Escape untrusted ASCII C0 (except horizontal tab), DEL and C1 control characters in CSV-derived Markdown labels, check details and inline code spans to prevent invisible terminal/log manipulation. Preserve existing tab whitespace, CR/LF-as-space behavior inside code spans, original Unicode CSV/JSON content, and existing literal Markdown escapes; add full control-range, metadata/check and real CLI regression coverage.
-
 - Align whole-column `infer_type` with per-cell `value_type` for non-ASCII decimal digits: restrict numeric, ISO temporal and thousands-group parsing to ASCII digits. Unicode numerals (including mixed ASCII/non-ASCII digits) remain original text rather than acquiring contradictory `int`/`float` and `string` classifications; keep existing ASCII, decimal-comma, locale thousands and bool behavior. Add direct and CLI regressions.
-
-- Add `--month-names` (with `--date-order`) for dates whose month is written as a word, as Excel's `dd-mmm-aaaa` format and many ERPs export them: `05-oct-2026`, `05-oct.-2026 14:30`, `5/Octubre/2026`, `30-set-2026` with `dmy`, `Oct-05-2026` with `mdy`, `2026-oct-05` with `ymd`. Spanish and English names and abbreviations are read in any case (also `sept`, and `set`/`setiembre` as written in Peru and Uruguay); a dot may follow an abbreviation, except after a dot separator. Words that are not months leave the value as written, so it shows in the `type_hint`. Reports without the option are unchanged; with it, JSON adds `"month_names": true` and Markdown a `Month names:` line. The Python API gains a `month_names=False` keyword on `profile_rows`, `build_report` and `profile_file`; the corpus gains a Spanish Excel export with month names, and the Spanish exports guide a section on them (#202).
-
-- Add opt-in `--check-baseline-missing-rate` when using `--baseline`: reject a historical `missing_pct` that contradicts its exact integer `missing` count beyond the one-decimal precision of generated reports (±0.05 points). This protects baseline drift analyses against conflicting historical metadata, while preserving default permissive behavior, legacy reports without a valid optional count, rounding boundaries, and unchanged report JSON schemas. The strict check runs before reading the new CSV and returns the existing baseline error code 3. Add API, boundary, legacy and CLI regression tests.
 
 - Reject historical baseline columns with a valid integer `missing` count greater than total baseline rows (including zero-row and huge-count cases). Such impossible counts could distort exact missingness-drift checks. Keep missing counts optional for older JSON reports, accept valid boundary counts, reject corrupt baselines at existing exit 3 before reading the CSV, and preserve unchanged results for valid reports. Add direct comparison, loading and CLI regressions.
 
 - Fail closed on malformed historical `--baseline` report metadata before schema/drift comparisons: reject negative row counts, duplicate column names, and non-finite or out-of-range missing percentages (0–100), including arbitrarily large integer input. The file-read error remains exit 3. Preserve valid reports, exact case-sensitive column matching, optional older `missing` counts, and all existing JSON schemas. Add direct comparison, loading and CLI regressions.
-
-- Harden GitHub-friendly Markdown metadata against HTML/link and inline-code injection from untrusted CSV content and prior baseline JSON: free-text lines now use the same literal escaping as the tables, and NA tokens, currency/number affixes, boolean words and baseline source names use dynamically fenced code spans. Preserve ordinary report text, JSON bytes and all data/quality-gate results; add direct rendering and subprocess CLI regressions.
-
-- Support literal `=` characters in `--pattern` CSV header names using `\=` (e.g. `SLA\=met=OK=[0-9]+`) while retaining unescaped `=` as the name/pattern delimiter and allowing regex patterns themselves to contain `=`. Add CLI regressions for passing, failing and malformed pattern selectors.
 
 - Fix the documented `--pattern` example for header names that contain `=`: the README showed `'SLA\\=met=OK=[0-9]+'`, which in single quotes reaches the tool with two backslashes and checks a column named `SLA\\=met` instead of `SLA=met`; it now shows `'SLA\=met=OK=[0-9]+'`, and a test runs the README example through shell-style parsing (#204). The `--help` text of `--pattern` now says that `NAME` ends at the first `=` not preceded by `\`. The `[Unreleased]` notes also lost a literal `\n\n` that had joined two entries.
 
@@ -86,54 +118,35 @@ All notable changes to this project are documented here. The format follows [Kee
 
 - Reject blank comma-separated positions in `--require-columns`, including leading/trailing commas and whitespace-only entries, rather than silently dropping a required-field quality gate. Other CSV column-selection options keep their previous parsing behavior, and CLI regressions cover both invalid and valid selections.
 
+- Validate per-column statistics in the reusable GitHub Action's JSON report: missing, distinct and untrimmed counters must be nonnegative integers within the analyzed row totals; missing percentages must match those counts; top-value frequencies must be positive, distinct and collectively within the nonmissing rows. Reject malformed or contradictory reports before the Action advertises success, with synthetic and real CLI regression tests. Profiling calculations, published tags, and report output formats are unchanged.
+
+- Verify additional JSON report invariants in the reusable GitHub Action before exposing `report-json`: reconcile total header columns with all profiled columns or the ordered `--columns` subset, reject duplicate reported column identities, and require a bounded integer duplicate-row count. Existing real CLI reports, zero-row exports and quality-gate exit codes keep their behavior; add malformed metadata and real selected-column regression coverage.
+
+- Verify the reusable GitHub Action's fresh JSON artifact before exposing `report-json` or reporting `passed=true`: reject invalid JSON, missing core profile fields and inconsistencies between quality-check results and exit codes 0/8. Preserve the existing freshness safeguard and genuine CLI errors. Add standalone and Action contract regression checks.
+
+- Require the reusable GitHub Action to verify that its JSON report is a **fresh regular file** before advertising `report-json` or `passed=true`. Compare pre-run and post-run file identity, size, modification and change times; reject unchanged, missing or non-file artifacts even if the subprocess reports success. Preserve user-supplied previous reports, existing quality-gate exit code 8 and successful atomic replacements; add direct and end-to-end Action regressions. The standalone CLI and report schema are unchanged.
+
+### Security
+
+- Render invisible CSV-derived Unicode formatting characters as inert `[U+XXXX]` markers in Markdown, including bidirectional controls, soft hyphens, zero-width spaces, word joiners, embedded byte-order marks and Unicode line separators. Preserve JSON values, comparisons, field names and ordinary multilingual text. Add direct helper and CLI regression tests for malicious and benign labels.
+
+- Escape untrusted ASCII C0 (except horizontal tab), DEL and C1 control characters in CSV-derived Markdown labels, check details and inline code spans to prevent invisible terminal/log manipulation. Preserve existing tab whitespace, CR/LF-as-space behavior inside code spans, original Unicode CSV/JSON content, and existing literal Markdown escapes; add full control-range, metadata/check and real CLI regression coverage.
+
+- Harden GitHub-friendly Markdown metadata against HTML/link and inline-code injection from untrusted CSV content and prior baseline JSON: free-text lines now use the same literal escaping as the tables, and NA tokens, currency/number affixes, boolean words and baseline source names use dynamically fenced code spans. Preserve ordinary report text, JSON bytes and all data/quality-gate results; add direct rendering and subprocess CLI regressions.
+
 - Escaped CSV-derived Markdown content in quality-check messages (column names, repeated keys, allowed-value and regex mismatch examples) so links, HTML, inline code delimiters and newlines cannot alter rendered reports or Action summaries. Regex patterns remain legible in their intentional code spans; JSON and check results are unchanged. Added direct and CLI regressions.
 
 - Hardened Markdown table rendering for CSV-derived source names, column labels, sample values and textual extrema: pipes and CR/LF cannot alter table structure, and Markdown links or HTML tags are displayed literally. JSON remains unchanged. Added direct and real-CLI regression tests.
+
+- Fail closed on multiline or invisible-control GitHub Action `args` and `baseline-args` before Bash `read -a` can silently discard quality gates after the first line. Preserve legitimate tab-separated one-line options and ordinary Unicode text; avoid reflecting malformed `if-baseline-missing` raw values into workflow annotations. Add direct full-C1-range, Action end-to-end and source-package regressions without changing the standalone CLI or the CSV/JSON report formats.
+
+- Reject invisible ASCII C0, DEL and C1 control characters (including ESC, bell and backspace) in GitHub Action CSV, baseline and explicit report paths, before they reach workflow annotations, filesystem access or line-based outputs. Preserve ordinary Unicode path names and the existing workspace/path traversal guarantees. Add parameterized cross-validator and regression tests; standalone CLI handling remains unchanged.
 
 - The reusable GitHub Action now rejects informational help/version switches in `args` and `baseline-args` (including accepted abbreviations) before invoking the CLI: these options exit 0 without profiling a CSV and could falsely mark a workflow as passed if a report already existed. Added regression and end-to-end checks; CLI help/version behavior remains unchanged.
 
 - The reusable GitHub Action now confines CSV input and optional baseline reads to `GITHUB_WORKSPACE`, rejecting absolute paths, path traversal, symlink escapes, stdin and line breaks with exit code 2. A missing relative baseline remains compatible with `if-baseline-missing: skip`; extra CLI arguments can no longer override the validated `baseline` or `report-path` Action inputs; the standalone CLI is unchanged. Added regressions and Action end-to-end checks.
 
 - The GitHub Action now refuses explicit `report-path` values that are absolute or resolve outside `GITHUB_WORKSPACE`, while preserving the exact relative path in the `report-json` output on success.
-
-- CI now measures 100% coverage, Ruff, formatting, and strict mypy once on Python 3.12 while retaining full Linux compatibility tests on Python 3.11/3.13 and the existing Windows/macOS matrix, reducing redundant runner work without lowering quality gates.
-
-- The source distribution now retains `CONTRIBUTING.md`, `SECURITY.md`, and `CITATION.cff`; CI verifies those files plus the installed `py.typed` marker, and package metadata links directly to citation guidance.
-
-- README now links the private vulnerability-reporting guidance in `SECURITY.md` from the security notes.
-
-- README now documents how to verify release SHA-256 checksums and GitHub provenance attestations, while noting that historical releases may predate those guarantees.
-
-- Release builds now generate GitHub artifact provenance attestations for the wheel and source distribution, signed through GitHub OIDC/Sigstore and pinned to `actions/attest` v4.2.2 by commit SHA.
-
-- GitHub Actions checkouts now disable persisted Git credentials because CI and release jobs do not push repository changes.
-
-- Release artifacts now include a `SHA256SUMS` file so downloaded wheels and source distributions can be independently verified.
-
-- The release job now has an explicit timeout so a stuck build, install, or release test cannot occupy a runner indefinitely.
-
-- CI jobs now have explicit conservative timeouts so a hung test or platform runner cannot consume GitHub Actions indefinitely.
-
-- The contribution guide now names the current `setuptools==84.2.1` build-backend pin instead of the superseded 84.0.0 value.
-
-- The distribution metadata now links directly to the repository security page alongside documentation, issues, and contribution guidance.
-
-- The package now ships a PEP 561 `py.typed` marker so downstream type checkers can recognize the public Python API as typed. CI verifies the marker survives source-distribution packaging and installation.
-
-- Package metadata now includes project URLs, search keywords, and classifiers so built distributions expose the repository, changelog, issues, contribution guide, documentation, supported Python versions, and project status more clearly.
-
-### Added
-
-- `--skip-lines N`: skips the first `N` lines of the file before the header, for ERP and spreadsheet exports that start with title lines (report name, period, issue time, a blank line), which could not be profiled at all: the first title became a one-field header, so the real header failed as a ragged row (exit code 6), and `--delimiter auto` failed (exit code 7). The lines are skipped as text, before anything is parsed, after decoding (so `--encoding`, gzip and standard input work as usual) and after a `sep=` first line, which is not counted in `N`; `--delimiter auto` samples the lines after them, and error line numbers still count them. A file that ends before a header is found stops with exit code 5 (`has no header row: it ends within the 4 lines skipped by --skip-lines`). JSON reports `skipped_lines` right after `sep_line`, and Markdown `Skipped lines: N (before the header)`, only when `N > 0`, so reports without the option are byte-identical. `open_rows()`, `read_table()` and `profile_file()` gain `skip_lines`; `Table`, `RowStream` and `Report` gain `skipped_lines`. The corpus gains an ERP sales export in cp1252 with three title lines and a blank line, and the guide to Spanish and Latin American exports a section on it (#161).
-- Without `--skip-lines`, the two usual symptoms of title lines suggest the count to skip. A one-field header followed by a wider row fails with `...expected 1 (from the header); if this row is the header and the lines before it are titles, skip them with --skip-lines 4`; a failed `--delimiter auto` adds `if the file starts with 3 title lines before the header, skip them with --skip-lines 3` when dropping up to 20 leading lines without separators (`title_lines()` in `csv_quality_report.reader`) lets one separator fit every remaining line. Other errors are unchanged (#161).
-- `--skip-footer N`: drops the last `N` records of the file, for ERP and spreadsheet exports that end with a footer after the data (a totals row, a record count, a generated-by line). Without it, a one-field footer failed as a ragged row (exit code 6) or made `--delimiter auto` fail (exit code 7), and a totals row of the header's width was profiled as data: it could turn a date column into `string`, became the maximum of an amount column and failed `--range`, `--unique` or `--pattern`. The footer is counted in CSV records after the header, so blank lines are not counted, and its records are never checked against the header's width. The file is still read once (ADR 0002): each row is held until `N` more were read, so the extra memory is `N` rows, and the 1,000,000-row benchmark keeps its time and peak memory. `--max-rows` still counts data rows. A file with fewer than `N` records after the header stops with exit code 5 (`has 2 records after the header, fewer than the 3 skipped by --skip-footer`). With `--delimiter auto`, when the file fits in the detection sample, its last `N` non-blank lines are left out of it. JSON reports `skipped_footer` right after `sep_line` (after `skipped_lines` when both are present), and Markdown `Skipped footer: N records (after the data)`, only when `N > 0`, so reports without the option are byte-identical. `open_rows()`, `read_table()` and `profile_file()` gain `skip_footer`; `Table`, `RowStream` and `Report` gain `skipped_footer`. The corpus gains an ERP dispatch export in cp1252 with title lines and a footer, used four times, and the guide to Spanish and Latin American exports a section on it (#192).
-- Without `--skip-footer`, the two usual symptoms of a footer suggest the count to drop. A ragged row among the last 20 records whose following records are all ragged too fails with `...expected 5 (from the header); if this record and the 1 after it are a footer, skip both with --skip-footer 2 (add one for each totals row above them)`; a failed `--delimiter auto` on a file that fits in the sample adds `if the file ends with 2 footer lines after the data, skip them with --skip-footer 2 ...` when dropping up to 20 trailing lines (`footer_lines()` in `csv_quality_report.reader`) lets one separator fit every remaining line. A title-line suggestion (#161) takes precedence, and neither suggestion is made once its option is given (#192).
-
-### Changed
-
-- GitHub Actions are pinned to the verified commit SHAs behind `actions/checkout@v7` and `actions/setup-python@v7`, with version comments retained for readable Dependabot updates.
-- CI cancels superseded runs for the same pull request or branch, avoiding redundant validation after a newer commit is pushed.
-- The corpus test that checks error messages name the file relatively now applies to the messages that name a file (delimiter detection and ragged-row errors only give a line), checks that no message holds an absolute path, and still requires at least one error case that names its file.
 
 ## [0.22.0] - 2026-10-22
 
@@ -381,7 +394,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 - Initial version: per-column type inference, missing values, distinct counts, min/max and top values, duplicate rows, Markdown and JSON output.
 
-[Unreleased]: https://github.com/rodrix91/csv-quality-report/compare/v0.22.0...HEAD
+[Unreleased]: https://github.com/rodrix91/csv-quality-report/compare/v0.23.0...HEAD
+[0.23.0]: https://github.com/rodrix91/csv-quality-report/compare/v0.22.0...v0.23.0
 [0.22.0]: https://github.com/rodrix91/csv-quality-report/compare/v0.21.0...v0.22.0
 [0.21.0]: https://github.com/rodrix91/csv-quality-report/compare/v0.20.0...v0.21.0
 [0.20.0]: https://github.com/rodrix91/csv-quality-report/compare/v0.19.0...v0.20.0

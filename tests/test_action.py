@@ -171,11 +171,14 @@ def test_readme_pins_a_recent_release() -> None:
     # 0.21.0), so a pin left behind documents a workflow that fails. The pin
     # follows a release once its tag exists: it may name the newest dated
     # section or, while that version waits for its tag, the one before it.
+    # Two versions may wait for their tags together (v0.18.0 and v0.19.0, and
+    # v0.20.0 and v0.21.0, were published on the same day), so the pin may
+    # also name the third newest section, the newest one with a tag.
     pins = re.findall(r"rodrix91/csv-quality-report@v(\d+)\.(\d+)\.(\d+)\b", README)
     assert pins, "no pinned Action example in the README"
     assert len(set(pins)) == 1, f"the README examples pin different tags: {sorted(set(pins))}"
     released = _released_versions()
-    assert len(released) >= 2 and released == sorted(released, reverse=True)
-    assert tuple(map(int, pins[0])) in released[:2], (
+    assert len(released) >= 3 and released == sorted(released, reverse=True)
+    assert tuple(map(int, pins[0])) in released[:3], (
         f"the README pins v{'.'.join(pins[0])}; pin the latest release tag"
     )
