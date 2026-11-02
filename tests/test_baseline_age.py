@@ -241,6 +241,30 @@ def test_invalid_arguments(max_age: Any, now: datetime, error: type, match: str)
         baseline_age_check(stamped(), max_age, now)
 
 
+def test_baseline_age_rejects_tzinfo_without_a_utc_offset() -> None:
+    # A custom tzinfo may exist but still describe a naive datetime when
+    # utcoffset() returns None. Reject it before subtracting timestamps.
+    class NoUtcOffset(tzinfo):
+        def utcoffset(self, dt: datetime | None) -> None:
+            return None
+
+        def dst(self, dt: datetime | None) -> None:
+            return None
+
+        def tzname(self, dt: datetime | None) -> None:
+            return None
+
+    invalid_now = datetime(2026, 10, 7, tzinfo=NoUtcOffset())
+    with pytest.raises(ValueError, match="now must be an aware datetime"):
+        baseline_age_check(stamped(), DAY, invalid_now)
+    # Validate even if the baseline has no timestamp; malformed now is
+    # caller error, not a baseline problem.
+    with pytest.raises(ValueError, match="now must be an aware datetime"):
+        baseline_age_check(stamped(None), DAY, invalid_now)
+
+    assert baseline_age_check(stamped(), DAY, GENERATED).value == 0
+
+
 # --- the command line ------------------------------------------------------
 
 
