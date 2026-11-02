@@ -78,6 +78,20 @@ def test_stamps_round_trip() -> None:
     assert format_stamp(datetime(5, 1, 2, 3, 4, 5, tzinfo=UTC)) == "0005-01-02T03:04:05Z"
 
 
+def test_format_stamp_rejects_naive_time_instead_of_using_local_timezone() -> None:
+    # astimezone() implicitly treats naive datetimes as machine-local. The
+    # same value could otherwise produce different reports in CI and locally.
+    for naive in (
+        datetime(2026, 10, 7),
+        datetime(2026, 10, 7, 12, 30, 45),
+    ):
+        with pytest.raises(ValueError, match="moment must be an aware datetime"):
+            format_stamp(naive)
+    assert format_stamp(datetime(2026, 10, 7, 12, 30, 45, tzinfo=UTC)) == (
+        "2026-10-07T12:30:45Z"
+    )
+
+
 @pytest.mark.parametrize(
     "text",
     [
