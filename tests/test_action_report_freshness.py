@@ -36,6 +36,7 @@ def test_symlinked_reports_are_never_treated_as_regular_artifacts(tmp_path: Path
     assert report_fingerprint(link) == "not-file"
     assert not fresh_report("missing", report_fingerprint(link))
 
+
 def test_an_unchanged_old_report_is_not_new(tmp_path: Path) -> None:
     report = tmp_path / "report.json"
     report.write_text('{"rows": 999}\n', encoding="utf-8")
