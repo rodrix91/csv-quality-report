@@ -607,7 +607,9 @@ def baseline_age_check(comparison: Comparison, max_age: int, now: datetime) -> C
         raise TypeError(f"max_age must be a whole number of seconds, not {max_age!r}")
     if max_age <= 0:
         raise ValueError(f"max_age must be positive, not {max_age}")
-    if now.tzinfo is None:
+    # tzinfo alone does not make a datetime aware: implementations may
+    # return None for utcoffset(), which otherwise breaks timestamp arithmetic.
+    if now.tzinfo is None or now.utcoffset() is None:
         raise ValueError("now must be an aware datetime (with a UTC offset)")
     stamp = comparison.baseline_generated_at
     limit = format_duration(max_age)
