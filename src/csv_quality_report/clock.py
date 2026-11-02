@@ -46,6 +46,11 @@ def current_time(environ: Mapping[str, str] | None = None) -> datetime:
 
 def format_stamp(moment: datetime) -> str:
     """``moment`` (an aware datetime) in UTC as ``YYYY-MM-DDTHH:MM:SSZ``."""
+    # datetime.astimezone() silently interprets a naive datetime in the
+    # machine's local timezone. A report stamp must describe the same
+    # instant on every build runner and machine.
+    if moment.tzinfo is None or moment.utcoffset() is None:
+        raise ValueError("moment must be an aware datetime (with a UTC offset)")
     utc = moment.astimezone(UTC)
     return (
         f"{utc.year:04d}-{utc.month:02d}-{utc.day:02d}"
