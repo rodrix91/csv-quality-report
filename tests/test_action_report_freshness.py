@@ -18,6 +18,24 @@ def test_missing_and_nonregular_report_are_not_fresh(tmp_path: Path) -> None:
     assert not fresh_report("missing", "not-file")
 
 
+def test_symlinked_reports_are_never_treated_as_regular_artifacts(tmp_path: Path) -> None:
+    source = tmp_path / "another-report.json"
+    source.write_text('{"rows": 3}\n', encoding="utf-8")
+    link = tmp_path / "report.json"
+    try:
+        link.symlink_to(source)
+    except (OSError, NotImplementedError) as exc:
+        pytest.skip(f"symbolic links unavailable: {exc}")
+    assert report_fingerprint(source).startswith("file:")
+    assert report_fingerprint(link) == "not-file"
+    assert not fresh_report("missing", report_fingerprint(link))
+
+    # Even a dangling symlink is an existing nonregular artifact, not a
+    # report that has never been written.
+    source.unlink()
+    assert report_fingerprint(link) == "not-file"
+    assert not fresh_report("missing", report_fingerprint(link))
+
 def test_an_unchanged_old_report_is_not_new(tmp_path: Path) -> None:
     report = tmp_path / "report.json"
     report.write_text('{"rows": 999}\n', encoding="utf-8")
@@ -85,7 +103,7 @@ def test_script_fails_closed_on_stat_error(
     def deny(_self: Path) -> os.stat_result:
         raise PermissionError("private path: do-not-print")
 
-    monkeypatch.setattr(Path, "stat", deny)
+    monkeypatch.setattr(Path, "lstat", deny)
     assert main(["secret.json"]) == 3
     error = capsys.readouterr().err
     assert "Cannot inspect JSON report" in error
