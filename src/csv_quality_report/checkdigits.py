@@ -133,8 +133,8 @@ def check_scheme(scheme: str) -> str:
 
 
 def scheme_label(scheme: str) -> str:
-    """The name of ``scheme``'s identifiers in messages, such as ``CUIT``."""
-    return SCHEMES[scheme][1]
+    """The validated identifier label, such as ``CUIT``; unknown schemes raise ValueError."""
+    return SCHEMES[check_scheme(scheme)][1]
 
 
 def validator(scheme: str) -> Callable[[str], bool]:
