@@ -261,6 +261,11 @@ def test_check_scheme_and_labels() -> None:
     for bad in ("", "ean", None, ["cuit"]):
         with pytest.raises(ValueError, match="unknown check-digit scheme"):
             validator(bad)  # type: ignore[arg-type]
+        # Label lookup is part of the same public scheme API; it should
+        # provide the same actionable ValueError instead of a KeyError
+        # (or TypeError for an unhashable scheme).
+        with pytest.raises(ValueError, match="unknown check-digit scheme"):
+            scheme_label(bad)  # type: ignore[arg-type]
 
 
 # --- measuring in the profile --------------------------------------------------
