@@ -15,7 +15,10 @@ from pathlib import Path
 def report_fingerprint(path: Path) -> str:
     """Describe a regular report file without reading its private contents."""
     try:
-        details = path.stat()
+        # Inspect the path itself rather than following symbolic links. A
+        # linked artifact is not evidence that this Action produced a new
+        # regular JSON file, even when its target is inside the workspace.
+        details = path.lstat()
     except FileNotFoundError:
         return "missing"
     if not stat.S_ISREG(details.st_mode):
