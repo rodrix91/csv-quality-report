@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Callable
-from datetime import UTC, datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta, timezone, tzinfo
 from pathlib import Path
 from typing import Any
 
@@ -87,6 +87,20 @@ def test_format_stamp_rejects_naive_time_instead_of_using_local_timezone() -> No
     ):
         with pytest.raises(ValueError, match="moment must be an aware datetime"):
             format_stamp(naive)
+    # A tzinfo object alone does not make a datetime aware: utcoffset()
+    # must return a real offset, otherwise the time is still naive.
+    class NoUtcOffset(tzinfo):
+        def utcoffset(self, dt: datetime | None) -> None:
+            return None
+
+        def dst(self, dt: datetime | None) -> None:
+            return None
+
+        def tzname(self, dt: datetime | None) -> None:
+            return None
+
+    with pytest.raises(ValueError, match="moment must be an aware datetime"):
+        format_stamp(datetime(2026, 10, 7, tzinfo=NoUtcOffset()))
     assert format_stamp(datetime(2026, 10, 7, 12, 30, 45, tzinfo=UTC)) == (
         "2026-10-07T12:30:45Z"
     )
