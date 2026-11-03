@@ -92,14 +92,12 @@ def test_hash_options_require_physical_line_continuations(tmp_path: Path) -> Non
         (f"pytest==9.1.1\n    --hash=sha256:{digest_a}\n", "hash has no line continuation"),
         # An extra hash is orphaned if the preceding hash line does not continue.
         (
-            f"pytest==9.1.1 {slash}\n    --hash=sha256:{digest_a}\n"
-            f"    --hash=sha256:{digest_b}\n",
+            f"pytest==9.1.1 {slash}\n    --hash=sha256:{digest_a}\n    --hash=sha256:{digest_b}\n",
             "hash has no line continuation",
         ),
         # A new requirement after a dangling backslash would be concatenated.
         (
-            f"pytest==9.1.1 {slash}\nruff==0.17.2 {slash}\n"
-            f"    --hash=sha256:{digest_a}\n",
+            f"pytest==9.1.1 {slash}\nruff==0.17.2 {slash}\n    --hash=sha256:{digest_a}\n",
             "expected continued hash option",
         ),
     ]
