@@ -7,6 +7,10 @@ from pathlib import Path
 
 
 def validate_report_path(raw: str, workspace_raw: str) -> None:
+    if not raw.strip():
+        raise ValueError("report-path must name a JSON file inside GITHUB_WORKSPACE")
+    if raw.endswith(("/", "\\")):
+        raise ValueError("report-path must name a file, not a directory")
     if "\n" in raw or "\r" in raw:
         raise ValueError("report-path must not contain line breaks")
     if any(ord(char) < 32 or 127 <= ord(char) <= 159 for char in raw):
@@ -20,6 +24,10 @@ def validate_report_path(raw: str, workspace_raw: str) -> None:
         resolved.relative_to(workspace)
     except ValueError as exc:
         raise ValueError("report-path must stay within GITHUB_WORKSPACE") from exc
+    # Existing directories, FIFOs and devices cannot be atomic JSON report
+    # destinations. Reject before the Action runs its expensive CSV analysis.
+    if resolved.exists() and not resolved.is_file():
+        raise ValueError("report-path must name a regular file, not a directory or device")
 
 
 def main() -> int:

@@ -7,6 +7,7 @@ exactly two spaces. The action itself runs end to end in the CI job ``action``.
 
 from __future__ import annotations
 
+import os
 import re
 import subprocess
 import sys
@@ -144,6 +145,32 @@ def _validate_report_path(path: str, workspace: Path) -> subprocess.CompletedPro
 def test_action_report_path_validator_accepts_workspace_relative_path(tmp_path: Path) -> None:
     completed = _validate_report_path("reports/report.json", tmp_path)
     assert completed.returncode == 0, completed.stderr
+
+
+def test_action_report_path_validator_rejects_empty_and_directory_paths(tmp_path: Path) -> None:
+    (tmp_path / "existing-folder").mkdir()
+    for path in ("", " ", ".", "./", "existing-folder", "existing-folder/", "new-folder/"):
+        completed = _validate_report_path(path, tmp_path)
+        assert completed.returncode == 2, (path, completed.stderr)
+        assert "report-path must name" in completed.stderr, (path, completed.stderr)
+
+
+def test_action_report_path_validator_rejects_special_files_but_allows_regular_reports(
+    tmp_path: Path,
+) -> None:
+    (tmp_path / "report.json").write_text("{}\n", encoding="utf-8")
+    assert _validate_report_path("report.json", tmp_path).returncode == 0
+    assert _validate_report_path("new/report.json", tmp_path).returncode == 0
+
+    if hasattr(os, "mkfifo"):
+        pipe = tmp_path / "output.fifo"
+        try:
+            os.mkfifo(pipe)
+        except (OSError, NotImplementedError):
+            return
+        completed = _validate_report_path("output.fifo", tmp_path)
+        assert completed.returncode == 2, completed.stderr
+        assert "regular file" in completed.stderr
 
 
 def test_action_report_path_validator_rejects_absolute_path(tmp_path: Path) -> None:
