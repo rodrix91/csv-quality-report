@@ -97,7 +97,9 @@ def valid_report(path: Path, exit_code: int) -> bool:
         return False
     if not isinstance(data, dict):
         return False
-    if not isinstance(data.get("source"), str):
+    # A real CLI report identifies its data source. Empty/whitespace-only
+    # provenance is not evidence that any CSV was analyzed.
+    if not isinstance(data.get("source"), str) or not data["source"].strip():
         return False
     if type(data.get("rows")) is not int or data["rows"] < 0:
         return False
@@ -111,6 +113,7 @@ def valid_report(path: Path, exit_code: int) -> bool:
     if not isinstance(checks, list) or not all(
         isinstance(check, dict)
         and isinstance(check.get("check"), str)
+        and bool(check["check"].strip())
         and type(check.get("passed")) is bool
         for check in checks
     ):
