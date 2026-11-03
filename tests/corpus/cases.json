@@ -347,5 +347,19 @@
     "args": ["--delimiter", "auto", "--decimal-comma", "--thousands", "dot", "--na", "s/d", "--check-digit", "EAN=gtin", "--check-digit", "CUIT proveedor=cuit"],
     "exit_code": 8,
     "about": "A product catalog whose barcodes and supplier tax ids have the right format but not always the right check digit: a mistyped EAN, two swapped digits, an EAN turned into 7,79123E+12 by Excel and a UPC that lost its leading zero fail --check-digit EAN=gtin, and a CUIT with two swapped digits fails CUIT proveedor=cuit; the EAN-8, the 12-digit UPC and the s/d cell pass or are not checked."
+  },
+  {
+    "name": "cl_dispatch_monday",
+    "file": "cl_dispatch_monday.csv",
+    "args": ["--delimiter", "auto", "--decimal-comma", "--thousands", "dot", "--date-order", "dmy"],
+    "exit_code": 0,
+    "about": "A Chilean courier's Monday dispatch export: weights in kilos with a decimal comma, amounts in pesos with dot thousands, day-first dates. Its report is the baseline of Tuesday's export."
+  },
+  {
+    "name": "cl_dispatch_tuesday_mean_change",
+    "file": "cl_dispatch_tuesday.csv",
+    "args": ["--delimiter", "auto", "--decimal-comma", "--thousands", "dot", "--date-order", "dmy", "--baseline", "tests/corpus/expected/cl_dispatch_monday.json", "--fail-on-schema-change", "--max-row-drop", "30", "--max-row-growth", "30", "--max-missing-increase", "10", "--max-mean-change", "Peso kg=50", "--max-mean-change", "Importe=30"],
+    "exit_code": 8,
+    "about": "Tuesday's export after an ERP update writes the weights in grams (3500,0 instead of 3,5): the schema, the types, the row count and the missing values pass every baseline gate, and only --max-mean-change sees that the mean weight rose about a thousandfold, while the amounts moved 2.4%."
   }
 ]

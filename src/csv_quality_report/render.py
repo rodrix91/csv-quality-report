@@ -13,6 +13,7 @@ from .checks import (
     CHECK_CHECK_DIGIT,
     CHECK_MAX_AFFIXES,
     CHECK_MAX_AGE,
+    CHECK_MEAN_CHANGE,
     CHECK_PATTERN,
     CHECK_SCHEMA_CHANGE,
     CHECK_UNIQUE,
@@ -416,6 +417,11 @@ def render_json(
                 **(
                     {"scheme": c.scheme, "invalid": dict(c.invalid)}
                     if c.check == CHECK_CHECK_DIGIT
+                    else {}
+                ),
+                **(
+                    {"before": c.mean_before, "after": c.mean_after}
+                    if c.check == CHECK_MEAN_CHANGE
                     else {}
                 ),
             }

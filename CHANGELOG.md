@@ -4,6 +4,10 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Added
+
+- Add `--max-mean-change NAME=PCT` (with `--baseline`, repeatable): fail with exit code 8 when the mean of numeric column `NAME` changed by more than `PCT` % of the baseline's mean, up or down, for an export whose values all moved by a factor while its schema, types, row count and missing values stayed the same, which no other gate sees: weights written in grams instead of kilos, amounts in cents instead of units, a thousands separator read as a decimal mark, another currency (`column 'Peso kg' mean rose 94857.8824% since the baseline (4.25 -> 4035.71; limit 50%)`). The change is `|after - before| / |before|`, computed exactly with `Fraction` on the means as both reports show them (6 significant digits); a change equal to the limit passes. `PCT` is a finite number of 0 or more and may exceed 100; `nan`, `inf`, negative values and a value without a name are usage errors (exit code 2); the name is split at the last `=` and the last limit for a name wins. A named column whose change cannot be measured fails and says why: no mean in the baseline or in the file, a baseline mean of 0 (unless the mean is still 0), or a column not in both reports. With `--columns`, naming a column that is left out is a usage error. Per-column `mean_change` check in JSON with `before` and `after`; reports without the option are byte-identical. Python API: `mean_change_checks(comparison, column_max_changes)` in `csv_quality_report.checks`, and `Comparison.means` (`ColumnMean` items in `csv_quality_report.compare`, empty by default). The corpus gains two daily dispatch exports of a Chilean courier whose weights switched to grams, and the guide to Spanish and Latin American exports a line for it (#260).
+
 ## [0.23.0] - 2026-11-01
 
 ### Added
