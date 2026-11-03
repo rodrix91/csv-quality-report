@@ -42,18 +42,27 @@ def read_hashed_versions(path: Path) -> dict[str, str]:
     versions = read_versions(path)
     current: str | None = None
     has_hash = False
+    # pip only attaches a --hash on a following physical line when the
+    # preceding requirement or hash line ends in a backslash.
+    continued = False
     for number, raw in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
         line = raw.strip()
         if not line or line.startswith("#"):
             continue
+        line_continues = line.endswith("\\")
         entry = line.removesuffix("\\").strip()
         if entry.startswith("--"):
             if current is None:
                 raise ValueError(f"{path.name}:{number}: hash without a package")
             if _HASH.fullmatch(entry) is None:
                 raise ValueError(f"{path.name}:{number}: invalid SHA-256 hash option")
+            if not continued:
+                raise ValueError(f"{path.name}:{number}: hash has no line continuation")
             has_hash = True
+            continued = line_continues
             continue
+        if continued:
+            raise ValueError(f"{path.name}:{number}: expected continued hash option")
         if current is not None and not has_hash:
             raise ValueError(f"{path.name}: package {current} lacks a SHA-256 hash")
         requirement = entry.partition(";")[0].strip()
@@ -63,6 +72,7 @@ def read_hashed_versions(path: Path) -> dict[str, str]:
             raise ValueError(f"{path.name}:{number}: unsupported lock entry {line!r}")
         current = re.sub(r"[-_.]+", "-", match.group(1)).lower()
         has_hash = False
+        continued = line_continues
     if current is not None and not has_hash:
         raise ValueError(f"{path.name}: package {current} lacks a SHA-256 hash")
     return versions
