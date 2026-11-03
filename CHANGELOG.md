@@ -4,6 +4,14 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Fixed
+
+- `format_stamp()` in `csv_quality_report.clock` refuses a naive datetime, or one whose `tzinfo` returns no UTC offset, with a `ValueError` instead of reading it in the machine's local time zone, which made the same call write different `generated_at` stamps on runners in different zones. The CLI always passes an aware time (the clock or `SOURCE_DATE_EPOCH`), so its reports are unchanged (#252).
+
+- `baseline_age_check()` in `csv_quality_report.checks` refuses a `now` whose `tzinfo` returns no UTC offset with the same `ValueError` as a naive one (`now must be an aware datetime (with a UTC offset)`), instead of failing later in the age arithmetic with a `TypeError`. CLI behavior is unchanged (#256).
+
+- The GitHub Action's report freshness check (`scripts/report_freshness.py`) inspects the report path itself instead of following symbolic links, so a symlink left at `report-path`, dangling or pointing at a regular file, is never taken as a fresh JSON report written by this run (#257).
+
 ## [0.23.0] - 2026-11-01
 
 ### Added
