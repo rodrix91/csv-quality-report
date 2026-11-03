@@ -30,10 +30,48 @@ def read_versions(path: Path) -> dict[str, str]:
     return versions
 
 
+_HASH = re.compile(r"--hash=sha256:[0-9a-fA-F]{64}")
+
+
+def read_hashed_versions(path: Path) -> dict[str, str]:
+    """Read package pins and require a valid SHA-256 digest per lock entry.
+
+    A version-only lock is not an installable --require-hashes lock. Validate
+    *all* resolved packages, not only top-level development dependencies.
+    """
+    versions = read_versions(path)
+    current: str | None = None
+    has_hash = False
+    for number, raw in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
+        line = raw.strip()
+        if not line or line.startswith("#"):
+            continue
+        entry = line.removesuffix("\\").strip()
+        if entry.startswith("--"):
+            if current is None:
+                raise ValueError(f"{path.name}:{number}: hash without a package")
+            if _HASH.fullmatch(entry) is None:
+                raise ValueError(f"{path.name}:{number}: invalid SHA-256 hash option")
+            has_hash = True
+            continue
+        if current is not None and not has_hash:
+            raise ValueError(f"{path.name}: package {current} lacks a SHA-256 hash")
+        requirement = entry.partition(";")[0].strip()
+        match = _PIN.fullmatch(requirement)
+        if match is None:
+            # In particular, never silently accept a new installer option.
+            raise ValueError(f"{path.name}:{number}: unsupported lock entry {line!r}")
+        current = re.sub(r"[-_.]+", "-", match.group(1)).lower()
+        has_hash = False
+    if current is not None and not has_hash:
+        raise ValueError(f"{path.name}: package {current} lacks a SHA-256 hash")
+    return versions
+
+
 def check_versions(requirements: Path, lock: Path) -> list[str]:
     """Report direct pins absent from or out of sync with the hashed lock."""
     declared = read_versions(requirements)
-    locked = read_versions(lock)
+    locked = read_hashed_versions(lock)
     return [
         f"{name}: requirements-dev.txt specifies {version}, lock has {locked.get(name, 'missing')}"
         for name, version in declared.items()
