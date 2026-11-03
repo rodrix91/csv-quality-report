@@ -21,6 +21,7 @@ from .checks import (
     ValueRange,
     baseline_age_check,
     evaluate,
+    mean_change_checks,
     missing_increase_checks,
     range_bounds_problem,
     row_drop_check,
@@ -218,6 +219,16 @@ def _column_limit(text: str, option: str = "--max-missing-column") -> tuple[str,
     if not sep or not name:
         raise argparse.ArgumentTypeError(f"invalid {option} value: {text!r} (use NAME=PCT)")
     return name, _percentage(value)
+
+
+def _column_change(text: str) -> tuple[str, float]:
+    """Parse ``NAME=PCT`` for --max-mean-change: a percentage of 0 or more, without a cap."""
+    name, sep, value = text.rpartition("=")
+    if not sep or not name:
+        raise argparse.ArgumentTypeError(
+            f"invalid --max-mean-change value: {text!r} (use NAME=PCT, such as Importe=50)"
+        )
+    return name, _growth(value)
 
 
 def _encoding(text: str) -> str:
@@ -767,6 +778,15 @@ def build_parser() -> argparse.ArgumentParser:
         "--max-missing-increase for NAME (repeatable)",
     )
     gates.add_argument(
+        "--max-mean-change",
+        type=_column_change,
+        action="append",
+        default=[],
+        metavar="NAME=PCT",
+        help="with --baseline: fail if the mean of numeric column NAME changed by more than "
+        "PCT %% of the baseline's mean, up or down (0 or more; repeatable)",
+    )
+    gates.add_argument(
         "--max-baseline-age",
         type=_duration,
         default=None,
@@ -803,6 +823,7 @@ def _check_selected(args: argparse.Namespace) -> None:
         ("--max-affixes", [name for name, _ in args.max_affixes]),
         ("--range", [name for name, _ in args.range]),
         ("--max-missing-increase-column", [name for name, _ in args.max_missing_increase_column]),
+        ("--max-mean-change", [name for name, _ in args.max_mean_change]),
         ("--unique", args.unique),
         ("--max-age", [name for name, _ in args.max_age]),
         ("--allowed-values", [name for name, _ in args.allowed_values]),
@@ -883,6 +904,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 ("--max-row-growth", args.max_row_growth is not None),
                 ("--max-missing-increase", args.max_missing_increase is not None),
                 ("--max-missing-increase-column", bool(args.max_missing_increase_column)),
+                ("--max-mean-change", bool(args.max_mean_change)),
                 ("--allow-type-change", bool(args.allow_type_change)),
                 ("--allow-added-column", bool(args.allow_added_column)),
                 ("--allow-removed-column", bool(args.allow_removed_column)),
@@ -998,6 +1020,9 @@ def main(argv: Sequence[str] | None = None) -> int:
                     dict(args.max_missing_increase_column),  # the last limit for a name wins
                 )
             )
+        if args.max_mean_change:
+            # the last limit for a name wins
+            checks.extend(mean_change_checks(comparison, dict(args.max_mean_change)))
         if args.max_baseline_age is not None:
             assert now is not None  # read with the other usage checks
             checks.append(baseline_age_check(comparison, args.max_baseline_age, now))

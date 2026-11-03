@@ -16,7 +16,7 @@ from typing import Any
 
 from .checkdigits import check_scheme, scheme_label
 from .clock import format_stamp, parse_stamp
-from .compare import Comparison, TypeChange
+from .compare import ColumnMean, Comparison, TypeChange
 from .inference import parse_datetime
 from .profile import (
     CheckDigitProfile,
@@ -40,6 +40,7 @@ CHECK_SCHEMA_CHANGE = "schema_change"
 CHECK_ROW_DROP = "row_drop"
 CHECK_ROW_GROWTH = "row_growth"
 CHECK_MISSING_INCREASE = "missing_increase"
+CHECK_MEAN_CHANGE = "mean_change"
 CHECK_UNIQUE = "unique"
 CHECK_UNIQUE_KEY = "unique_key"
 CHECK_BASELINE_AGE = "baseline_age"
@@ -74,6 +75,18 @@ _NOT_IN_BASELINE = "the baseline has no column of that name"
 _NOT_IN_FILE = "the file no longer has it"
 _IN_NEITHER = "neither the file nor the baseline has it"
 _UNCOMPARABLE = (_NO_BASELINE_COUNT, _NOT_IN_BASELINE, _NOT_IN_FILE, _IN_NEITHER)
+# Why a column named by --max-mean-change has no relative change to measure.
+_NO_BASELINE_MEAN = "the baseline has no mean for it"
+_NO_MEAN_NOW = "the file has no mean for it"
+_ZERO_BASELINE_MEAN = "the baseline's mean is 0, so a relative change cannot be measured"
+_MEAN_UNCOMPARABLE = (
+    _NO_BASELINE_MEAN,
+    _NO_MEAN_NOW,
+    _ZERO_BASELINE_MEAN,
+    _NOT_IN_BASELINE,
+    _NOT_IN_FILE,
+    _IN_NEITHER,
+)
 
 
 @dataclass(frozen=True)
@@ -114,6 +127,8 @@ class CheckResult:
     mismatched: tuple[tuple[str, int], ...] = ()  # pattern checks: most frequent (value, cells)
     scheme: str = ""  # check_digit checks: the scheme given, such as "cuit"
     invalid: tuple[tuple[str, int], ...] = ()  # check_digit: most frequent (value, cells)
+    mean_before: int | float | None = None  # mean_change checks: the baseline's mean
+    mean_after: float | None = None  # mean_change checks: the current mean
 
     def describe(self) -> str:
         """One-line, human-readable explanation used on stderr and in Markdown."""
@@ -154,6 +169,8 @@ class CheckResult:
             return self._describe_row_growth()
         if self.check == CHECK_MISSING_INCREASE:
             return self._describe_missing_increase()
+        if self.check == CHECK_MEAN_CHANGE:
+            return self._describe_mean_change()
         if self.check == CHECK_UNIQUE:
             return self._describe_unique()
         if self.check == CHECK_UNIQUE_KEY:
@@ -246,6 +263,24 @@ class CheckResult:
         return (
             f"column '{self.column}' missing values {change} since the baseline "
             f"({self.detail}; limit {_fmt(self.limit)} points)"
+        )
+
+    def _describe_mean_change(self) -> str:
+        if self.detail in _MEAN_UNCOMPARABLE:
+            return f"column '{self.column}' cannot be compared with the baseline ({self.detail})"
+        if not self.value:
+            change = "did not change"
+        else:
+            direction = "rose" if self.detail == "rose" else "fell"
+            # The 4 decimals of JSON without an exponent (94857.6923%), except
+            # for a change too small for them, which must not read as 0.
+            shown = f"{self.value:.4f}".rstrip("0").rstrip(".")
+            change = f"{direction} {shown if shown != '0' else f'{self.value:.2g}'}%"
+        assert self.mean_before is not None and self.mean_after is not None
+        return (
+            f"column '{self.column}' mean {change} since the baseline "
+            f"({_mean_text(self.mean_before)} -> {_mean_text(self.mean_after)}; "
+            f"limit {_fmt(self.limit)}%)"
         )
 
     def _describe_allowed_values(self) -> str:
@@ -720,6 +755,93 @@ def _uncompared(column: str, limit: float, detail: str) -> CheckResult:
         value=0,
         passed=False,
         detail=detail,
+    )
+
+
+def mean_change_checks(
+    comparison: Comparison, column_max_changes: Mapping[str, float]
+) -> list[CheckResult]:
+    """One check per named column: its mean changed by at most its limit, in % of the baseline's.
+
+    ``column_max_changes`` maps column names to a limit, a percentage of the
+    baseline's mean of 0 or more (it may exceed 100). The change is
+    ``|after - before| / |before|`` in either direction, computed exactly on
+    the means as both reports show them (``Comparison.means``), so a change
+    equal to the limit passes. This catches a column whose values all moved
+    by a factor while its type, missing values and row count stayed the
+    same: a thousands separator read as a decimal mark, amounts in cents
+    instead of units, another currency. A named column fails and says why,
+    instead of being ignored, when it has no relative change to measure: no
+    mean in the baseline or in the file (not numeric, or no values), a
+    baseline mean of 0 (unless the mean is still 0), or a column that is not
+    in both reports. Checks follow the current report's column order, then
+    the columns that could not be compared, in the order given.
+    """
+    limits = dict(column_max_changes)
+    results = []
+    for mean in comparison.means:
+        if mean.column not in limits:
+            continue
+        limit = limits.pop(mean.column)
+        if mean.before is None:
+            results.append(_unmeasured_mean(mean.column, limit, _NO_BASELINE_MEAN, mean))
+            continue
+        if mean.after is None:
+            results.append(_unmeasured_mean(mean.column, limit, _NO_MEAN_NOW, mean))
+            continue
+        before, after = _exact_mean(mean.before), _exact_mean(mean.after)
+        if not before and after:
+            results.append(_unmeasured_mean(mean.column, limit, _ZERO_BASELINE_MEAN, mean))
+            continue
+        change = abs(after - before) * 100 / abs(before) if before else Fraction(0)
+        results.append(
+            CheckResult(
+                check=CHECK_MEAN_CHANGE,
+                column=mean.column,
+                limit=limit,
+                value=_shown(change),
+                passed=change <= _limit(limit),
+                detail="rose" if after > before else "fell",
+                mean_before=mean.before,
+                mean_after=mean.after,
+            )
+        )
+    for name, limit in limits.items():  # named columns that were not compared
+        if name in comparison.added_columns:
+            detail = _NOT_IN_BASELINE
+        elif name in comparison.removed_columns:
+            detail = _NOT_IN_FILE
+        else:
+            detail = _IN_NEITHER
+        results.append(_unmeasured_mean(name, limit, detail))
+    return results
+
+
+def _exact_mean(mean: int | float) -> Fraction:
+    """A reported mean as the exact decimal it shows (``12.3`` is 123/10)."""
+    return Fraction(mean) if isinstance(mean, int) else Fraction(repr(mean))
+
+
+def _mean_text(mean: int | float) -> str:
+    """A mean for messages: ``1234.5``, ``1234500``, ``1.5e-07``."""
+    if isinstance(mean, float) and mean.is_integer() and abs(mean) < 1e15:
+        return str(int(mean))
+    return repr(mean)  # an int as written, however large
+
+
+def _unmeasured_mean(
+    column: str, limit: float, detail: str, mean: ColumnMean | None = None
+) -> CheckResult:
+    """A failed ``mean_change`` check for a column whose change cannot be measured."""
+    return CheckResult(
+        check=CHECK_MEAN_CHANGE,
+        column=column,
+        limit=limit,
+        value=0,
+        passed=False,
+        detail=detail,
+        mean_before=None if mean is None else mean.before,
+        mean_after=None if mean is None else mean.after,
     )
 
 

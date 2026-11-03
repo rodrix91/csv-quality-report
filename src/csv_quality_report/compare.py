@@ -49,6 +49,23 @@ class MissingCount:
 
 
 @dataclass(frozen=True)
+class ColumnMean:
+    """Mean of a column in the baseline and in the current report (``--max-mean-change``).
+
+    Both are the means as reported (6 significant digits). ``before`` is
+    ``None`` when the baseline entry has no finite numeric ``mean`` (a column
+    that was not numeric or had no values, or a report not written by this
+    tool); it is kept as written otherwise, so a JSON integer too large for a
+    float is still exact. ``after`` is ``None`` when the current column has
+    no mean.
+    """
+
+    column: str
+    before: int | float | None
+    after: float | None
+
+
+@dataclass(frozen=True)
 class Comparison:
     """What changed between a baseline report and the current one."""
 
@@ -66,6 +83,9 @@ class Comparison:
     # when it has none; a value that is not a string is kept as its JSON text
     # so --max-baseline-age can say it is not a time.
     baseline_generated_at: str | None = None
+    # Every column present in both reports, in the current report's order,
+    # with both means (``--max-mean-change``).
+    means: tuple[ColumnMean, ...] = ()
 
     @property
     def schema_changes(self) -> int:
@@ -165,6 +185,11 @@ def compare_reports(
         for name, column in after.items()
         if name in before
     )
+    means = tuple(
+        ColumnMean(name, _mean(before[name]), column.mean)
+        for name, column in after.items()
+        if name in before
+    )
     return Comparison(
         baseline_source=str(baseline.get("source", "")),
         rows_before=baseline["rows"],
@@ -175,7 +200,18 @@ def compare_reports(
         missing_changes=missing_changes,
         missing_counts=missing_counts,
         baseline_generated_at=_stamp_text(baseline.get("generated_at")),
+        means=means,
     )
+
+
+def _mean(entry: Mapping[str, Any]) -> int | float | None:
+    """The baseline column's finite numeric ``mean``, or ``None`` when it has none."""
+    value = entry.get("mean")
+    if isinstance(value, bool) or not isinstance(value, int | float):
+        return None
+    if isinstance(value, float) and not math.isfinite(value):
+        return None
+    return value
 
 
 def _stamp_text(value: Any) -> str | None:

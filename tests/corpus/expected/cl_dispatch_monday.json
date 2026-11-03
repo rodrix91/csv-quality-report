@@ -1,0 +1,162 @@
+{
+  "source": "tests/corpus/cl_dispatch_monday.csv",
+  "rows": 6,
+  "truncated": false,
+  "delimiter": ";",
+  "delimiter_detected": true,
+  "sep_line": false,
+  "na_tokens": [],
+  "top_n": 3,
+  "compressed": false,
+  "encoding": "utf-8",
+  "thousands": ".",
+  "date_order": "dmy",
+  "bool_words": [],
+  "number_affixes": [],
+  "accounting_negatives": false,
+  "selected_columns": null,
+  "header_columns": 5,
+  "duplicate_rows": 0,
+  "untrimmed_columns": [],
+  "columns": [
+    {
+      "name": "Guía",
+      "type": "string",
+      "type_hint": null,
+      "missing": 0,
+      "missing_pct": 0.0,
+      "distinct": 6,
+      "min": null,
+      "max": null,
+      "mean": null,
+      "min_length": 7,
+      "max_length": 7,
+      "top_values": [
+        {
+          "value": "CL-1001",
+          "count": 1
+        },
+        {
+          "value": "CL-1002",
+          "count": 1
+        },
+        {
+          "value": "CL-1003",
+          "count": 1
+        }
+      ],
+      "untrimmed": 0,
+      "affixes": {}
+    },
+    {
+      "name": "Comuna",
+      "type": "string",
+      "type_hint": null,
+      "missing": 0,
+      "missing_pct": 0.0,
+      "distinct": 6,
+      "min": null,
+      "max": null,
+      "mean": null,
+      "min_length": 5,
+      "max_length": 11,
+      "top_values": [
+        {
+          "value": "Providencia",
+          "count": 1
+        },
+        {
+          "value": "Maipú",
+          "count": 1
+        },
+        {
+          "value": "Ñuñoa",
+          "count": 1
+        }
+      ],
+      "untrimmed": 0,
+      "affixes": {}
+    },
+    {
+      "name": "Peso kg",
+      "type": "float",
+      "type_hint": null,
+      "missing": 0,
+      "missing_pct": 0.0,
+      "distinct": 6,
+      "min": 0.8,
+      "max": 12.25,
+      "mean": 4.25,
+      "min_length": 1,
+      "max_length": 5,
+      "top_values": [
+        {
+          "value": "2,5",
+          "count": 1
+        },
+        {
+          "value": "0,8",
+          "count": 1
+        },
+        {
+          "value": "12,25",
+          "count": 1
+        }
+      ],
+      "untrimmed": 0,
+      "affixes": {}
+    },
+    {
+      "name": "Importe",
+      "type": "int",
+      "type_hint": null,
+      "missing": 0,
+      "missing_pct": 0.0,
+      "distinct": 6,
+      "min": 4990,
+      "max": 45900,
+      "mean": 18058.3,
+      "min_length": 5,
+      "max_length": 6,
+      "top_values": [
+        {
+          "value": "12.990",
+          "count": 1
+        },
+        {
+          "value": "4.990",
+          "count": 1
+        },
+        {
+          "value": "45.900",
+          "count": 1
+        }
+      ],
+      "untrimmed": 0,
+      "affixes": {}
+    },
+    {
+      "name": "Fecha",
+      "type": "date",
+      "type_hint": null,
+      "missing": 0,
+      "missing_pct": 0.0,
+      "distinct": 1,
+      "min": "2026-11-02",
+      "max": "2026-11-02",
+      "mean": null,
+      "min_length": 10,
+      "max_length": 10,
+      "top_values": [
+        {
+          "value": "02/11/2026",
+          "count": 6
+        }
+      ],
+      "untrimmed": 0,
+      "affixes": {}
+    }
+  ],
+  "baseline": null,
+  "checks": []
+}
