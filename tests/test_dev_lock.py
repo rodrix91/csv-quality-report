@@ -71,7 +71,7 @@ def test_rejects_version_only_lock_even_when_all_versions_match(tmp_path: Path) 
         ("--hash=sha256:" + "a" * 64 + "\npytest==9.1.1\n", "hash without a package"),
         ("pytest==9.1.1\n    --index-url=https://invalid.example\n", "invalid SHA-256 hash option"),
         (
-            "pytest==9.1.1\n    --hash=sha256:" + "a" * 64 + "\nruff==0.17.2\n",
+            "pytest==9.1.1 " + chr(92) + "\n    --hash=sha256:" + "a" * 64 + "\nruff==0.17.2\n",
             "ruff lacks a SHA-256 hash",
         ),
     ],
@@ -81,6 +81,41 @@ def test_rejects_malformed_or_unhashed_lock_entries(tmp_path: Path, lines: str, 
     lock.write_text(lines, encoding="utf-8")
     with pytest.raises(ValueError, match=error):
         read_hashed_versions(lock)
+
+
+def test_hash_options_require_physical_line_continuations(tmp_path: Path) -> None:
+    lock = tmp_path / "requirements-dev.lock"
+    slash = chr(92)
+    digest_a, digest_b = "a" * 64, "b" * 64
+    invalid = [
+        # pip silently ignores a hash when the requirement lacks a backslash.
+        (f"pytest==9.1.1\n    --hash=sha256:{digest_a}\n", "hash has no line continuation"),
+        # An extra hash is orphaned if the preceding hash line does not continue.
+        (
+            f"pytest==9.1.1 {slash}\n    --hash=sha256:{digest_a}\n"
+            f"    --hash=sha256:{digest_b}\n",
+            "hash has no line continuation",
+        ),
+        # A new requirement after a dangling backslash would be concatenated.
+        (
+            f"pytest==9.1.1 {slash}\nruff==0.17.2 {slash}\n"
+            f"    --hash=sha256:{digest_a}\n",
+            "expected continued hash option",
+        ),
+    ]
+    for content, expected in invalid:
+        lock.write_text(content, encoding="utf-8")
+        with pytest.raises(ValueError, match=expected):
+            read_hashed_versions(lock)
+
+    # Valid multi-hash requirements continue every line but the last.
+    lock.write_text(
+        f"pytest==9.1.1 {slash}\n"
+        f"    --hash=sha256:{digest_a} {slash}\n"
+        f"    --hash=sha256:{digest_b}\n",
+        encoding="utf-8",
+    )
+    assert read_hashed_versions(lock) == {"pytest": "9.1.1"}
 
 
 def test_hashed_lock_accepts_markers_and_transitive_dependencies(tmp_path: Path) -> None:
