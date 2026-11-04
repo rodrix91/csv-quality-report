@@ -13,6 +13,7 @@ csv-quality-report never guesses these conventions: each one is turned on with a
 | Title lines before the header (report name, period, issue date), exit code 6 or 7 | `--skip-lines N` (the error message suggests `N`) |
 | A footer after the data (a totals row, `Cantidad de registros: 7`, a generated-by line), exit code 6 or 7, or a total that shows up as the maximum | `--skip-footer N` (the error message suggests `N`; count a totals row too) |
 | Accents broken, `UnicodeDecodeError`, exit code 4 | `--encoding cp1252` (Excel on Windows) or `latin-1` |
+| Exit code 4 and `the file starts with a UTF-16 byte order mark` (Excel's "Texto Unicode", some ERP and database exports) | `--encoding utf-16`; these files are usually tab-separated, so add `--delimiter auto` |
 | `10,5` | `--decimal-comma` |
 | `1.234,56` or `1 234,56` | `--decimal-comma --thousands dot` (or `space`) |
 | `05/10/2026`, `5/10/2026 14:30`, `10/5/2026 2:30 PM` | `--date-order dmy` (or `mdy`, `ymd`) |

@@ -1,0 +1,227 @@
+{
+  "source": "tests/corpus/excel_unicode_text_stock.txt",
+  "rows": 8,
+  "truncated": false,
+  "delimiter": "\t",
+  "delimiter_detected": true,
+  "sep_line": false,
+  "na_tokens": [],
+  "top_n": 3,
+  "compressed": false,
+  "encoding": "utf-16",
+  "thousands": ".",
+  "date_order": "dmy",
+  "bool_words": [],
+  "number_affixes": [],
+  "accounting_negatives": false,
+  "selected_columns": null,
+  "header_columns": 6,
+  "duplicate_rows": 0,
+  "untrimmed_columns": [],
+  "columns": [
+    {
+      "name": "Código",
+      "type": "string",
+      "type_hint": null,
+      "missing": 0,
+      "missing_pct": 0.0,
+      "distinct": 8,
+      "min": null,
+      "max": null,
+      "mean": null,
+      "min_length": 7,
+      "max_length": 7,
+      "top_values": [
+        {
+          "value": "PY-1001",
+          "count": 1
+        },
+        {
+          "value": "PY-1002",
+          "count": 1
+        },
+        {
+          "value": "PY-1003",
+          "count": 1
+        }
+      ],
+      "untrimmed": 0,
+      "affixes": {}
+    },
+    {
+      "name": "Descripción",
+      "type": "string",
+      "type_hint": null,
+      "missing": 0,
+      "missing_pct": 0.0,
+      "distinct": 8,
+      "min": null,
+      "max": null,
+      "mean": null,
+      "min_length": 11,
+      "max_length": 24,
+      "top_values": [
+        {
+          "value": "Yerba mate 1 kg",
+          "count": 1
+        },
+        {
+          "value": "Azúcar 1 kg",
+          "count": 1
+        },
+        {
+          "value": "Aceite de girasol 900 ml",
+          "count": 1
+        }
+      ],
+      "untrimmed": 0,
+      "affixes": {}
+    },
+    {
+      "name": "Depósito",
+      "type": "string",
+      "type_hint": null,
+      "missing": 0,
+      "missing_pct": 0.0,
+      "distinct": 4,
+      "min": null,
+      "max": null,
+      "mean": null,
+      "min_length": 8,
+      "max_length": 15,
+      "top_values": [
+        {
+          "value": "Asunción",
+          "count": 3
+        },
+        {
+          "value": "Ciudad del Este",
+          "count": 2
+        },
+        {
+          "value": "Encarnación",
+          "count": 2
+        }
+      ],
+      "untrimmed": 0,
+      "affixes": {}
+    },
+    {
+      "name": "Stock",
+      "type": "int",
+      "type_hint": null,
+      "missing": 1,
+      "missing_pct": 12.5,
+      "distinct": 7,
+      "min": 96,
+      "max": 2105,
+      "mean": 816.571,
+      "min_length": 2,
+      "max_length": 5,
+      "top_values": [
+        {
+          "value": "1.250",
+          "count": 1
+        },
+        {
+          "value": "980",
+          "count": 1
+        },
+        {
+          "value": "430",
+          "count": 1
+        }
+      ],
+      "untrimmed": 0,
+      "affixes": {}
+    },
+    {
+      "name": "Costo unitario",
+      "type": "int",
+      "type_hint": null,
+      "missing": 0,
+      "missing_pct": 0.0,
+      "distinct": 8,
+      "min": 5350,
+      "max": 41000,
+      "mean": 17862.5,
+      "min_length": 5,
+      "max_length": 6,
+      "top_values": [
+        {
+          "value": "18.500",
+          "count": 1
+        },
+        {
+          "value": "7.200",
+          "count": 1
+        },
+        {
+          "value": "16.900",
+          "count": 1
+        }
+      ],
+      "untrimmed": 0,
+      "affixes": {}
+    },
+    {
+      "name": "Último ingreso",
+      "type": "date",
+      "type_hint": null,
+      "missing": 0,
+      "missing_pct": 0.0,
+      "distinct": 8,
+      "min": "2026-10-15",
+      "max": "2026-11-04",
+      "mean": null,
+      "min_length": 10,
+      "max_length": 10,
+      "top_values": [
+        {
+          "value": "03/11/2026",
+          "count": 1
+        },
+        {
+          "value": "02/11/2026",
+          "count": 1
+        },
+        {
+          "value": "28/10/2026",
+          "count": 1
+        }
+      ],
+      "untrimmed": 0,
+      "affixes": {}
+    }
+  ],
+  "baseline": null,
+  "checks": [
+    {
+      "check": "column_type",
+      "column": "Stock",
+      "limit": 1,
+      "value": 1,
+      "passed": true,
+      "expected": "int",
+      "actual": "int"
+    },
+    {
+      "check": "column_type",
+      "column": "Costo unitario",
+      "limit": 1,
+      "value": 1,
+      "passed": true,
+      "expected": "int",
+      "actual": "int"
+    },
+    {
+      "check": "column_type",
+      "column": "Último ingreso",
+      "limit": 1,
+      "value": 1,
+      "passed": true,
+      "expected": "date",
+      "actual": "date"
+    }
+  ]
+}
