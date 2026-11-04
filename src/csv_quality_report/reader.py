@@ -473,18 +473,18 @@ def _unicode_export_hint(prefix: bytes) -> str | None:
     A hint only changes the diagnostic; actual decoding still requires an
     explicit --encoding option. Test UTF-32 BOMs before overlapping UTF-16.
     """
-    if prefix.startswith((b"\\xff\\xfe\\x00\\x00", b"\\x00\\x00\\xfe\\xff")):
+    if prefix.startswith((b"\xff\xfe\x00\x00", b"\x00\x00\xfe\xff")):
         return "the file starts with a UTF-32 byte order mark; try --encoding utf-32"
-    if prefix.startswith((b"\\xff\\xfe", b"\\xfe\\xff")):
+    if prefix.startswith((b"\xff\xfe", b"\xfe\xff")):
         return "the file starts with a UTF-16 byte order mark; try --encoding utf-16"
     # Without a BOM, an ASCII header may reveal fixed-width UTF-32 units.
     if len(prefix) >= 12 and all(
-        prefix[i] != 0 and prefix[i + 1 : i + 4] == b"\\x00\\x00\\x00"
+        prefix[i] != 0 and prefix[i + 1 : i + 4] == b"\x00\x00\x00"
         for i in (0, 4, 8)
     ):
         return "bytes resemble UTF-32-LE without a BOM; try --encoding utf-32-le"
     if len(prefix) >= 12 and all(
-        prefix[i : i + 3] == b"\\x00\\x00\\x00" and prefix[i + 3] != 0
+        prefix[i : i + 3] == b"\x00\x00\x00" and prefix[i + 3] != 0
         for i in (0, 4, 8)
     ):
         return "bytes resemble UTF-32-BE without a BOM; try --encoding utf-32-be"
@@ -518,10 +518,10 @@ def _invalid_utf8_details(path: Path, compressed: bool, offset: int) -> str:
             block = handle.read(min(_CHUNK, remaining))
             if not block:
                 break  # pragma: no cover - offset came from the same file
-            line += block.count(b"\\r") + block.count(b"\\n") - block.count(b"\\r\\n")
-            if ends_cr and block.startswith(b"\\n"):
+            line += block.count(b"\r") + block.count(b"\n") - block.count(b"\r\n")
+            if ends_cr and block.startswith(b"\n"):
                 line -= 1
-            ends_cr = block.endswith(b"\\r")
+            ends_cr = block.endswith(b"\r")
             remaining -= len(block)
         byte = handle.read(1)
     if not byte:
