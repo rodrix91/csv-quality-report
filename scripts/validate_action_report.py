@@ -93,7 +93,9 @@ def valid_report(path: Path, exit_code: int) -> bool:
             parse_float=_finite_json_float,
             object_pairs_hook=_unique_object,
         )
-    except (OSError, UnicodeError, ValueError):
+    except (OSError, UnicodeError, ValueError, RecursionError):
+        # Deeply nested, syntactically valid JSON can exhaust the decoder's
+        # recursion limit. Treat this as an invalid artifact, not an Action crash.
         return False
     if not isinstance(data, dict):
         return False

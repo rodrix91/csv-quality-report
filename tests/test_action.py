@@ -127,6 +127,22 @@ def test_action_requires_fresh_json_before_advertising_a_report() -> None:
     assert 'report="$json"' in script[after:outputs]
 
 
+def test_action_never_publishes_unverified_markdown_in_logs_or_summary() -> None:
+    script = ACTION.split("      run: |\n", 1)[1]
+    validate = script.index(
+        'python "$ACTION_PATH/scripts/validate_action_report.py" "$json" "$code"'
+    )
+    accepted = script.index('report="$json"')
+    guard = script.index('if [ -n "$report" ] && [ -s "$markdown" ]; then')
+    publish = script.index('cat "$markdown"\n')
+    summary = script.index('cat "$markdown" >> "$GITHUB_STEP_SUMMARY"')
+    finish = script.index('finish "$code" "$report" "$baseline_used"')
+    assert validate < accepted < guard < publish < summary < finish
+    assert 'if [ "$INPUT_SUMMARY" = "true" ]; then' in script[guard:summary]
+    # Only the guarded block may print the report or add it to the summary.
+    assert script.count('cat "$markdown"') == 2
+
+
 def _validate_report_path(path: str, workspace: Path) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         [
