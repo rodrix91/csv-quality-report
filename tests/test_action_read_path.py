@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -86,3 +87,30 @@ def test_validator_requires_three_arguments() -> None:
     )
     assert result.returncode == 2
     assert "usage:" in result.stderr
+
+@pytest.mark.parametrize("kind", ["path", "baseline"])
+def test_existing_directories_are_rejected_before_reading(
+    tmp_path: Path, kind: str
+) -> None:
+    (tmp_path / "data").mkdir()
+    result = validate("data", tmp_path, kind)
+    assert result.returncode == 2
+    assert "must name a regular file" in result.stderr
+
+
+@pytest.mark.parametrize("kind", ["path", "baseline"])
+def test_named_pipes_are_rejected_without_blocking(tmp_path: Path, kind: str) -> None:
+    if not hasattr(os, "mkfifo"):
+        pytest.skip("named pipes are unavailable on this platform")
+    fifo = tmp_path / "data.csv"
+    try:
+        os.mkfifo(fifo)
+    except (OSError, NotImplementedError):
+        pytest.skip("named pipes are unavailable on this runner")
+    result = validate("data.csv", tmp_path, kind)
+    assert result.returncode == 2
+    assert "must name a regular file" in result.stderr
+
+
+def test_nonexistent_csv_still_reaches_cli_for_documented_error(tmp_path: Path) -> None:
+    assert validate("missing.csv", tmp_path, "path").returncode == 0
