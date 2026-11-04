@@ -128,7 +128,7 @@ def test_action_requires_fresh_json_before_advertising_a_report() -> None:
 
 
 def test_action_never_publishes_unverified_markdown_in_logs_or_summary() -> None:
-    script = ACTION.split("      run: |\\n", 1)[1]
+    script = ACTION.split("      run: |\n", 1)[1]
     validate = script.index(
         'python "$ACTION_PATH/scripts/validate_action_report.py" "$json" "$code"'
     )
