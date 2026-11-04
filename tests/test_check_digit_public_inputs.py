@@ -59,9 +59,7 @@ def test_non_string_identifiers_are_invalid_without_raising(scheme: str, invalid
         ("gtin", valid_gtin),
     ],
 )
-def test_existing_text_identifiers_are_unchanged(
-    scheme: str, check: Callable[[str], bool]
-) -> None:
+def test_existing_text_identifiers_are_unchanged(scheme: str, check: Callable[[str], bool]) -> None:
     assert validator(scheme) is check
     assert check(VALID_EXAMPLES[scheme]) is True
     assert check("") is False
