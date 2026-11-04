@@ -479,22 +479,16 @@ def _unicode_export_hint(prefix: bytes) -> str | None:
         return "the file starts with a UTF-16 byte order mark; try --encoding utf-16"
     # Without a BOM, an ASCII header may reveal fixed-width UTF-32 units.
     if len(prefix) >= 12 and all(
-        prefix[i] != 0 and prefix[i + 1 : i + 4] == b"\x00\x00\x00"
-        for i in (0, 4, 8)
+        prefix[i] != 0 and prefix[i + 1 : i + 4] == b"\x00\x00\x00" for i in (0, 4, 8)
     ):
         return "bytes resemble UTF-32-LE without a BOM; try --encoding utf-32-le"
     if len(prefix) >= 12 and all(
-        prefix[i : i + 3] == b"\x00\x00\x00" and prefix[i + 3] != 0
-        for i in (0, 4, 8)
+        prefix[i : i + 3] == b"\x00\x00\x00" and prefix[i + 3] != 0 for i in (0, 4, 8)
     ):
         return "bytes resemble UTF-32-BE without a BOM; try --encoding utf-32-be"
-    if len(prefix) >= 8 and all(
-        prefix[i] != 0 and prefix[i + 1] == 0 for i in (0, 2, 4, 6)
-    ):
+    if len(prefix) >= 8 and all(prefix[i] != 0 and prefix[i + 1] == 0 for i in (0, 2, 4, 6)):
         return "bytes resemble UTF-16-LE without a BOM; try --encoding utf-16-le"
-    if len(prefix) >= 8 and all(
-        prefix[i] == 0 and prefix[i + 1] != 0 for i in (0, 2, 4, 6)
-    ):
+    if len(prefix) >= 8 and all(prefix[i] == 0 and prefix[i + 1] != 0 for i in (0, 2, 4, 6)):
         return "bytes resemble UTF-16-BE without a BOM; try --encoding utf-16-be"
     return None
 
