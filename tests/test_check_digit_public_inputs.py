@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+from collections.abc import Callable
 
 import pytest
 
@@ -58,8 +59,10 @@ def test_non_string_identifiers_are_invalid_without_raising(scheme: str, invalid
         ("gtin", valid_gtin),
     ],
 )
-def test_existing_text_identifiers_are_unchanged(scheme: str, check: object) -> None:
-    assert callable(check)
-    assert validator(scheme)(VALID_EXAMPLES[scheme]) is True
-    assert validator(scheme)("") is False
-    assert validator(scheme)("this-is-not-an-identifier") is False
+def test_existing_text_identifiers_are_unchanged(
+    scheme: str, check: Callable[[str], bool]
+) -> None:
+    assert validator(scheme) is check
+    assert check(VALID_EXAMPLES[scheme]) is True
+    assert check("") is False
+    assert check("this-is-not-an-identifier") is False
