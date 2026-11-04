@@ -268,6 +268,11 @@ def load_baseline(path: Path, *, check_missing_rate: bool = False) -> dict[str, 
         )
     except OSError as exc:
         raise FileReadError(f"cannot read baseline '{path}': {exc.strerror or exc}") from exc
+    except RecursionError as exc:
+        # Valid JSON can be nested deeply enough to exhaust the decoder's
+        # recursion limit before its schema can be inspected. Treat it as
+        # an invalid baseline, not an uncaught CLI traceback.
+        raise FileReadError(f"baseline '{path}' is too deeply nested") from exc
     except (UnicodeDecodeError, json.JSONDecodeError, ValueError) as exc:
         raise FileReadError(f"baseline '{path}' is not a JSON report ({exc})") from exc
     if not isinstance(data, dict):
