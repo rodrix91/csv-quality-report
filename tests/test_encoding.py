@@ -221,7 +221,9 @@ def test_utf8_error_points_to_the_option(
     path = write_csv(TEXT.encode("cp1252"))
     assert main([str(path), *OPTS]) == 4
     err = capsys.readouterr().err
-    assert "is not valid UTF-8 (invalid byte at offset 18); re-save the file as UTF-8" in err
+    assert "is not valid UTF-8 (invalid byte at offset 18, line 2: 0xF3" in err
+    assert "which is 'ó' in cp1252" in err
+    assert "re-save the file as UTF-8" in err
     assert "name its encoding with --encoding (spreadsheet exports are often cp1252)" in err
 
 
