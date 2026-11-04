@@ -27,6 +27,12 @@ def validate_read_path(raw: str, workspace_raw: str, label: str) -> None:
         resolved.relative_to(root)
     except ValueError as exc:
         raise ValueError(f"{label} must stay within GITHUB_WORKSPACE") from exc
+    # A directory, device, socket or FIFO cannot be a CSV or JSON baseline.
+    # In particular, opening a FIFO can block the Action indefinitely.
+    # Leave missing paths to the CLI and if-baseline-missing policy: both
+    # currently give deliberate, documented outcomes for absent inputs.
+    if resolved.exists() and not resolved.is_file():
+        raise ValueError(f"{label} must name a regular file")
 
 
 def main() -> int:
