@@ -467,6 +467,73 @@ def _read_error(name: str, exc: BaseException) -> FileReadError:
     return FileReadError(f"cannot read '{name}': {reason}")
 
 
+def _unicode_export_hint(prefix: bytes) -> str | None:
+    """Recognize common Unicode export signatures without choosing a codec.
+
+    A hint only changes the diagnostic; actual decoding still requires an
+    explicit --encoding option. Test UTF-32 BOMs before overlapping UTF-16.
+    """
+    if prefix.startswith((b"\\xff\\xfe\\x00\\x00", b"\\x00\\x00\\xfe\\xff")):
+        return "the file starts with a UTF-32 byte order mark; try --encoding utf-32"
+    if prefix.startswith((b"\\xff\\xfe", b"\\xfe\\xff")):
+        return "the file starts with a UTF-16 byte order mark; try --encoding utf-16"
+    # Without a BOM, an ASCII header may reveal fixed-width UTF-32 units.
+    if len(prefix) >= 12 and all(
+        prefix[i] != 0 and prefix[i + 1 : i + 4] == b"\\x00\\x00\\x00"
+        for i in (0, 4, 8)
+    ):
+        return "bytes resemble UTF-32-LE without a BOM; try --encoding utf-32-le"
+    if len(prefix) >= 12 and all(
+        prefix[i : i + 3] == b"\\x00\\x00\\x00" and prefix[i + 3] != 0
+        for i in (0, 4, 8)
+    ):
+        return "bytes resemble UTF-32-BE without a BOM; try --encoding utf-32-be"
+    if len(prefix) >= 8 and all(
+        prefix[i] != 0 and prefix[i + 1] == 0 for i in (0, 2, 4, 6)
+    ):
+        return "bytes resemble UTF-16-LE without a BOM; try --encoding utf-16-le"
+    if len(prefix) >= 8 and all(
+        prefix[i] == 0 and prefix[i + 1] != 0 for i in (0, 2, 4, 6)
+    ):
+        return "bytes resemble UTF-16-BE without a BOM; try --encoding utf-16-be"
+    return None
+
+
+def _invalid_utf8_details(path: Path, compressed: bool, offset: int) -> str:
+    """Human-readable byte, line and optional encoding hint at a failed offset.
+
+    Count CRLF as one line even when it crosses a read chunk; count bare CR
+    and LF as line breaks too. Read a bounded chunk at a time for large files.
+    """
+    with gzip.open(path, "rb") if compressed else path.open("rb") as handle:
+        prefix = handle.read(64)
+        hint = _unicode_export_hint(prefix)
+        if hint is not None:
+            return f": {hint}"
+        handle.seek(0)
+        line = 1
+        remaining = offset
+        ends_cr = False
+        while remaining:
+            block = handle.read(min(_CHUNK, remaining))
+            if not block:
+                break  # pragma: no cover - offset came from the same file
+            line += block.count(b"\\r") + block.count(b"\\n") - block.count(b"\\r\\n")
+            if ends_cr and block.startswith(b"\\n"):
+                line -= 1
+            ends_cr = block.endswith(b"\\r")
+            remaining -= len(block)
+        byte = handle.read(1)
+    if not byte:
+        return f", line {line}"  # pragma: no cover - invalid offset is in the file
+    detail = f", line {line}: 0x{byte[0]:02X}"
+    try:
+        cp1252 = byte.decode("cp1252")
+    except UnicodeDecodeError:
+        return detail
+    return f"{detail}, which is {cp1252!r} in cp1252"
+
+
 def _encoding_error(
     path: Path, name: str, compressed: bool = False, encoding: str = DEFAULT_ENCODING
 ) -> EncodingError:
@@ -477,6 +544,8 @@ def _encoding_error(
         where = f"invalid byte at offset {offset}"
         if compressed:
             where += " of the decompressed data"
+        if encoding == DEFAULT_ENCODING:
+            where += _invalid_utf8_details(path, compressed, offset)
     if encoding == DEFAULT_ENCODING:
         advice = (
             "re-save the file as UTF-8, or name its encoding with --encoding "
