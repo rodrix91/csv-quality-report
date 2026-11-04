@@ -345,8 +345,6 @@ def test_baseline_depth_limit_ignores_brackets_inside_escaped_json_strings(tmp_p
 def test_baseline_decoder_recursion_is_also_converted_to_file_read_error(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    import csv_quality_report.compare as compare_module
-
     target = tmp_path / "baseline.json"
     target.write_text('{"rows":0,"columns":[]}', encoding="utf-8")
 
@@ -354,6 +352,6 @@ def test_baseline_decoder_recursion_is_also_converted_to_file_read_error(
         raise RecursionError("unexpected decoder recursion")
 
     with monkeypatch.context() as patch:
-        patch.setattr(compare_module.json, "loads", decoder_failure)
+        patch.setattr(json, "loads", decoder_failure)
         with pytest.raises(FileReadError, match="is too deeply nested"):
             load_baseline(target)
