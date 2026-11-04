@@ -273,3 +273,85 @@ def test_cli_rejects_nonfinite_historical_metadata_before_csv_and_preserves_outp
     assert "missing-input.csv" not in printed.err
     assert printed.out == ""
     assert verified.read_text(encoding="utf-8") == '{"source":"untouched"}\n'
+
+
+def test_deeply_nested_baseline_is_a_controlled_file_read_error(tmp_path: Path) -> None:
+    # JSON parser nesting tolerance varies across supported Python versions.
+    nested = "[" * 20_000 + "0" + "]" * 20_000
+    baseline = tmp_path / "deep.json"
+    baseline.write_text(
+        '{"rows":3,"columns":[],"nested":' + nested + "}",
+        encoding="utf-8",
+    )
+    with pytest.raises(FileReadError, match="baseline .* is too deeply nested"):
+        load_baseline(baseline)
+
+
+def test_cli_does_not_traceback_on_deeply_nested_baseline(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    nested = "[" * 20_000 + "0" + "]" * 20_000
+    baseline = tmp_path / "deep.json"
+    baseline.write_text(
+        '{"rows":3,"columns":[],"nested":' + nested + "}",
+        encoding="utf-8",
+    )
+    previous = tmp_path / "report.json"
+    previous.write_text('{"verified":true}\n', encoding="utf-8")
+    code = main(
+        [
+            str(tmp_path / "unreadable.csv"),
+            "--baseline",
+            str(baseline),
+            "--format",
+            "json",
+            "--json-output",
+            str(previous),
+        ]
+    )
+    captured = capsys.readouterr()
+    assert code == 3
+    assert "is too deeply nested" in captured.err
+    assert "Traceback" not in captured.err
+    assert "unreadable.csv" not in captured.err
+    assert captured.out == ""
+    assert previous.read_text(encoding="utf-8") == '{"verified":true}\n'
+
+
+def test_baseline_depth_limit_ignores_brackets_inside_escaped_json_strings(tmp_path: Path) -> None:
+    from csv_quality_report.compare import _MAX_BASELINE_NESTING
+
+    baseline = tmp_path / "quoted-brackets.json"
+    # A long label is not an array; escaped quotes must not end the token.
+    label = 'literal "quoted" ' + "[" * 20_000 + "}" * 20_000
+    data = {"rows": 1, "columns": [], "label": label}
+    baseline.write_text(json.dumps(data), encoding="utf-8")
+    assert load_baseline(baseline)["label"] == label
+
+    # A real structural nesting boundary has a deterministic limit.
+    for depth, accepted in (
+        (_MAX_BASELINE_NESTING - 1, True),
+        (_MAX_BASELINE_NESTING, False),
+    ):
+        payload = '{"rows":1,"columns":[],"nested":' + "[" * depth + "0" + "]" * depth + "}"
+        baseline.write_text(payload, encoding="utf-8")
+        if accepted:
+            assert load_baseline(baseline)["rows"] == 1
+        else:
+            with pytest.raises(FileReadError, match="too deeply nested"):
+                load_baseline(baseline)
+
+
+def test_baseline_decoder_recursion_is_also_converted_to_file_read_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    target = tmp_path / "baseline.json"
+    target.write_text('{"rows":0,"columns":[]}', encoding="utf-8")
+
+    def decoder_failure(*args: Any, **kwargs: Any) -> Any:
+        raise RecursionError("unexpected decoder recursion")
+
+    with monkeypatch.context() as patch:
+        patch.setattr(json, "loads", decoder_failure)
+        with pytest.raises(FileReadError, match="is too deeply nested"):
+            load_baseline(target)

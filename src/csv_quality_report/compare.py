@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import math
+import re
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
@@ -257,17 +258,45 @@ def _finite_json_float(text: str) -> float:
     return value
 
 
+# These reports have shallow metadata. Bound structural JSON nesting before
+# decoding, independently of Python's version-dependent recursion tolerance.
+# Quoted JSON strings are excluded so braces inside labels are not structure.
+_MAX_BASELINE_NESTING = 256
+_JSON_QUOTED_STRING = re.compile(r'"(?:\\.|[^"\\])*"')
+
+
+def _exceeds_baseline_nesting(source: str) -> bool:
+    depth = 0
+    for fragment in _JSON_QUOTED_STRING.split(source):
+        for char in fragment:
+            if char in "[{":
+                depth += 1
+                if depth > _MAX_BASELINE_NESTING:
+                    return True
+            elif char in "]}":
+                depth -= 1
+    return False
+
+
 def load_baseline(path: Path, *, check_missing_rate: bool = False) -> dict[str, Any]:
     """Read baseline JSON, optionally checking counts against percentages (exit 3 on error)."""
     try:
+        contents = path.read_text(encoding="utf-8")
+        if _exceeds_baseline_nesting(contents):
+            raise FileReadError(f"baseline '{path}' is too deeply nested")
         data = json.loads(
-            path.read_text(encoding="utf-8"),
+            contents,
             object_pairs_hook=_unique_json_keys,
             parse_constant=_reject_json_constant,
             parse_float=_finite_json_float,
         )
     except OSError as exc:
         raise FileReadError(f"cannot read baseline '{path}': {exc.strerror or exc}") from exc
+    except RecursionError as exc:
+        # Valid JSON can be nested deeply enough to exhaust the decoder's
+        # recursion limit before its schema can be inspected. Treat it as
+        # an invalid baseline, not an uncaught CLI traceback.
+        raise FileReadError(f"baseline '{path}' is too deeply nested") from exc
     except (UnicodeDecodeError, json.JSONDecodeError, ValueError) as exc:
         raise FileReadError(f"baseline '{path}' is not a JSON report ({exc})") from exc
     if not isinstance(data, dict):
