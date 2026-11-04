@@ -106,6 +106,38 @@ def test_rejects_missing_column_counters(tmp_path: Path, removed: str) -> None:
     assert not _valid(tmp_path, report)
 
 
+@pytest.mark.parametrize("huge_percent", [10**400, -(10**400)])
+def test_extreme_json_percentage_is_rejected_without_float_overflow(
+    tmp_path: Path, huge_percent: int
+) -> None:
+    report = _report()
+    columns = report["columns"]
+    assert isinstance(columns, list)
+    columns[0]["missing_pct"] = huge_percent
+    # math.isfinite(10**400) raises OverflowError, not False. The Action
+    # must treat malformed reports as invalid instead of crashing.
+    assert not _valid(tmp_path, report)
+
+
+def test_extreme_json_missing_counts_are_rejected_without_float_overflow(
+    tmp_path: Path,
+) -> None:
+    report = _report()
+    count = 10**400
+    report["rows"] = count
+    columns = report["columns"]
+    assert isinstance(columns, list)
+    columns[0].update(
+        missing=count,
+        missing_pct=100.0,
+        distinct=0,
+        untrimmed=0,
+        top_values=[],
+    )
+    # Multiplying a large Python int by 100.0 also raises OverflowError.
+    assert not _valid(tmp_path, report)
+
+
 def test_valid_top_zero_and_all_missing_or_header_only_rows(tmp_path: Path) -> None:
     assert _valid(tmp_path, _report())
     cases: tuple[tuple[int, int, float, int, list[dict[str, object]]], ...] = (
