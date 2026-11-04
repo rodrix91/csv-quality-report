@@ -23,7 +23,10 @@ from csv_quality_report.reader import read_table
 )
 @pytest.mark.parametrize("compressed", [False, True])
 def test_diagnostics_name_every_rejected_byte(
-    tmp_path: Path, bad: bytes, diagnosis: str, compressed: bool
+    tmp_path: Path,
+    bad: bytes,
+    diagnosis: str,
+    compressed: bool,
 ) -> None:
     raw = b"col\n" + bad
     path = tmp_path / ("broken.csv.gz" if compressed else "broken.csv")
