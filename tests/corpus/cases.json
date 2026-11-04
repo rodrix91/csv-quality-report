@@ -361,5 +361,19 @@
     "args": ["--delimiter", "auto", "--decimal-comma", "--thousands", "dot", "--date-order", "dmy", "--baseline", "tests/corpus/expected/cl_dispatch_monday.json", "--fail-on-schema-change", "--max-row-drop", "30", "--max-row-growth", "30", "--max-missing-increase", "10", "--max-mean-change", "Peso kg=50", "--max-mean-change", "Importe=30"],
     "exit_code": 8,
     "about": "Tuesday's export after an ERP update writes the weights in grams (3500,0 instead of 3,5): the schema, the types, the row count and the missing values pass every baseline gate, and only --max-mean-change sees that the mean weight rose about a thousandfold, while the amounts moved 2.4%."
+  },
+  {
+    "name": "excel_unicode_text_stock",
+    "file": "excel_unicode_text_stock.txt",
+    "args": [],
+    "exit_code": 4,
+    "about": "Stock list of a Paraguayan distributor saved from Excel as \"Texto Unicode\": UTF-16 with a byte order mark. Read as UTF-8 by default, it stops with exit code 4 and the message names --encoding utf-16 instead of the cp1252 hint."
+  },
+  {
+    "name": "excel_unicode_text_stock_utf16",
+    "file": "excel_unicode_text_stock.txt",
+    "args": ["--encoding", "utf-16", "--delimiter", "auto", "--decimal-comma", "--thousands", "dot", "--date-order", "dmy", "--require-type", "Stock=int", "--require-type", "Costo unitario=int", "--require-type", "Último ingreso=date"],
+    "exit_code": 0,
+    "about": "The same file with the encoding the message names: tabs are detected, guaraní amounts and stock with dot thousands are integers, day-first dates are typed, and the one blank stock is a missing value."
   }
 ]

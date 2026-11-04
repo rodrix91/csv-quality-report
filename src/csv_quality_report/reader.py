@@ -413,24 +413,123 @@ def _invalid_utf8_offset(
 ) -> int:
     """Byte offset (from the start of the file) of the first byte ``encoding`` rejects.
 
-    Named for UTF-8, the default, but works for any text codec. Decodes in
-    chunks so it works on files of any size. For a gzip file the offset is
-    counted in the decompressed data. Only called after a decoding error was
-    seen, so a valid file returning 0 does not happen in practice.
+    Named for UTF-8, the default, but works for any text codec. For a gzip
+    file the offset is counted in the decompressed data. See
+    ``_find_invalid()``, which also gives the line and the rejected bytes.
+    """
+    return _find_invalid(path, compressed, encoding).offset
+
+
+# Byte order marks that UTF-8 rejects, longest first: the UTF-32-LE mark
+# starts with the UTF-16-LE one. Each with the name for messages and the
+# codec that reads it (#266).
+_UTF_BOMS = (
+    (codecs.BOM_UTF32_LE, "UTF-32", "utf-32"),
+    (codecs.BOM_UTF32_BE, "UTF-32", "utf-32"),
+    (codecs.BOM_UTF16_LE, "UTF-16", "utf-16"),
+    (codecs.BOM_UTF16_BE, "UTF-16", "utf-16"),
+)
+_HEAD_BYTES = 8  # leading bytes checked for UTF-16 without a byte order mark
+
+
+@dataclass(frozen=True)
+class _InvalidBytes:
+    """Where a decoder first failed, for error messages."""
+
+    offset: int  # from the start of the (decompressed) data
+    line: int  # 1-based; LF, CRLF and a lone CR each end a line
+    rejected: bytes  # the bytes the decoder rejected
+    head: bytes  # the first bytes of the (decompressed) data
+
+
+def _line_breaks(data: bytes, after_cr: bool) -> int:
+    """Line ends in ``data``; ``after_cr`` says the bytes before it ended with CR."""
+    breaks = data.count(b"\n") + data.count(b"\r") - data.count(b"\r\n")
+    if after_cr and data.startswith(b"\n"):
+        breaks -= 1  # the CR before it already ended that line
+    return breaks
+
+
+def _find_invalid(
+    path: Path, compressed: bool = False, encoding: str = DEFAULT_ENCODING
+) -> _InvalidBytes:
+    """Locate the first bytes ``encoding`` rejects, re-reading ``path`` in chunks.
+
+    Works on files of any size. Only called after a decoding error was seen,
+    so a valid file (offset 0, line 1, nothing rejected) does not happen in
+    practice.
     """
     decoder = codecs.getincrementaldecoder(encoding)()
     consumed = 0
+    breaks = 0
+    after_cr = False
+    head = b""
     with gzip.open(path, "rb") if compressed else path.open("rb") as handle:
         while True:
             chunk = handle.read(_CHUNK)
+            if not consumed:
+                head = chunk[:_HEAD_BYTES]
             pending = len(decoder.getstate()[0])
             try:
                 decoder.decode(chunk, final=not chunk)
             except UnicodeDecodeError as exc:
-                return consumed - pending + exc.start
+                # exc.object is the pending bytes of the previous chunk plus
+                # this one; a negative index means the rejected sequence
+                # started in the previous chunk, whose line ends are counted.
+                index = exc.start - pending
+                return _InvalidBytes(
+                    offset=consumed + index,
+                    line=breaks + _line_breaks(chunk[: max(index, 0)], after_cr) + 1,
+                    rejected=exc.object[exc.start : exc.end],
+                    head=head,
+                )
             if not chunk:  # pragma: no cover - only called after a decoding error
-                return 0
+                return _InvalidBytes(0, 1, b"", head)
+            breaks += _line_breaks(chunk, after_cr)
+            after_cr = chunk.endswith(b"\r")
             consumed += len(chunk)
+
+
+def _utf16_without_bom(head: bytes) -> str | None:
+    """``utf-16-le`` or ``utf-16-be`` when ``head`` has a NUL in every second byte."""
+    if len(head) < _HEAD_BYTES:
+        return None
+    low, high = head[0::2], head[1::2]
+    if not any(high) and all(low):
+        return "utf-16-le"
+    if not any(low) and all(high):
+        return "utf-16-be"
+    return None
+
+
+def _utf8_diagnosis(found: _InvalidBytes) -> tuple[str, str | None]:
+    """What the bytes UTF-8 rejected look like, and advice that fits them.
+
+    Returns the detail that follows the offset and, when the bytes point to
+    another encoding with certainty (a byte order mark, NUL bytes), advice that
+    names it; ``None`` keeps the generic advice. The encoding is still never
+    guessed: the user names it with ``--encoding`` (#266).
+    """
+    for mark, label, codec in _UTF_BOMS:
+        if found.head.startswith(mark):
+            return (
+                f"the file starts with a {label} byte order mark",
+                f"name its encoding with --encoding {codec}, or re-save the file as UTF-8",
+            )
+    order = _utf16_without_bom(found.head)
+    if order is not None:
+        return (
+            f"every second byte of the first {_HEAD_BYTES} is NUL, "
+            f"as in {order.upper()} without a byte order mark",
+            f"name its encoding with --encoding {order}, or re-save the file as UTF-8",
+        )
+    shown = " ".join(f"0x{byte:02X}" for byte in found.rejected)
+    detail = f"line {found.line}: {shown}"
+    try:
+        text = found.rejected.decode("cp1252")
+    except UnicodeDecodeError:  # 0x81, 0x8D, 0x8F, 0x90 and 0x9D are undefined
+        return detail, None
+    return f"{detail}, which is {text!r} in cp1252", None
 
 
 def _guarded(
@@ -470,11 +569,12 @@ def _read_error(name: str, exc: BaseException) -> FileReadError:
 def _encoding_error(
     path: Path, name: str, compressed: bool = False, encoding: str = DEFAULT_ENCODING
 ) -> EncodingError:
+    found = None
     if is_stdin(path):
         where = "the offset of the invalid byte is not available on standard input"
     else:
-        offset = _invalid_utf8_offset(path, compressed, encoding)
-        where = f"invalid byte at offset {offset}"
+        found = _find_invalid(path, compressed, encoding)
+        where = f"invalid byte at offset {found.offset}"
         if compressed:
             where += " of the decompressed data"
     if encoding == DEFAULT_ENCODING:
@@ -483,6 +583,10 @@ def _encoding_error(
             "(spreadsheet exports are often cp1252)"
         )
         label = "UTF-8"
+        if found is not None:
+            detail, specific = _utf8_diagnosis(found)
+            where = f"{where}{':' if specific else ','} {detail}"
+            advice = specific or advice
     else:
         advice = "check the encoding given with --encoding"
         label = encoding

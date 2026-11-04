@@ -1,0 +1,1 @@
+error: 'tests/corpus/excel_unicode_text_stock.txt' is not valid UTF-8 (invalid byte at offset 0: the file starts with a UTF-16 byte order mark); name its encoding with --encoding utf-16, or re-save the file as UTF-8
