@@ -10,6 +10,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Fixed
 
+- Preserve every rejected byte of a malformed UTF-8 sequence in default-encoding diagnostics (for example, `0xE2 0x82` rather than reporting only `0xE2`), including truncated encodings and bytes split across input chunks, without affecting valid reports or explicit codec errors. Standard input diagnostics remain unchanged (#267 follow-up).
+
 - Improve default UTF-8 input errors for on-disk CSV and gzip files: recognize UTF-16/UTF-32 byte order marks and likely no-BOM Unicode export layouts, suggest an explicit `--encoding` without automatically guessing one, and otherwise report the first bad byte in hex, its physical line (LF, CRLF or bare CR), and the corresponding cp1252 character when defined. Existing byte-offset prefixes, explicit-encoding diagnostics, and stdin behavior remain intact (#266).
 
 - The end-to-end corpus gains a stock list of a Paraguayan distributor saved from Excel as "Texto Unicode" (UTF-16 with a byte order mark, tabs, CRLF, guaraníes with `.` thousands, day-first dates). It runs twice: read as UTF-8 it stops with exit code 4 and the UTF-16 hint, and with `--encoding utf-16 --delimiter auto` it is profiled and three `--require-type` checks pass. The guide to Spanish and Latin American exports gains a line for these files, and the Unicode hint tests cover NUL bytes that must not suggest UTF-16 (#266).

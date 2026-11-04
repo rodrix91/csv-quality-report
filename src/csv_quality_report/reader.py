@@ -517,12 +517,22 @@ def _invalid_utf8_details(path: Path, compressed: bool, offset: int) -> str:
                 line -= 1
             ends_cr = block.endswith(b"\r")
             remaining -= len(block)
-        byte = handle.read(1)
-    if not byte:
+        # A UTF-8 decoding failure can reject *several* bytes at once,
+        # e.g. an incomplete three-byte sequence, not only its first byte.
+        # UTF-8 has at most four bytes per code point, so this peek stays
+        # bounded and never reads an entire input row into memory.
+        peek = handle.read(4)
+    if not peek:
         return f", line {line}"  # pragma: no cover - invalid offset is in the file
-    detail = f", line {line}: 0x{byte[0]:02X}"
+    rejected = peek[:1]
     try:
-        cp1252 = byte.decode("cp1252")
+        peek.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        rejected = peek[exc.start : exc.end]
+    hex_bytes = " ".join(f"0x{byte:02X}" for byte in rejected)
+    detail = f", line {line}: {hex_bytes}"
+    try:
+        cp1252 = rejected.decode("cp1252")
     except UnicodeDecodeError:
         return detail
     return f"{detail}, which is {cp1252!r} in cp1252"
