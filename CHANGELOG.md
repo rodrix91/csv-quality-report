@@ -10,6 +10,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Fixed
 
+- Improve default UTF-8 input errors for on-disk CSV and gzip files: recognize UTF-16/UTF-32 byte order marks and likely no-BOM Unicode export layouts, suggest an explicit `--encoding` without automatically guessing one, and otherwise report the first bad byte in hex, its physical line (LF, CRLF or bare CR), and the corresponding cp1252 character when defined. Existing byte-offset prefixes, explicit-encoding diagnostics, and stdin behavior remain intact (#266).
+
 - `format_stamp()` in `csv_quality_report.clock` refuses a naive datetime, or one whose `tzinfo` returns no UTC offset, with a `ValueError` instead of reading it in the machine's local time zone, which made the same call write different `generated_at` stamps on runners in different zones. The CLI always passes an aware time (the clock or `SOURCE_DATE_EPOCH`), so its reports are unchanged (#252).
 
 - `baseline_age_check()` in `csv_quality_report.checks` refuses a `now` whose `tzinfo` returns no UTC offset with the same `ValueError` as a naive one (`now must be an aware datetime (with a UTC offset)`), instead of failing later in the age arithmetic with a `TypeError`. CLI behavior is unchanged (#256).
