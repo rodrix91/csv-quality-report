@@ -75,8 +75,12 @@ def test_unicode_exports_give_explicit_codec_hints(
 )
 @pytest.mark.parametrize("compressed", [False, True])
 def test_invalid_byte_and_line_respect_newline_style_and_gzip(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
-    newlines: bytes, offset: int, line: int, compressed: bool
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    newlines: bytes,
+    offset: int,
+    line: int,
+    compressed: bool,
 ) -> None:
     # A short chunk tests CRLF across buffer boundaries and offset scanning.
     monkeypatch.setattr(reader, "_CHUNK", 2)
@@ -104,9 +108,7 @@ def test_invalid_cp1252_undefined_byte_has_no_false_character_hint(tmp_path: Pat
     assert "which is" not in error.value.message
 
 
-def test_stdin_keeps_original_no_offset_diagnostic(
-    monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_stdin_keeps_original_no_offset_diagnostic(monkeypatch: pytest.MonkeyPatch) -> None:
     raw = io.BytesIO(b"sku\n\xff\n")
     wrapped = io.TextIOWrapper(io.BufferedReader(raw), encoding="utf-8")
     monkeypatch.setattr(sys, "stdin", wrapped)
