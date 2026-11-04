@@ -36,7 +36,14 @@ _CNPJ_BASE = frozenset("0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ")
 
 
 def _compact(value: str) -> str:
-    """``value`` without the separators ``.``, ``-``, ``/`` and spaces."""
+    """Remove allowed separators; treat malformed non-text identifiers as invalid.
+
+    Public validators also receive direct Python calls, including nullable
+    values from dataframes. Such values cannot be identifiers and must return
+    False instead of failing with AttributeError or TypeError.
+    """
+    if not isinstance(value, str):
+        return ""
     return value.translate(_SEPARATORS)
 
 
