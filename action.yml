@@ -243,11 +243,9 @@ runs:
         code=$?
         set -e
 
-        cat "$markdown"
-        if [ "$INPUT_SUMMARY" = "true" ] && [ -s "$markdown" ]; then
-          cat "$markdown" >> "$GITHUB_STEP_SUMMARY"
-        fi
-
+        # Do not publish Markdown before its accompanying JSON artifact has
+        # passed freshness and structural validation. A failed or truncated
+        # CLI run must not inject arbitrary output into workflow logs/summaries.
         # Only expose a report produced during THIS execution. A stale
         # pre-existing JSON file cannot satisfy a zero-exit quality gate.
         report=""
@@ -272,6 +270,14 @@ runs:
             else
               report="$json"
             fi
+          fi
+        fi
+        # Preserve the normal success and measured-gate-failure reports, but
+        # never publish unverified output (including failed CLI runs).
+        if [ -n "$report" ] && [ -s "$markdown" ]; then
+          cat "$markdown"
+          if [ "$INPUT_SUMMARY" = "true" ]; then
+            cat "$markdown" >> "$GITHUB_STEP_SUMMARY"
           fi
         fi
         case "$code" in
