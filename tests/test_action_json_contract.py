@@ -171,6 +171,20 @@ def test_valid_finite_json_floats_remain_accepted(tmp_path: Path, number: str) -
     assert main([str(file), "0"]) == 0
 
 
+def test_deeply_nested_json_fails_closed_without_a_traceback(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # The JSON decoder raises RecursionError on inputs with extreme nesting.
+    # A malformed artifact should return the normal Action validation code.
+    file = tmp_path / "nested.json"
+    file.write_text('{"extra": ' + "[" * 2000 + "0" + "]" * 2000 + "}", encoding="utf-8")
+    assert not valid_report(file, 0)
+    assert main([str(file), "0"]) == 3
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "invalid" in captured.err
+
+
 def test_accepts_genuine_selected_column_report_from_cli(tmp_path: Path) -> None:
     from csv_quality_report.cli import main as cli_main
 
