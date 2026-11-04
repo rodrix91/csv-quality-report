@@ -273,3 +273,38 @@ def test_cli_rejects_nonfinite_historical_metadata_before_csv_and_preserves_outp
     assert "missing-input.csv" not in printed.err
     assert printed.out == ""
     assert verified.read_text(encoding="utf-8") == '{"source":"untouched"}\n'
+
+def test_deeply_nested_baseline_is_a_controlled_file_read_error(tmp_path: Path) -> None:
+    # JSON parsing can exceed Python's recursion depth before schema checks.
+    nested = "[" * 1400 + "0" + "]" * 1400
+    baseline = tmp_path / "deep.json"
+    baseline.write_text(
+        '{"rows":3,"columns":[],"nested":' + nested + "}",
+        encoding="utf-8",
+    )
+    with pytest.raises(FileReadError, match="baseline .* is too deeply nested"):
+        load_baseline(baseline)
+
+
+def test_cli_does_not_traceback_on_deeply_nested_baseline(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    nested = "[" * 1400 + "0" + "]" * 1400
+    baseline = tmp_path / "deep.json"
+    baseline.write_text(
+        '{"rows":3,"columns":[],"nested":' + nested + "}",
+        encoding="utf-8",
+    )
+    previous = tmp_path / "report.json"
+    previous.write_text('{"verified":true}\n', encoding="utf-8")
+    code = main([
+        str(tmp_path / "unreadable.csv"), "--baseline", str(baseline),
+        "--format", "json", "--json-output", str(previous),
+    ])
+    captured = capsys.readouterr()
+    assert code == 3
+    assert "is too deeply nested" in captured.err
+    assert "Traceback" not in captured.err
+    assert "unreadable.csv" not in captured.err
+    assert captured.out == ""
+    assert previous.read_text(encoding="utf-8") == '{"verified":true}\n'
