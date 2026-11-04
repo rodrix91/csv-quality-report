@@ -88,6 +88,7 @@ def test_validator_requires_three_arguments() -> None:
     assert result.returncode == 2
     assert "usage:" in result.stderr
 
+
 @pytest.mark.parametrize("kind", ["path", "baseline"])
 def test_existing_directories_are_rejected_before_reading(tmp_path: Path, kind: str) -> None:
     (tmp_path / "data").mkdir()
