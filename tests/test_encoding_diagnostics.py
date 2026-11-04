@@ -40,6 +40,19 @@ def test_no_unicode_hint_for_plain_bytes_or_short_prefix() -> None:
 
 
 @pytest.mark.parametrize(
+    "prefix",
+    [
+        b"\x00" * 8,  # NUL bytes alone are no evidence of a byte order
+        b"a\x00b\x00\x00\x00c\x00",  # a NUL code unit breaks the UTF-16-LE pattern
+        b"\x00a\x00\x00\x00b\x00c",  # and the UTF-16-BE one
+        b"a\x00b\x00c\x00dd",  # not every second byte is NUL
+    ],
+)
+def test_nul_bytes_that_do_not_form_utf16_units_give_no_hint(prefix: bytes) -> None:
+    assert _unicode_export_hint(prefix) is None
+
+
+@pytest.mark.parametrize(
     ("codec", "expected"),
     [
         ("utf-16-le", "UTF-16-LE without a BOM"),
