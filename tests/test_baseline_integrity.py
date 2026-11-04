@@ -275,8 +275,8 @@ def test_cli_rejects_nonfinite_historical_metadata_before_csv_and_preserves_outp
     assert verified.read_text(encoding="utf-8") == '{"source":"untouched"}\n'
 
 def test_deeply_nested_baseline_is_a_controlled_file_read_error(tmp_path: Path) -> None:
-    # JSON parsing can exceed Python's recursion depth before schema checks.
-    nested = "[" * 1400 + "0" + "]" * 1400
+    # JSON parser nesting tolerance varies across supported Python versions.
+    nested = "[" * 20_000 + "0" + "]" * 20_000
     baseline = tmp_path / "deep.json"
     baseline.write_text(
         '{"rows":3,"columns":[],"nested":' + nested + "}",
@@ -289,7 +289,7 @@ def test_deeply_nested_baseline_is_a_controlled_file_read_error(tmp_path: Path) 
 def test_cli_does_not_traceback_on_deeply_nested_baseline(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    nested = "[" * 1400 + "0" + "]" * 1400
+    nested = "[" * 20_000 + "0" + "]" * 20_000
     baseline = tmp_path / "deep.json"
     baseline.write_text(
         '{"rows":3,"columns":[],"nested":' + nested + "}",
