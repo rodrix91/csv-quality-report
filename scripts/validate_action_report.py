@@ -53,14 +53,22 @@ def _valid_column_accounting(column: dict[str, Any], rows: int) -> bool:
         or not 0 <= distinct <= rows - missing
         or type(untrimmed) is not int
         or not 0 <= untrimmed <= rows - missing
-        or not math.isfinite(missing_pct)
+        # Bounds can be checked on Python integers without converting
+        # arbitrarily large JSON integers to floats. math.isfinite() alone
+        # raises OverflowError for values too large for binary64.
         or not 0 <= missing_pct <= 100
+        or not math.isfinite(missing_pct)
         or not isinstance(top_values, list)
     ):
         return False
 
     # Profile.round uses one decimal and zero on header-only files.
-    expected_pct = round(100.0 * missing / rows, 1) if rows else 0.0
+    try:
+        expected_pct = round(100.0 * missing / rows, 1) if rows else 0.0
+    except OverflowError:
+        # A forged report may claim an integer row count too large for
+        # float-based percentage arithmetic. Fail closed, do not crash CI.
+        return False
     if missing_pct != expected_pct or (distinct == 0) != (rows == missing):
         return False
 
