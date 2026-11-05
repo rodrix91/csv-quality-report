@@ -299,3 +299,33 @@ def test_cli_read_only_target_exits_with_write_error(
         assert target.read_text(encoding="utf-8") == OLD
     finally:
         target.chmod(stat.S_IREAD | stat.S_IWRITE)
+
+
+@posix_modes
+@pytest.mark.parametrize("existing_mode", [None, 0o600, 0o644])
+def test_atomic_staging_is_private_until_write_is_fsynced(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, existing_mode: int | None
+) -> None:
+    """A temporary report contains no readable bytes for other POSIX users."""
+    target = tmp_path / "report.json"
+    if existing_mode is not None:
+        target.write_text(OLD, encoding="utf-8")
+        target.chmod(existing_mode)
+
+    original_fsync = os.fsync
+    stage_modes: list[int] = []
+
+    def inspect_staged_mode(descriptor: int) -> None:
+        # fsync is performed after writing, before chmod/rename. In the old
+        # implementation the temporary inode retained the caller's umask
+        # mode (often 0644), exposing private data to other local users.
+        stage_modes.append(stat.S_IMODE(os.fstat(descriptor).st_mode))
+        original_fsync(descriptor)
+
+    monkeypatch.setattr(os, "fsync", inspect_staged_mode)
+    write_atomic(target, '{"sensitive": true}\n')
+    assert stage_modes == [0o600]
+    assert target.read_text(encoding="utf-8") == '{"sensitive": true}\n'
+    assert leftovers(tmp_path) == []
+    if existing_mode is not None:
+        assert stat.S_IMODE(target.stat().st_mode) == existing_mode

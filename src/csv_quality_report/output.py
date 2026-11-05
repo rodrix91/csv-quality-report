@@ -49,11 +49,17 @@ def _replace(target: Path, text: str, mode: int | None) -> None:
                 os.close(descriptor)
             raise
         with handle:
+            # A 0600 destination must never be staged with the wider permissions
+            # of a newly created file (usually 0644). Capture the original
+            # umask-adjusted mode for *new* files, restrict the staging inode
+            # before writing any report bytes, and restore its final mode only
+            # after the complete contents have been fsynced.
+            new_file_mode = stat.S_IMODE(os.fstat(descriptor).st_mode)
+            os.chmod(temporary, 0o600)
             handle.write(text)
             handle.flush()
             os.fsync(handle.fileno())
-        if mode is not None:
-            os.chmod(temporary, mode)
+        os.chmod(temporary, new_file_mode if mode is None else mode)
         os.replace(temporary, target)
     except BaseException:
         with contextlib.suppress(OSError):
