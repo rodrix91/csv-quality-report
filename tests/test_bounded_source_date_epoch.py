@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from pathlib import Path
 
 import pytest
 
+from csv_quality_report.cli import main
 from csv_quality_report.clock import current_time
 
 
@@ -43,3 +45,35 @@ def test_existing_short_invalid_syntax_and_range_diagnostics_are_preserved() -> 
         current_time({"SOURCE_DATE_EPOCH": "tomorrow"})
     with pytest.raises(ValueError, match="out of range"):
         current_time({"SOURCE_DATE_EPOCH": "9" * 30})
+
+
+def test_cli_rejects_oversized_epoch_before_reading_or_overwriting(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    existing_report = tmp_path / "previous-report.json"
+    original = '{"verified":true}\n'
+    existing_report.write_text(original, encoding="utf-8")
+    # The missing input must not be opened; clock validation happens first.
+    missing_csv = tmp_path / "missing.csv"
+    monkeypatch.setenv("SOURCE_DATE_EPOCH", "secret-token" * 10_000)
+
+    with pytest.raises(SystemExit) as raised:
+        main(
+            [
+                str(missing_csv),
+                "--record-time",
+                "--format",
+                "json",
+                "--json-output",
+                str(existing_report),
+            ]
+        )
+    assert raised.value.code == 2
+    result = capsys.readouterr()
+    assert "SOURCE_DATE_EPOCH: value exceeds 64 characters" in result.err
+    assert "secret-token" not in result.err
+    assert "missing.csv" not in result.err
+    assert result.out == ""
+    assert existing_report.read_text(encoding="utf-8") == original
