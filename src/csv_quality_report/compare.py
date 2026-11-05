@@ -138,7 +138,8 @@ def _baseline_columns(
         # numbers and arbitrarily large JSON integers without float conversion.
         if not 0 <= missing_pct <= 100:
             raise ValueError(
-                f"baseline column {_baseline_error_label(name)} has an invalid 'missing_pct' (expected 0 to 100)"
+                f"baseline column {_baseline_error_label(name)} has an invalid "
+                "'missing_pct' (expected 0 to 100)"
             )
         # Older third-party reports may omit 'missing' or provide an invalid
         # type; their exact-count drift check already treats it as unavailable.
@@ -148,7 +149,8 @@ def _baseline_columns(
         if isinstance(count, int) and not isinstance(count, bool) and count >= 0:
             if count > rows:
                 raise ValueError(
-                    f"baseline column {_baseline_error_label(name)} has more missing cells ({count}) than rows ({rows})"
+                    f"baseline column {_baseline_error_label(name)} has more missing cells "
+                    f"({count}) than rows ({rows})"
                 )
             # Native reports round percentages to one decimal place. Allow
             # half of that display step (plus floating-point tolerance) and
@@ -157,8 +159,9 @@ def _baseline_columns(
             expected_pct = 100 * count / rows if rows else 0.0
             if check_missing_rate and abs(missing_pct - expected_pct) > 0.05000000001:
                 raise ValueError(
-                    f"baseline column {_baseline_error_label(name)} has a 'missing_pct' inconsistent "
-                    f"with its 'missing' count ({count} of {rows} rows)"
+                    f"baseline column {_baseline_error_label(name)} has a 'missing_pct' "
+                    "inconsistent with its 'missing' count "
+                    f"({count} of {rows} rows)"
                 )
     return columns
 
