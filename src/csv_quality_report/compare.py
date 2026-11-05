@@ -94,6 +94,18 @@ class Comparison:
         return len(self.added_columns) + len(self.removed_columns) + len(self.type_changes)
 
 
+def _baseline_error_label(value: str, *, limit: int = 120) -> str:
+    """Escape and bound untrusted JSON names/tokens before error reporting.
+
+    A baseline is size-bounded, but an individual duplicate key or numeric
+    literal can still occupy almost that entire budget. Never echo an
+    unbounded value into a CLI or CI diagnostic.
+    """
+    if len(value) <= limit:
+        return repr(value)
+    return repr(value[:limit]) + " [truncated]"
+
+
 def _baseline_columns(
     baseline: Mapping[str, Any], *, check_missing_rate: bool = False
 ) -> list[Mapping[str, Any]]:
@@ -119,14 +131,14 @@ def _baseline_columns(
             raise ValueError("a column has no 'name', 'type' and 'missing_pct'")
         name = column["name"]
         if name in names:
-            raise ValueError(f"duplicate baseline column name: {name!r}")
+            raise ValueError(f"duplicate baseline column name: {_baseline_error_label(name)}")
         names.add(name)
         missing_pct = column["missing_pct"]
         # Chained comparisons safely reject NaN, infinities, out-of-range
         # numbers and arbitrarily large JSON integers without float conversion.
         if not 0 <= missing_pct <= 100:
             raise ValueError(
-                f"baseline column {name!r} has an invalid 'missing_pct' (expected 0 to 100)"
+                f"baseline column {_baseline_error_label(name)} has an invalid 'missing_pct' (expected 0 to 100)"
             )
         # Older third-party reports may omit 'missing' or provide an invalid
         # type; their exact-count drift check already treats it as unavailable.
@@ -136,7 +148,7 @@ def _baseline_columns(
         if isinstance(count, int) and not isinstance(count, bool) and count >= 0:
             if count > rows:
                 raise ValueError(
-                    f"baseline column {name!r} has more missing cells ({count}) than rows ({rows})"
+                    f"baseline column {_baseline_error_label(name)} has more missing cells ({count}) than rows ({rows})"
                 )
             # Native reports round percentages to one decimal place. Allow
             # half of that display step (plus floating-point tolerance) and
@@ -145,7 +157,7 @@ def _baseline_columns(
             expected_pct = 100 * count / rows if rows else 0.0
             if check_missing_rate and abs(missing_pct - expected_pct) > 0.05000000001:
                 raise ValueError(
-                    f"baseline column {name!r} has a 'missing_pct' inconsistent "
+                    f"baseline column {_baseline_error_label(name)} has a 'missing_pct' inconsistent "
                     f"with its 'missing' count ({count} of {rows} rows)"
                 )
     return columns
@@ -240,7 +252,7 @@ def _unique_json_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
     result: dict[str, Any] = {}
     for name, value in pairs:
         if name in result:
-            raise ValueError(f"duplicate baseline JSON key: {name!r}")
+            raise ValueError(f"duplicate baseline JSON key: {_baseline_error_label(name)}")
         result[name] = value
     return result
 
@@ -254,7 +266,7 @@ def _finite_json_float(text: str) -> float:
     """Do not silently turn a very large, valid JSON exponent into infinity."""
     value = float(text)
     if not math.isfinite(value):
-        raise ValueError(f"non-finite baseline JSON numeric value: {text}")
+        raise ValueError(f"non-finite baseline JSON numeric value: {_baseline_error_label(text)}")
     return value
 
 
