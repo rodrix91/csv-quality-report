@@ -152,8 +152,7 @@ def check_scheme(scheme: str) -> str:
     if not isinstance(scheme, str) or scheme not in SCHEMES:
         known = ", ".join(SCHEMES)
         raise ValueError(
-            f"unknown check-digit scheme {_scheme_error_label(scheme)} "
-            f"(use one of: {known})"
+            f"unknown check-digit scheme {_scheme_error_label(scheme)} (use one of: {known})"
         )
     return scheme
 
