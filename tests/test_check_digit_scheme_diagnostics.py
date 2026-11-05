@@ -38,7 +38,8 @@ def test_non_string_scheme_does_not_invoke_user_controlled_repr() -> None:
         def __repr__(self) -> str:
             raise AssertionError("untrusted repr must not run")
 
-    for invalid in (None, [], {}, DangerousRepr()):
+    invalid_inputs: tuple[object, ...] = (None, [], {}, DangerousRepr())
+    for invalid in invalid_inputs:
         with pytest.raises(ValueError, match="unknown check-digit scheme <non-string>"):
             check_scheme(invalid)  # type: ignore[arg-type]
 
