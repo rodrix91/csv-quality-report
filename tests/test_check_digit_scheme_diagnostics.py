@@ -46,8 +46,9 @@ def test_non_string_scheme_does_not_invoke_user_controlled_repr() -> None:
 def test_normal_scheme_selection_and_existing_short_message_are_preserved() -> None:
     assert check_scheme("cuit") == "cuit"
     assert check_scheme("gtin") == "gtin"
-    with pytest.raises(
-        ValueError,
-        match=r"unknown check-digit scheme 'CUIT' \\(use one of: cuit, rut, cpf, cnpj, gtin\\)",
-    ):
+    with pytest.raises(ValueError) as caught:
         check_scheme("CUIT")
+    assert str(caught.value) == (
+        "unknown check-digit scheme 'CUIT' "
+        "(use one of: cuit, rut, cpf, cnpj, gtin)"
+    )
