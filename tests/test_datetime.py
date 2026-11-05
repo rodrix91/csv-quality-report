@@ -81,7 +81,6 @@ def test_rejected_datetime_forms(value: str) -> None:
     assert infer_type([value]) == TYPE_STRING
 
 
-
 def test_malformed_offset_does_not_pass_csv_datetime_inference(
     write_csv: WriteCsv, capsys: pytest.CaptureFixture[str]
 ) -> None:
