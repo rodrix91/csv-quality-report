@@ -301,7 +301,6 @@ def test_cli_read_only_target_exits_with_write_error(
         target.chmod(stat.S_IREAD | stat.S_IWRITE)
 
 
-
 @posix_modes
 @pytest.mark.parametrize("existing_mode", [None, 0o600, 0o644])
 def test_atomic_staging_is_private_until_write_is_fsynced(
