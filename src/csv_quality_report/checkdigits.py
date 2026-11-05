@@ -131,11 +131,30 @@ SCHEMES: dict[str, tuple[Callable[[str], bool], str]] = {
 }
 
 
+def _scheme_error_label(value: object) -> str:
+    """Keep untrusted scheme arguments short and safe for terminal/CI errors.
+
+    Never call repr() on arbitrary non-string objects, whose user-defined
+    methods may execute code or emit unbounded diagnostic text.
+    """
+    if not isinstance(value, str):
+        return "<non-string>"
+    # Slice before quoting to avoid allocating the representation of a
+    # multi-megabyte input. repr() escapes newline and bidi/terminal controls.
+    clipped = repr(value[:120])
+    if len(clipped) > 180:
+        return clipped[:180] + " [truncated]"
+    return clipped + (" [truncated]" if len(value) > 120 else "")
+
+
 def check_scheme(scheme: str) -> str:
     """``scheme`` if it names a known scheme; ``ValueError`` naming the known ones otherwise."""
     if not isinstance(scheme, str) or scheme not in SCHEMES:
         known = ", ".join(SCHEMES)
-        raise ValueError(f"unknown check-digit scheme {scheme!r} (use one of: {known})")
+        raise ValueError(
+            f"unknown check-digit scheme {_scheme_error_label(scheme)} "
+            f"(use one of: {known})"
+        )
     return scheme
 
 
