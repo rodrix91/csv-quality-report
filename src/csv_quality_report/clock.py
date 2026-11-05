@@ -19,6 +19,10 @@ from collections.abc import Mapping
 from datetime import UTC, datetime
 
 SOURCE_DATE_EPOCH = "SOURCE_DATE_EPOCH"
+# A datetime through year 9999 needs at most 12 epoch digits. Allow many
+# leading zeroes for compatibility, but reject pathological inputs before
+# regex matching, integer conversion, or embedding them in diagnostics.
+_MAX_EPOCH_CHARS = 64
 _EPOCH = re.compile(r"[0-9]+")
 _STAMP = re.compile(r"[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z")
 
@@ -33,6 +37,11 @@ def current_time(environ: Mapping[str, str] | None = None) -> datetime:
     text = (os.environ if environ is None else environ).get(SOURCE_DATE_EPOCH, "")
     if text == "":
         return datetime.now(UTC).replace(microsecond=0)
+    if len(text) > _MAX_EPOCH_CHARS:
+        raise ValueError(
+            f"invalid {SOURCE_DATE_EPOCH}: value exceeds {_MAX_EPOCH_CHARS} characters "
+            "(too long)"
+        )
     if _EPOCH.fullmatch(text) is None:
         raise ValueError(
             f"invalid {SOURCE_DATE_EPOCH}: {text!r} (a whole number of seconds since "
