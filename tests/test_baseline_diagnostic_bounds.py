@@ -16,8 +16,7 @@ def test_long_duplicate_json_key_has_a_short_escaped_error(tmp_path: Path) -> No
     key = "unexpected-" + "X" * 80_000 + "-private-tail"
     path = tmp_path / "duplicate.json"
     path.write_text(
-        '{"rows":1,"columns":[],' + json.dumps(key) + ':1,'
-        + json.dumps(key) + ':2}',
+        '{"rows":1,"columns":[],' + json.dumps(key) + ":1," + json.dumps(key) + ":2}",
         encoding="utf-8",
     )
     with pytest.raises(FileReadError, match="duplicate baseline JSON key") as error:
@@ -51,19 +50,27 @@ def test_malformed_column_name_is_bounded_before_cli_reads_csv(
         json.dumps(
             {
                 "rows": 1,
-                "columns": [
-                    {"name": long_name, "type": "string", "missing_pct": 101}
-                ],
+                "columns": [{"name": long_name, "type": "string", "missing_pct": 101}],
             }
         ),
         encoding="utf-8",
     )
     previous = tmp_path / "verified.json"
     previous.write_text('{"verified":true}\n', encoding="utf-8")
-    assert main([
-        str(tmp_path / "missing.csv"), "--baseline", str(baseline),
-        "--format", "json", "--json-output", str(previous),
-    ]) == 3
+    assert (
+        main(
+            [
+                str(tmp_path / "missing.csv"),
+                "--baseline",
+                str(baseline),
+                "--format",
+                "json",
+                "--json-output",
+                str(previous),
+            ]
+        )
+        == 3
+    )
     captured = capsys.readouterr()
     assert "invalid 'missing_pct'" in captured.err
     assert "[truncated]" in captured.err
@@ -77,8 +84,7 @@ def test_malformed_column_name_is_bounded_before_cli_reads_csv(
 def test_short_user_column_names_keep_original_diagnostics(tmp_path: Path) -> None:
     baseline = tmp_path / "short.json"
     baseline.write_text(
-        '{"rows":1,"columns":[{"name":"importe","type":"float",'
-        '"missing_pct":105}]}',
+        '{"rows":1,"columns":[{"name":"importe","type":"float","missing_pct":105}]}',
         encoding="utf-8",
     )
     with pytest.raises(
