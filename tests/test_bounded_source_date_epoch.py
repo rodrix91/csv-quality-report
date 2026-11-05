@@ -16,9 +16,7 @@ def test_epoch_exact_length_limit_retains_leading_zeroes() -> None:
     value = "0" * 64
     assert current_time({"SOURCE_DATE_EPOCH": value}) == datetime(1970, 1, 1, tzinfo=UTC)
     padded = "0" * (64 - len("1791331200")) + "1791331200"
-    assert current_time({"SOURCE_DATE_EPOCH": padded}) == datetime(
-        2026, 10, 7, tzinfo=UTC
-    )
+    assert current_time({"SOURCE_DATE_EPOCH": padded}) == datetime(2026, 10, 7, tzinfo=UTC)
 
 
 @pytest.mark.parametrize(
@@ -30,9 +28,7 @@ def test_epoch_exact_length_limit_retains_leading_zeroes() -> None:
     ],
 )
 def test_oversized_epoch_is_rejected_without_echoing_input(malformed: str) -> None:
-    with pytest.raises(
-        ValueError, match="SOURCE_DATE_EPOCH: value exceeds 64 characters"
-    ) as exc:
+    with pytest.raises(ValueError, match="SOURCE_DATE_EPOCH: value exceeds 64 characters") as exc:
         current_time({"SOURCE_DATE_EPOCH": malformed})
     message = str(exc.value)
     assert len(message) < 100
