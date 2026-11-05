@@ -39,8 +39,7 @@ def current_time(environ: Mapping[str, str] | None = None) -> datetime:
         return datetime.now(UTC).replace(microsecond=0)
     if len(text) > _MAX_EPOCH_CHARS:
         raise ValueError(
-            f"invalid {SOURCE_DATE_EPOCH}: value exceeds {_MAX_EPOCH_CHARS} characters "
-            "(too long)"
+            f"invalid {SOURCE_DATE_EPOCH}: value exceeds {_MAX_EPOCH_CHARS} characters (too long)"
         )
     if _EPOCH.fullmatch(text) is None:
         raise ValueError(
