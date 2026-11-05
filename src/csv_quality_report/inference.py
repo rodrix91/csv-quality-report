@@ -21,7 +21,8 @@ _DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$", re.ASCII)
 # Restrict offset minutes to 00-59: datetime.fromisoformat() silently
 # normalizes malformed offsets (e.g. +01:99 to +02:39) instead of rejecting.
 _DATETIME_RE = re.compile(
-    r"^\d{4}-\d{2}-\d{2}[T ](?:[01]\d|2[0-3]):\d{2}(:\d{2}(\.\d{1,6})?)?(Z|[+-](?:[01]\d|2[0-3])(?::?[0-5]\d)?)?$",
+    r"^\d{4}-\d{2}-\d{2}[T ](?:[01]\d|2[0-3]):\d{2}"
+    r"(:\d{2}(\.\d{1,6})?)?(Z|[+-](?:[01]\d|2[0-3])(?::?[0-5]\d)?)?$",
     re.ASCII,
 )
 _BOOLS = frozenset({"true", "false"})
