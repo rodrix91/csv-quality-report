@@ -54,7 +54,7 @@ def _replace(target: Path, text: str, mode: int | None) -> None:
             # umask-adjusted mode for *new* files, restrict the staging inode
             # before writing any report bytes, and restore its final mode only
             # after the complete contents have been fsynced.
-            new_file_mode = stat.S_IMODE(os.fstat(handle.fileno()).st_mode)
+            new_file_mode = stat.S_IMODE(os.fstat(descriptor).st_mode)
             os.chmod(temporary, 0o600)
             handle.write(text)
             handle.flush()
