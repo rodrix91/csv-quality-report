@@ -1,0 +1,205 @@
+{
+  "source": "tests/corpus/bo_sales_branches.csv",
+  "rows": 10,
+  "truncated": false,
+  "delimiter": ";",
+  "delimiter_detected": true,
+  "sep_line": false,
+  "na_tokens": [],
+  "top_n": 3,
+  "compressed": false,
+  "encoding": "utf-8",
+  "thousands": ".",
+  "date_order": "dmy",
+  "bool_words": [],
+  "number_affixes": [],
+  "accounting_negatives": false,
+  "selected_columns": null,
+  "header_columns": 5,
+  "duplicate_rows": 0,
+  "untrimmed_columns": [],
+  "columns": [
+    {
+      "name": "Fecha",
+      "type": "date",
+      "type_hint": null,
+      "missing": 0,
+      "missing_pct": 0.0,
+      "distinct": 1,
+      "min": "2026-11-04",
+      "max": "2026-11-04",
+      "mean": null,
+      "min_length": 10,
+      "max_length": 10,
+      "top_values": [
+        {
+          "value": "04/11/2026",
+          "count": 10
+        }
+      ],
+      "untrimmed": 0,
+      "affixes": {}
+    },
+    {
+      "name": "Sucursal",
+      "type": "string",
+      "type_hint": null,
+      "missing": 0,
+      "missing_pct": 0.0,
+      "distinct": 5,
+      "min": null,
+      "max": null,
+      "mean": null,
+      "min_length": 5,
+      "max_length": 10,
+      "top_values": [
+        {
+          "value": "Santa Cruz",
+          "count": 3
+        },
+        {
+          "value": "La Paz",
+          "count": 2
+        },
+        {
+          "value": "Cochabamba",
+          "count": 2
+        }
+      ],
+      "untrimmed": 1,
+      "affixes": {}
+    },
+    {
+      "name": "Ticket",
+      "type": "string",
+      "type_hint": null,
+      "missing": 0,
+      "missing_pct": 0.0,
+      "distinct": 10,
+      "min": null,
+      "max": null,
+      "mean": null,
+      "min_length": 8,
+      "max_length": 8,
+      "top_values": [
+        {
+          "value": "LP-20411",
+          "count": 1
+        },
+        {
+          "value": "LP-20412",
+          "count": 1
+        },
+        {
+          "value": "EA-11873",
+          "count": 1
+        }
+      ],
+      "untrimmed": 0,
+      "affixes": {}
+    },
+    {
+      "name": "Canal",
+      "type": "string",
+      "type_hint": null,
+      "missing": 0,
+      "missing_pct": 0.0,
+      "distinct": 2,
+      "min": null,
+      "max": null,
+      "mean": null,
+      "min_length": 6,
+      "max_length": 8,
+      "top_values": [
+        {
+          "value": "Tienda",
+          "count": 7
+        },
+        {
+          "value": "Delivery",
+          "count": 3
+        }
+      ],
+      "untrimmed": 0,
+      "affixes": {}
+    },
+    {
+      "name": "Importe Bs",
+      "type": "float",
+      "type_hint": null,
+      "missing": 0,
+      "missing_pct": 0.0,
+      "distinct": 10,
+      "min": 99.9,
+      "max": 4315.2,
+      "mean": 1082.54,
+      "min_length": 5,
+      "max_length": 8,
+      "top_values": [
+        {
+          "value": "1.250,50",
+          "count": 1
+        },
+        {
+          "value": "380,00",
+          "count": 1
+        },
+        {
+          "value": "215,75",
+          "count": 1
+        }
+      ],
+      "untrimmed": 0,
+      "affixes": {}
+    }
+  ],
+  "baseline": null,
+  "checks": [
+    {
+      "check": "allowed_values",
+      "column": "Sucursal",
+      "limit": 0,
+      "value": 0,
+      "passed": true,
+      "allowed": [
+        "La Paz",
+        "El Alto",
+        "Cochabamba",
+        "Santa Cruz",
+        "Sucre",
+        "Tarija"
+      ],
+      "unexpected": {}
+    },
+    {
+      "check": "required_values",
+      "column": "Sucursal",
+      "limit": 0,
+      "value": 1,
+      "passed": false,
+      "required": [
+        "La Paz",
+        "El Alto",
+        "Cochabamba",
+        "Santa Cruz",
+        "Sucre",
+        "Tarija"
+      ],
+      "absent": [
+        "Tarija"
+      ]
+    },
+    {
+      "check": "required_values",
+      "column": "Canal",
+      "limit": 0,
+      "value": 0,
+      "passed": true,
+      "required": [
+        "Tienda",
+        "Delivery"
+      ],
+      "absent": []
+    }
+  ]
+}

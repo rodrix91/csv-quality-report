@@ -15,6 +15,7 @@ from .checks import (
     CHECK_MAX_AGE,
     CHECK_MEAN_CHANGE,
     CHECK_PATTERN,
+    CHECK_REQUIRED_VALUES,
     CHECK_SCHEMA_CHANGE,
     CHECK_UNIQUE,
     CHECK_UNIQUE_KEY,
@@ -422,6 +423,11 @@ def render_json(
                 **(
                     {"before": c.mean_before, "after": c.mean_after}
                     if c.check == CHECK_MEAN_CHANGE
+                    else {}
+                ),
+                **(
+                    {"required": list(c.required), "absent": list(c.absent)}
+                    if c.check == CHECK_REQUIRED_VALUES
                     else {}
                 ),
             }
