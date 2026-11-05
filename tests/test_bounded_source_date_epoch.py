@@ -53,7 +53,9 @@ def test_cli_rejects_oversized_epoch_before_reading_or_overwriting(
     existing_report.write_text(original, encoding="utf-8")
     # The missing input must not be opened; clock validation happens first.
     missing_csv = tmp_path / "missing.csv"
-    monkeypatch.setenv("SOURCE_DATE_EPOCH", "secret-token" * 10_000)
+    # Windows limits a single environment value to 32,767 characters.
+    # The direct API tests above still exercise 100,000-character inputs.
+    monkeypatch.setenv("SOURCE_DATE_EPOCH", "secret-token" * 1_000)
 
     with pytest.raises(SystemExit) as raised:
         main(
