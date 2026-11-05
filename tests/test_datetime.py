@@ -41,6 +41,9 @@ def column(path: Path, capsys: pytest.CaptureFixture[str], *extra: str) -> dict[
         "2026-10-05T14:30:00+04:00",
         "2026-10-05T14:30:00-0400",
         "2026-10-05T14:30:00-04",
+        "2026-10-05T14:30+23:59",  # maximum strictly valid offset
+        "2026-10-05T14:30+00:59",  # minute boundary
+        "2026-10-05T14:30-0059",  # compact offset with minutes
         "2024-02-29T00:00",
     ],
 )
@@ -64,6 +67,11 @@ def test_accepted_datetime_forms(value: str) -> None:
         "2026-02-30T00:00",  # impossible date
         "2026-10-05T14:61",  # impossible minute
         "2026-10-05T14:30+25:00",  # offset of a day or more
+        "2026-10-05T14:30+01:99",  # Python silently normalizes to +02:39
+        "2026-10-05T14:30+12:60",  # Python silently normalizes to +13:00
+        "2026-10-05T14:30+1260",  # compact form is equally invalid
+        "2026-10-05T14:30-00:99",  # invalid negative offset minutes
+        "2026-10-05T14:30+23:60",  # malformed maximum-hour offset
         "2026-10-05T14:30 UTC",
         "05/10/2026 14:30",
     ],
@@ -71,6 +79,19 @@ def test_accepted_datetime_forms(value: str) -> None:
 def test_rejected_datetime_forms(value: str) -> None:
     assert parse_datetime(value) is None
     assert infer_type([value]) == TYPE_STRING
+
+
+
+def test_malformed_offset_does_not_pass_csv_datetime_inference(
+    write_csv: WriteCsv, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # With the Python parser alone, this value was normalized to +02:39
+    # and the column was incorrectly classified as a valid datetime.
+    bad = write_csv("time\n2026-10-05T14:30+01:99\n2026-10-05T15:30+01:00\n")
+    col = column(bad, capsys)
+    assert col["type"] == TYPE_STRING
+    assert col["min"] is None
+    assert col["max"] is None
 
 
 def test_plain_dates_keep_the_date_type() -> None:
