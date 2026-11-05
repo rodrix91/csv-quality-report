@@ -262,6 +262,10 @@ def _finite_json_float(text: str) -> float:
 # decoding, independently of Python's version-dependent recursion tolerance.
 # Quoted JSON strings are excluded so braces inside labels are not structure.
 _MAX_BASELINE_NESTING = 256
+# Historical reports should be small metadata documents. Bound the read
+# *before* JSON decoding so a malformed or hostile baseline cannot allocate
+# unbounded memory in the CLI, CI gates, or baseline comparison.
+MAX_BASELINE_BYTES = 32 * 1024 * 1024
 _JSON_QUOTED_STRING = re.compile(r'"(?:\\.|[^"\\])*"')
 
 
@@ -281,7 +285,13 @@ def _exceeds_baseline_nesting(source: str) -> bool:
 def load_baseline(path: Path, *, check_missing_rate: bool = False) -> dict[str, Any]:
     """Read baseline JSON, optionally checking counts against percentages (exit 3 on error)."""
     try:
-        contents = path.read_text(encoding="utf-8")
+        with path.open("rb") as handle:
+            encoded = handle.read(MAX_BASELINE_BYTES + 1)
+        if len(encoded) > MAX_BASELINE_BYTES:
+            raise FileReadError(
+                f"baseline '{path}' exceeds the {MAX_BASELINE_BYTES}-byte size limit"
+            )
+        contents = encoded.decode("utf-8")
         if _exceeds_baseline_nesting(contents):
             raise FileReadError(f"baseline '{path}' is too deeply nested")
         data = json.loads(
