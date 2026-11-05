@@ -44,10 +44,20 @@ def test_oversized_baseline_fails_before_csv_read_and_preserves_prior_report(
     saved.write_text('{"verified":true}\n', encoding="utf-8")
     missing_data = tmp_path / "no-such-dataset.csv"
 
-    assert main([
-        str(missing_data), "--baseline", str(baseline), "--format", "json",
-        "--json-output", str(saved),
-    ]) == 3
+    assert (
+        main(
+            [
+                str(missing_data),
+                "--baseline",
+                str(baseline),
+                "--format",
+                "json",
+                "--json-output",
+                str(saved),
+            ]
+        )
+        == 3
+    )
     output = capsys.readouterr()
     assert "exceeds the 128-byte size limit" in output.err
     assert "no-such-dataset.csv" not in output.err
