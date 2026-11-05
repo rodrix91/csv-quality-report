@@ -49,6 +49,5 @@ def test_normal_scheme_selection_and_existing_short_message_are_preserved() -> N
     with pytest.raises(ValueError) as caught:
         check_scheme("CUIT")
     assert str(caught.value) == (
-        "unknown check-digit scheme 'CUIT' "
-        "(use one of: cuit, rut, cpf, cnpj, gtin)"
+        "unknown check-digit scheme 'CUIT' (use one of: cuit, rut, cpf, cnpj, gtin)"
     )
