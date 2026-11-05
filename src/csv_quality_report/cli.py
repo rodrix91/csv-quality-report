@@ -39,7 +39,7 @@ from .inference import (
     parse_datetime,
 )
 from .output import write_atomic
-from .profile import TOP_N, allowed_list, compile_pattern, profile_file
+from .profile import TOP_N, allowed_list, compile_pattern, profile_file, required_list
 from .reader import (
     DEFAULT_ENCODING,
     DELIMITER_AUTO,
@@ -141,6 +141,20 @@ def _column_allowed(text: str) -> tuple[str, tuple[str, ...]]:
     except ValueError:
         raise argparse.ArgumentTypeError(
             usage + "Moneda=PYG,USD; every value must be non-empty)"
+        ) from None
+
+
+def _column_required(text: str) -> tuple[str, tuple[str, ...]]:
+    """Parse ``NAME=V1,V2`` for --require-values (split at the last ``=``, values at commas)."""
+    name, sep, values = text.rpartition("=")
+    usage = f"invalid --require-values value: {text!r} (use NAME=VALUE,VALUE, such as "
+    if not sep or not name:
+        raise argparse.ArgumentTypeError(usage + "Sucursal=La Paz,El Alto)")
+    try:
+        return name, required_list(values.split(","))
+    except ValueError:
+        raise argparse.ArgumentTypeError(
+            usage + "Sucursal=La Paz,El Alto; every value must be non-empty)"
         ) from None
 
 
@@ -672,6 +686,16 @@ def build_parser() -> argparse.ArgumentParser:
         "repeatable",
     )
     gates.add_argument(
+        "--require-values",
+        type=_column_required,
+        action="append",
+        default=[],
+        metavar="NAME=VALUES",
+        help="fail if one of the comma-separated VALUES is in no non-missing cell of column "
+        "NAME, such as every branch of a consolidated export: Sucursal=La Paz,El Alto "
+        "(stripped text, case-sensitive); repeatable",
+    )
+    gates.add_argument(
         "--pattern",
         type=_column_pattern,
         action="append",
@@ -829,6 +853,7 @@ def _check_selected(args: argparse.Namespace) -> None:
         ("--allowed-values", [name for name, _ in args.allowed_values]),
         ("--pattern", [name for name, _ in args.pattern]),
         ("--check-digit", [name for name, _ in args.check_digit]),
+        ("--require-values", [name for name, _ in args.require_values]),
         ("--allow-type-change", [r.column for r in args.allow_type_change if r.column]),
         ("--allow-added-column", args.allow_added_column),
         ("--allow-removed-column", args.allow_removed_column),
@@ -970,6 +995,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             allowed_values=dict(args.allowed_values),  # the last list for a name wins
             patterns=dict(args.pattern),  # the last pattern for a name wins
             check_digits=dict(args.check_digit),  # the last scheme for a name wins
+            required_values=dict(args.require_values),  # the last list for a name wins
             skip_lines=args.skip_lines,
             skip_footer=args.skip_footer,
             month_names=args.month_names,
@@ -986,6 +1012,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         allowed_values=dict(args.allowed_values),
         patterns=dict(args.pattern),
         check_digits=dict(args.check_digit),
+        required_values=dict(args.require_values),
         required_columns=args.require_columns,
         column_max_missing=dict(args.max_missing_column),  # the last limit for a name wins
         column_types=dict(args.require_type),  # the last type for a name wins

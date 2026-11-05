@@ -24,10 +24,12 @@ from .profile import (
     DomainProfile,
     KeyProfile,
     PatternProfile,
+    PresenceProfile,
     Report,
     allowed_list,
     compile_pattern,
     key_columns,
+    required_list,
 )
 
 CHECK_MAX_MISSING = "max_missing"
@@ -49,6 +51,7 @@ CHECK_MIN_ROWS = "min_rows"
 CHECK_ALLOWED_VALUES = "allowed_values"
 CHECK_PATTERN = "pattern"
 CHECK_CHECK_DIGIT = "check_digit"
+CHECK_REQUIRED_VALUES = "required_values"
 # A baseline stamped up to this many seconds after the clock counts as 0
 # seconds old (clocks of two machines differ a little); later is an error.
 CLOCK_SKEW_TOLERANCE = 300
@@ -129,6 +132,8 @@ class CheckResult:
     invalid: tuple[tuple[str, int], ...] = ()  # check_digit: most frequent (value, cells)
     mean_before: int | float | None = None  # mean_change checks: the baseline's mean
     mean_after: float | None = None  # mean_change checks: the current mean
+    required: tuple[str, ...] = ()  # required_values checks: the values given
+    absent: tuple[str, ...] = ()  # required_values checks: the values no cell holds
 
     def describe(self) -> str:
         """One-line, human-readable explanation used on stderr and in Markdown."""
@@ -185,6 +190,8 @@ class CheckResult:
             return self._describe_pattern()
         if self.check == CHECK_CHECK_DIGIT:
             return self._describe_check_digit()
+        if self.check == CHECK_REQUIRED_VALUES:
+            return self._describe_required_values()
         if self.check == CHECK_MIN_ROWS:
             rows = int(self.value)
             noun = "data row" if rows == 1 else "data rows"
@@ -298,6 +305,22 @@ class CheckResult:
         return (
             f"column '{self.column}' has {count} {noun} outside the allowed values ({listed})"
             + (f": {examples}" if examples else "")
+        )
+
+    def _describe_required_values(self) -> str:
+        total = len(self.required)
+        noun = "value" if total == 1 else "values"
+        if self.passed:
+            listed = ", ".join(self.required[:_MAX_LISTED])
+            if total > _MAX_LISTED:
+                listed += ", ..."
+            every = "the required value" if total == 1 else f"all {total} required values"
+            return f"column '{self.column}' has {every} ({listed})"
+        absent = ", ".join(f'"{value}"' for value in self.absent[:_MAX_LISTED])
+        if len(self.absent) > _MAX_LISTED:
+            absent += f", ... ({len(self.absent)} values)"
+        return (
+            f"column '{self.column}' lacks {len(self.absent)} of {total} required {noun}: {absent}"
         )
 
     def _describe_pattern(self) -> str:
@@ -1052,6 +1075,19 @@ def _check_digit_check(profile: CheckDigitProfile) -> CheckResult:
     )
 
 
+def _required_values_check(presence: PresenceProfile) -> CheckResult:
+    """A check that fails when a value of ``presence.required`` is in no non-missing cell."""
+    return CheckResult(
+        check=CHECK_REQUIRED_VALUES,
+        column=presence.column,
+        limit=0,
+        value=len(presence.absent),
+        passed=not presence.absent,
+        required=presence.required,
+        absent=presence.absent,
+    )
+
+
 def _unique_key_check(key: KeyProfile) -> CheckResult:
     """A check that fails when two checked rows share the values of ``key``'s columns."""
     return CheckResult(
@@ -1091,6 +1127,7 @@ def evaluate(
     allowed_values: Mapping[str, Iterable[str]] | None = None,
     patterns: Mapping[str, str] | None = None,
     check_digits: Mapping[str, str] | None = None,
+    required_values: Mapping[str, Iterable[str]] | None = None,
 ) -> list[CheckResult]:
     """Evaluate the requested thresholds; a value equal to its limit passes.
 
@@ -1188,6 +1225,16 @@ def evaluate(
     cells that are not valid identifiers and ``invalid`` names the most
     frequent of their values. Unknown names fail as ``required_column``.
 
+    ``required_values`` maps column names to values that at least one
+    non-missing cell must hold, such as every branch or warehouse of a
+    consolidated export. The report must have been built with the same lists
+    (``profile_file(..., required_values=...)``), which looks each value up
+    after the pass (``Report.presences``); a list it lacks raises
+    ``ValueError``. Values compare stripped, case-sensitive, as text; the
+    check's ``value`` is the number of listed values no cell holds and
+    ``absent`` names them, in the order given. Unknown names fail as
+    ``required_column``.
+
     ``required_columns`` are matched exactly (case-sensitive) against the
     file's whole header (``Report.header``, after duplicate-name suffixes),
     also when only some columns were profiled; each one gives a check with
@@ -1251,7 +1298,9 @@ def evaluate(
     for pattern in formats.values():
         compile_pattern(pattern)  # ValueError when empty or invalid
     schemes = {name: check_scheme(scheme) for name, scheme in (check_digits or {}).items()}
+    presences = {name: required_list(values) for name, values in (required_values or {}).items()}
     gated += [*(column_ranges or {}), *unique, *max_ages, *domains, *formats, *schemes]
+    gated += presences
     unprofiled = [name for name in gated if name in present]
     unprofiled = [name for name in unprofiled if name not in by_name]
     if unprofiled:
@@ -1356,6 +1405,17 @@ def evaluate(
                 "profiled with the same scheme"
             )
         results.append(_check_digit_check(digits))
+    measured_presences = {presence.column: presence for presence in report.presences}
+    for name, required in presences.items():
+        if name not in by_name:
+            continue  # reported below as a missing required column
+        presence = measured_presences.get(name)
+        if presence is None or presence.required != required:
+            raise ValueError(
+                f"column {name!r} has a required_values check but the report was not "
+                "profiled with the same list"
+            )
+        results.append(_required_values_check(presence))
     keys = list(dict.fromkeys(key_columns(key) for key in unique_keys))
     measured = {key.columns: key for key in report.keys}
     for columns in keys:
@@ -1380,6 +1440,7 @@ def evaluate(
             *domains,
             *formats,
             *schemes,
+            *presences,
         ]
         if name not in present
     )

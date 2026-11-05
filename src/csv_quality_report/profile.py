@@ -133,6 +133,14 @@ class DomainProfile:
     examples: tuple[tuple[str, int], ...] = ()
 
 
+def required_list(values: Iterable[str]) -> tuple[str, ...]:
+    """``values`` stripped, without repeats, in order; ``ValueError`` if one is empty or none."""
+    listed = tuple(dict.fromkeys(value.strip() for value in values))
+    if not listed or "" in listed:
+        raise ValueError("a required-values list needs at least one value and no empty ones")
+    return listed
+
+
 def allowed_list(values: Iterable[str]) -> tuple[str, ...]:
     """``values`` stripped, without repeats, in order; ``ValueError`` if one is empty or none."""
     listed = tuple(dict.fromkeys(value.strip() for value in values))
@@ -176,6 +184,23 @@ class CheckDigitProfile:
     scheme: str
     invalid: int
     examples: tuple[tuple[str, int], ...] = ()
+
+
+@dataclass(frozen=True)
+class PresenceProfile:
+    """Which required values a column lacks (``--require-values``).
+
+    Values compare as the report counts them: stripped of surrounding
+    whitespace, case-sensitive, as text; missing cells never hold one.
+    ``required`` is the list given (stripped, without repeats, in order) and
+    ``absent`` the values of it that no non-missing cell holds, in the same
+    order. Exact for any number of rows: each required value is looked up
+    once in the counts the pass keeps.
+    """
+
+    column: str
+    required: tuple[str, ...]
+    absent: tuple[str, ...] = ()
 
 
 def check_na_ignore_case(na_ignore_case: bool, na_tokens: Iterable[str]) -> None:
@@ -225,6 +250,7 @@ class Report:
     patterns: tuple[PatternProfile, ...] = ()  # --pattern: one per profiled column
     na_ignore_case: bool = False  # --na-ignore-case: na_tokens were matched in any case
     check_digits: tuple[CheckDigitProfile, ...] = ()  # --check-digit: one per profiled column
+    presences: tuple[PresenceProfile, ...] = ()  # --require-values: one per profiled column
 
 
 def _untrimmed_names(header: list[str]) -> tuple[str, ...]:
@@ -643,6 +669,7 @@ class _Profiled:
     domains: tuple[DomainProfile, ...] = ()
     patterns: tuple[PatternProfile, ...] = ()
     check_digits: tuple[CheckDigitProfile, ...] = ()
+    presences: tuple[PresenceProfile, ...] = ()
 
 
 def _columns(
@@ -712,6 +739,7 @@ def profile_rows(
     month_names: bool = False,
     na_ignore_case: bool = False,
     check_digits: Mapping[str, str] | None = None,
+    required_values: Mapping[str, Iterable[str]] | None = None,
 ) -> _Profiled:
     """Profile ``rows`` in a single pass; each row must have ``len(header)`` cells.
 
@@ -760,6 +788,11 @@ def profile_rows(
     each distinct value is checked once after the pass; a name that is not
     profiled is skipped, and an unknown scheme raises ``ValueError`` before
     any row is read.
+
+    ``required_values`` maps column names to values that at least one
+    non-missing cell must hold (see ``PresenceProfile``). Each listed value is
+    looked up once after the pass; a name that is not profiled is skipped,
+    and an empty list or value raises ``ValueError`` before any row is read.
     """
     _validate_top_n(top_n)
     # Materialize one-shot iterables before validation and missing-cell accounting.
@@ -777,6 +810,7 @@ def profile_rows(
     domains = {name: allowed_list(values) for name, values in (allowed_values or {}).items()}
     formats = {name: compile_pattern(pattern) for name, pattern in (patterns or {}).items()}
     schemes = {name: check_scheme(scheme) for name, scheme in (check_digits or {}).items()}
+    presences = {name: required_list(values) for name, values in (required_values or {}).items()}
     selected = _selection(header, columns)
     accumulators = [
         _ColumnAccumulator(name)
@@ -825,6 +859,9 @@ def profile_rows(
             for acc in accumulators
             if acc.name in schemes
         ),
+        presences=tuple(
+            _presence(acc, presences[acc.name]) for acc in accumulators if acc.name in presences
+        ),
     )
 
 
@@ -833,6 +870,14 @@ def _domain(acc: _ColumnAccumulator, allowed: tuple[str, ...], top_n: int) -> Do
     permitted = set(allowed)
     unexpected, examples = _outside(acc.counts, permitted.__contains__, top_n)
     return DomainProfile(column=acc.name, allowed=allowed, unexpected=unexpected, examples=examples)
+
+
+def _presence(acc: _ColumnAccumulator, required: tuple[str, ...]) -> PresenceProfile:
+    """The ``required`` values that no cell of ``acc`` (stripped, non-missing) holds."""
+    # After strip_counts, the counts hold only stripped, non-missing values,
+    # each with a positive count.
+    absent = tuple(value for value in required if value not in acc.counts)
+    return PresenceProfile(column=acc.name, required=required, absent=absent)
 
 
 def _pattern(acc: _ColumnAccumulator, pattern: re.Pattern[str], top_n: int) -> PatternProfile:
@@ -920,6 +965,7 @@ def _report(
         patterns=result.patterns,
         na_ignore_case=na_ignore_case,
         check_digits=result.check_digits,
+        presences=result.presences,
     )
 
 
@@ -940,6 +986,7 @@ def build_report(
     month_names: bool = False,
     na_ignore_case: bool = False,
     check_digits: Mapping[str, str] | None = None,
+    required_values: Mapping[str, Iterable[str]] | None = None,
 ) -> Report:
     """Profile every column of an in-memory ``table``.
 
@@ -960,7 +1007,9 @@ def build_report(
     Spanish or English month names such as ``05-oct-2026``; ``na_ignore_case``
     matches ``na_tokens`` after case folding and NFC (``Report.na_ignore_case``);
     ``check_digits`` maps column names to check-digit schemes such as
-    ``"cuit"`` or ``"gtin"`` their values must satisfy (``Report.check_digits``).
+    ``"cuit"`` or ``"gtin"`` their values must satisfy (``Report.check_digits``);
+    ``required_values`` maps column names to values that must each appear in
+    at least one cell (``Report.presences``).
     """
     _validate_top_n(top_n)
     tokens = tuple(na_tokens)
@@ -982,6 +1031,7 @@ def build_report(
         month_names,
         na_ignore_case,
         check_digits=check_digits,
+        required_values=required_values,
     )
     return _report(
         result,
@@ -1022,6 +1072,7 @@ def profile_file(
     month_names: bool = False,
     na_ignore_case: bool = False,
     check_digits: Mapping[str, str] | None = None,
+    required_values: Mapping[str, Iterable[str]] | None = None,
 ) -> Report:
     """Stream ``path`` and profile it without loading the whole file into memory.
 
@@ -1031,7 +1082,8 @@ def profile_file(
     ``build_report(read_table(...))``. ``skip_lines`` lines before the header
     are skipped (``Report.skipped_lines``), and ``skip_footer`` records after
     the data are dropped (``Report.skipped_footer``). ``month_names``,
-    ``na_ignore_case`` and ``check_digits`` are as in ``build_report``.
+    ``na_ignore_case``, ``check_digits`` and ``required_values`` are as in
+    ``build_report``.
     """
     _validate_top_n(top_n)
     tokens = tuple(na_tokens)
@@ -1062,6 +1114,7 @@ def profile_file(
             month_names,
             na_ignore_case,
             check_digits=check_digits,
+            required_values=required_values,
         )
         return _report(
             result,

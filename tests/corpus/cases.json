@@ -375,5 +375,12 @@
     "args": ["--encoding", "utf-16", "--delimiter", "auto", "--decimal-comma", "--thousands", "dot", "--date-order", "dmy", "--require-type", "Stock=int", "--require-type", "Costo unitario=int", "--require-type", "Último ingreso=date"],
     "exit_code": 0,
     "about": "The same file with the encoding the message names: tabs are detected, guaraní amounts and stock with dot thousands are integers, day-first dates are typed, and the one blank stock is a missing value."
+  },
+  {
+    "name": "bo_sales_branches_required",
+    "file": "bo_sales_branches.csv",
+    "args": ["--delimiter", "auto", "--decimal-comma", "--thousands", "dot", "--date-order", "dmy", "--allowed-values", "Sucursal=La Paz,El Alto,Cochabamba,Santa Cruz,Sucre,Tarija", "--require-values", "Sucursal=La Paz,El Alto,Cochabamba,Santa Cruz,Sucre,Tarija", "--require-values", "Canal=Tienda,Delivery"],
+    "exit_code": 8,
+    "about": "A Bolivian retail chain's consolidated daily sales export whose Tarija branch did not upload: every branch name is one of the six expected (--allowed-values passes, the padded ' Santa Cruz ' counts as Santa Cruz) and both sales channels appear, but --require-values Sucursal fails and names Tarija."
   }
 ]
