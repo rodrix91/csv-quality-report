@@ -15,6 +15,7 @@ from csv_quality_report.checkdigits import check_scheme, scheme_label, validator
         "\u202e" * 10_000 + "sensitive-ending",
         "\x00" * 100 + "hidden-secret",
     ],
+    ids=["long-ascii", "terminal-controls", "bidi-controls", "nul-controls"],
 )
 def test_invalid_scheme_diagnostic_is_short_escaped_and_redacted(invalid: str) -> None:
     for operation in (check_scheme, validator, scheme_label):
