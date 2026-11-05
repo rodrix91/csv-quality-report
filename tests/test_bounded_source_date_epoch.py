@@ -26,6 +26,7 @@ def test_epoch_exact_length_limit_retains_leading_zeroes() -> None:
         "0" * 100_000,
         "secret-value" * 10_000,
     ],
+    ids=["65-digit-epoch", "100k-digit-epoch", "100k-text-epoch"],
 )
 def test_oversized_epoch_is_rejected_without_echoing_input(malformed: str) -> None:
     with pytest.raises(ValueError, match="SOURCE_DATE_EPOCH: value exceeds 64 characters") as exc:
