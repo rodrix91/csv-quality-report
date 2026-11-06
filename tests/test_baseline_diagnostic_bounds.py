@@ -138,19 +138,25 @@ def test_column_error_with_control_heavy_name_stays_one_log_line(
     name = "\x1b" * 120 + "private-trailing-token"
     baseline = tmp_path / "historic.json"
     baseline.write_text(
-        json.dumps({
-            "rows": 1,
-            "columns": [{"name": name, "type": "int", "missing_pct": 101}],
-        }),
+        json.dumps(
+            {
+                "rows": 1,
+                "columns": [{"name": name, "type": "int", "missing_pct": 101}],
+            }
+        ),
         encoding="utf-8",
     )
     saved = tmp_path / "existing.json"
     saved.write_text('{"verified":true}\n', encoding="utf-8")
-    exit_code = main([
-        str(tmp_path / "missing.csv"),
-        "--baseline", str(baseline),
-        "--json-output", str(saved),
-    ])
+    exit_code = main(
+        [
+            str(tmp_path / "missing.csv"),
+            "--baseline",
+            str(baseline),
+            "--json-output",
+            str(saved),
+        ]
+    )
     captured = capsys.readouterr()
     assert exit_code == 3
     assert captured.out == ""
