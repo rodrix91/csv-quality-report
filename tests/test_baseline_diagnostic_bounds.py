@@ -91,3 +91,71 @@ def test_short_user_column_names_keep_original_diagnostics(tmp_path: Path) -> No
         FileReadError, match="baseline column 'importe' has an invalid 'missing_pct'"
     ):
         load_baseline(baseline)
+
+
+@pytest.mark.parametrize("control", ["\x1b", "\n", "\r", "\t", "\u202e", "\ud800"])
+def test_escaped_baseline_labels_are_bounded_after_repr_expansion(control: str) -> None:
+    from csv_quality_report.compare import _baseline_error_label
+
+    name = control * 120
+    diagnostic = _baseline_error_label(name)
+    assert len(diagnostic) <= 175
+    assert diagnostic.endswith(" [truncated]")
+    assert control not in diagnostic
+    assert "..." in diagnostic
+
+
+def test_short_escaped_baseline_names_keep_prior_diagnostics() -> None:
+    from csv_quality_report.compare import _baseline_error_label
+
+    assert _baseline_error_label("Tarija") == "'Tarija'"
+    assert _baseline_error_label("a\nb") == repr("a\nb")
+    assert _baseline_error_label("\x1b" * 3) == repr("\x1b" * 3)
+    assert _baseline_error_label("x" * 121) == repr("x" * 120) + " [truncated]"
+
+
+def test_duplicate_json_key_with_many_controls_has_bounded_log_output(tmp_path: Path) -> None:
+    name = "\x1b" * 120 + "-private-trailing-token"
+    baseline = tmp_path / "duplicate-control-name.json"
+    baseline.write_text(
+        '{"rows":1,"columns":[],' + json.dumps(name) + ":1," + json.dumps(name) + ":2}",
+        encoding="utf-8",
+    )
+    with pytest.raises(FileReadError, match="duplicate baseline JSON key") as error:
+        load_baseline(baseline)
+    diagnostic = str(error.value)
+    assert len(diagnostic) < 350
+    assert "[truncated]" in diagnostic
+    assert "\x1b" not in diagnostic
+    assert "-private-trailing-token" not in diagnostic
+
+
+def test_column_error_with_control_heavy_name_stays_one_log_line(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    name = "\x1b" * 120 + "private-trailing-token"
+    baseline = tmp_path / "historic.json"
+    baseline.write_text(
+        json.dumps({
+            "rows": 1,
+            "columns": [{"name": name, "type": "int", "missing_pct": 101}],
+        }),
+        encoding="utf-8",
+    )
+    saved = tmp_path / "existing.json"
+    saved.write_text('{"verified":true}\n', encoding="utf-8")
+    exit_code = main([
+        str(tmp_path / "missing.csv"),
+        "--baseline", str(baseline),
+        "--json-output", str(saved),
+    ])
+    captured = capsys.readouterr()
+    assert exit_code == 3
+    assert captured.out == ""
+    assert "invalid 'missing_pct'" in captured.err
+    assert "[truncated]" in captured.err
+    assert "\x1b" not in captured.err
+    assert "private-trailing-token" not in captured.err
+    assert captured.err.count("\n") == 1
+    assert len(captured.err) < 450
+    assert saved.read_text(encoding="utf-8") == '{"verified":true}\n'
