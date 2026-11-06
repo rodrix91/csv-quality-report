@@ -11,6 +11,7 @@ from .checks import (
     CHECK_ALLOWED_VALUES,
     CHECK_BASELINE_AGE,
     CHECK_CHECK_DIGIT,
+    CHECK_COLUMN_ORDER,
     CHECK_MAX_AFFIXES,
     CHECK_MAX_AGE,
     CHECK_MEAN_CHANGE,
@@ -300,6 +301,27 @@ def _unique_key_fields(check: CheckResult) -> dict[str, Any]:
     }
 
 
+def _column_order_fields(check: CheckResult) -> dict[str, Any]:
+    """JSON fields of a column_order check: the order, the row counts and the first rows."""
+    assert check.order is not None
+    left, operator, right = check.order
+    return {
+        "left": left,
+        "operator": operator,
+        "right": right,
+        "checked": check.checked,
+        "skipped": check.skipped,
+        "violations": check.violations,
+        "uncomparable": check.uncomparable,
+        "out_of_order": [
+            {"row": row, "left": low, "right": high} for row, low, high in check.out_of_order
+        ],
+        "uncomparable_rows": [
+            {"row": row, "left": low, "right": high} for row, low, high in check.uncomparable_rows
+        ],
+    }
+
+
 def _allowed_fields(check: CheckResult) -> dict[str, Any]:
     """JSON fields of a schema_change check with --allow-* options, each only when given."""
     fields: dict[str, Any] = {}
@@ -402,6 +424,7 @@ def render_json(
                 **(_range_fields(c) if c.check == CHECK_VALUE_RANGE else {}),
                 **({"repeated": dict(c.repeated)} if c.check == CHECK_UNIQUE else {}),
                 **(_unique_key_fields(c) if c.check == CHECK_UNIQUE_KEY else {}),
+                **(_column_order_fields(c) if c.check == CHECK_COLUMN_ORDER else {}),
                 **(_allowed_fields(c) if c.check == CHECK_SCHEMA_CHANGE else {}),
                 **({"generated_at": c.generated_at} if c.check == CHECK_BASELINE_AGE else {}),
                 **({"newest": c.newest} if c.check == CHECK_MAX_AGE else {}),

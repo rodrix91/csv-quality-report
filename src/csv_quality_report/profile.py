@@ -9,6 +9,7 @@ import re
 from collections import Counter, deque
 from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
 from dataclasses import dataclass
+from datetime import datetime
 from itertools import compress, islice, repeat
 from operator import itemgetter
 from typing import Any
@@ -203,6 +204,53 @@ class PresenceProfile:
     absent: tuple[str, ...] = ()
 
 
+ORDER_OPERATORS = ("<=", "<")  # --column-order: LEFT <= RIGHT, or LEFT < RIGHT
+
+
+@dataclass(frozen=True)
+class OrderProfile:
+    """How many rows break the order of two columns (``--column-order``).
+
+    Each row's ``left`` and ``right`` cells are read as the report reads
+    values (stripped, with the reading rules: decimal comma, thousands,
+    date order, month names, number affixes, accounting negatives) and
+    compared with ``operator`` (``"<="`` or ``"<"``). Numbers compare with
+    numbers, and dates and date-times with each other (a date is midnight);
+    date-times with a UTC offset compare as instants. A row with a missing
+    cell (empty or an ``na_tokens`` text) is not checked and counts as
+    ``skipped``. A row whose two values cannot be compared (text, a boolean,
+    a number and a date, a time with an offset and one without, which would
+    need a guessed time zone) counts as ``uncomparable``; one whose values
+    break the order counts in ``violations``. ``examples`` and
+    ``uncomparable_examples`` are the first ``top_n`` of those rows, as
+    ``(data row, left value, right value)``, data rows counted from 1 after
+    the header. All counts are exact for any number of rows.
+    """
+
+    left: str
+    operator: str
+    right: str
+    checked: int  # rows whose two cells are present
+    skipped: int  # rows with a missing cell
+    violations: int  # checked rows that break the order
+    uncomparable: int  # checked rows whose two values cannot be compared
+    examples: tuple[tuple[int, str, str], ...] = ()
+    uncomparable_examples: tuple[tuple[int, str, str], ...] = ()
+
+
+def column_order(left: str, operator: str, right: str) -> tuple[str, str, str]:
+    """``(left, operator, right)`` validated; ``ValueError`` when a part is not usable."""
+    if not isinstance(left, str) or not isinstance(right, str) or not left or not right:
+        raise ValueError(f"a column order needs two column names, not {left!r} and {right!r}")
+    if left == right:
+        raise ValueError(f"a column order needs two different columns, not {left!r} twice")
+    if operator not in ORDER_OPERATORS:
+        raise ValueError(
+            f"a column order operator must be one of {', '.join(ORDER_OPERATORS)}, not {operator!r}"
+        )
+    return left, operator, right
+
+
 def check_na_ignore_case(na_ignore_case: bool, na_tokens: Iterable[str]) -> None:
     """``ValueError`` if ``na_ignore_case`` is set without any non-blank ``na_tokens``."""
     if na_ignore_case and not any(token.strip() for token in na_tokens):
@@ -251,6 +299,7 @@ class Report:
     na_ignore_case: bool = False  # --na-ignore-case: na_tokens were matched in any case
     check_digits: tuple[CheckDigitProfile, ...] = ()  # --check-digit: one per profiled column
     presences: tuple[PresenceProfile, ...] = ()  # --require-values: one per profiled column
+    orders: tuple[OrderProfile, ...] = ()  # --column-order: one per order whose columns exist
 
 
 def _untrimmed_names(header: list[str]) -> tuple[str, ...]:
@@ -660,6 +709,160 @@ def _key_accumulators(
     ]
 
 
+# Kinds of comparable keys for --column-order: values compare only within one
+# kind. Negative kinds never compare: a missing cell skips the row, text makes
+# it uncomparable.
+_MISSING_KIND, _TEXT_KIND, _NUMBER_KIND, _NAIVE_KIND, _AWARE_KIND = -2, -1, 0, 1, 2
+_OrderKey = tuple[int, int | float | datetime | None]
+_MISSING_KEY: _OrderKey = (_MISSING_KIND, None)
+_TEXT_KEY: _OrderKey = (_TEXT_KIND, None)
+
+
+def _order_key(value: str, rules: _Rules) -> _OrderKey:
+    """The comparable key of one stripped, non-missing value, read with ``rules``."""
+    plain = _plain_values([value], rules)[0]
+    kind = value_type(plain, rules.decimal_comma)
+    if kind == TYPE_INT:
+        return _NUMBER_KIND, int(plain)
+    if kind == TYPE_FLOAT:
+        return _NUMBER_KIND, parse_float(plain, rules.decimal_comma)
+    if kind in (TYPE_DATE, TYPE_DATETIME):
+        moment = parse_datetime(plain)
+        assert moment is not None, plain  # value_type guarantees it
+        return (_NAIVE_KIND if moment.tzinfo is None else _AWARE_KIND), moment
+    return _TEXT_KEY
+
+
+class _OrderKeys:
+    """Comparable keys of one column's cells; each distinct cell text is read once.
+
+    Memory grows with the number of distinct texts of the column, like its
+    value counts.
+    """
+
+    __slots__ = ("cache", "fold", "na", "rules")
+
+    def __init__(self, rules: _Rules, na: set[str], fold: bool) -> None:
+        self.rules = rules
+        self.na = na
+        self.fold = fold
+        self.cache: dict[str, _OrderKey] = {}
+
+    def keys(self, cells: Iterable[str]) -> list[_OrderKey]:
+        cache = self.cache
+        found = []
+        for cell in cells:
+            key = cache.get(cell)
+            if key is None:
+                value = cell.strip()
+                missing = (_fold_missing(value) if self.fold else value) in self.na
+                key = cache[cell] = _MISSING_KEY if missing else _order_key(value, self.rules)
+            found.append(key)
+        return found
+
+
+class _OrderAccumulator:
+    """Rows that break the order of two columns (``--column-order``), batch by batch."""
+
+    __slots__ = (
+        "examples",
+        "left",
+        "lefts",
+        "limit",
+        "operator",
+        "positions",
+        "right",
+        "rights",
+        "skipped",
+        "strict",
+        "uncomparable",
+        "uncomparable_examples",
+        "violations",
+    )
+
+    def __init__(
+        self,
+        order: tuple[str, str, str],
+        positions: tuple[int, int],
+        keys: tuple[_OrderKeys, _OrderKeys],
+        limit: int,
+    ) -> None:
+        self.left, self.operator, self.right = order
+        self.strict = self.operator == "<"
+        self.positions = positions
+        self.lefts, self.rights = keys
+        self.limit = limit
+        self.skipped = 0
+        self.violations = 0
+        self.uncomparable = 0
+        self.examples: list[tuple[int, str, str]] = []
+        self.uncomparable_examples: list[tuple[int, str, str]] = []
+
+    def update(self, batch: list[list[str]], start: int) -> None:
+        """Check the rows of ``batch``, the first of which is data row ``start + 1``."""
+        first, second = self.positions
+        lefts = self.lefts.keys([row[first] for row in batch])
+        rights = self.rights.keys([row[second] for row in batch])
+        strict = self.strict
+        for offset, ((left_kind, low), (right_kind, high)) in enumerate(
+            zip(lefts, rights, strict=True)
+        ):
+            if left_kind == _MISSING_KIND or right_kind == _MISSING_KIND:
+                self.skipped += 1
+            elif left_kind != right_kind or left_kind == _TEXT_KIND:
+                self.uncomparable += 1
+                self._note(self.uncomparable_examples, batch[offset], start + offset + 1)
+            # Same kind of number or moment: the values compare (ints and floats exactly).
+            elif low > high or (strict and low == high):  # type: ignore[operator]
+                self.violations += 1
+                self._note(self.examples, batch[offset], start + offset + 1)
+
+    def _note(self, examples: list[tuple[int, str, str]], row: list[str], number: int) -> None:
+        if len(examples) < self.limit:
+            first, second = self.positions
+            examples.append((number, row[first].strip(), row[second].strip()))
+
+    def finish(self, total: int) -> OrderProfile:
+        return OrderProfile(
+            left=self.left,
+            operator=self.operator,
+            right=self.right,
+            checked=total - self.skipped,
+            skipped=self.skipped,
+            violations=self.violations,
+            uncomparable=self.uncomparable,
+            examples=tuple(self.examples),
+            uncomparable_examples=tuple(self.uncomparable_examples),
+        )
+
+
+def _order_accumulators(
+    header: list[str],
+    orders: Iterable[tuple[str, str, str]],
+    rules: _Rules,
+    na: set[str],
+    fold: bool,
+    limit: int,
+) -> list[_OrderAccumulator]:
+    """One accumulator per distinct order whose two columns are in ``header``.
+
+    Orders naming an unknown column are left out here: ``evaluate`` reports
+    those names as missing required columns. Orders on the same column share
+    its cache of keys.
+    """
+    position = {name: i for i, name in enumerate(header)}
+    caches: dict[int, _OrderKeys] = {}
+    accumulators = []
+    for order in orders:
+        left, _, right = order
+        if left not in position or right not in position:
+            continue
+        positions = position[left], position[right]
+        keys = tuple(caches.setdefault(p, _OrderKeys(rules, na, fold)) for p in positions)
+        accumulators.append(_OrderAccumulator(order, positions, (keys[0], keys[1]), limit))
+    return accumulators
+
+
 @dataclass(frozen=True)
 class _Profiled:
     columns: list[ColumnProfile]
@@ -670,6 +873,7 @@ class _Profiled:
     patterns: tuple[PatternProfile, ...] = ()
     check_digits: tuple[CheckDigitProfile, ...] = ()
     presences: tuple[PresenceProfile, ...] = ()
+    orders: tuple[OrderProfile, ...] = ()
 
 
 def _columns(
@@ -740,6 +944,7 @@ def profile_rows(
     na_ignore_case: bool = False,
     check_digits: Mapping[str, str] | None = None,
     required_values: Mapping[str, Iterable[str]] | None = None,
+    column_orders: Iterable[tuple[str, str, str]] = (),
 ) -> _Profiled:
     """Profile ``rows`` in a single pass; each row must have ``len(header)`` cells.
 
@@ -793,6 +998,15 @@ def profile_rows(
     non-missing cell must hold (see ``PresenceProfile``). Each listed value is
     looked up once after the pass; a name that is not profiled is skipped,
     and an empty list or value raises ``ValueError`` before any row is read.
+
+    ``column_orders`` are ``(left, operator, right)`` triples, such as
+    ``("Despacho", "<=", "Entrega")``: each row's two values must keep that
+    order (see ``OrderProfile``). They are checked in the same pass, one
+    comparison per row, and each distinct cell text of the two columns is
+    read once. Rows are read whole, so the columns may be left out by
+    ``columns``. An order with an unknown name is skipped (``evaluate``
+    reports it); an invalid one raises ``ValueError`` before any row is read.
+    Without orders the pass does no extra work.
     """
     _validate_top_n(top_n)
     # Materialize one-shot iterables before validation and missing-cell accounting.
@@ -811,6 +1025,7 @@ def profile_rows(
     formats = {name: compile_pattern(pattern) for name, pattern in (patterns or {}).items()}
     schemes = {name: check_scheme(scheme) for name, scheme in (check_digits or {}).items()}
     presences = {name: required_list(values) for name, values in (required_values or {}).items()}
+    orders = list(dict.fromkeys(column_order(*order) for order in column_orders))
     selected = _selection(header, columns)
     accumulators = [
         _ColumnAccumulator(name)
@@ -825,6 +1040,7 @@ def profile_rows(
     if na_ignore_case:
         na = {_fold_missing(token) for token in na}
     keys = _key_accumulators(header, unique_keys, top_n)
+    order_checks = _order_accumulators(header, orders, rules, na, na_ignore_case, top_n)
     total = 0
     # Work on batches of rows transposed into columns, so counting runs inside
     # Counter.update (implemented in C) instead of one Python step per cell.
@@ -833,6 +1049,8 @@ def profile_rows(
     # Only one batch is held in memory at a time.
     it = iter(rows)
     while batch := list(islice(it, _BATCH_ROWS)):
+        for order in order_checks:
+            order.update(batch, total)
         total += len(batch)
         seen.update(map(_row_digest, batch))
         for key in keys:
@@ -862,6 +1080,7 @@ def profile_rows(
         presences=tuple(
             _presence(acc, presences[acc.name]) for acc in accumulators if acc.name in presences
         ),
+        orders=tuple(order.finish(total) for order in order_checks),
     )
 
 
@@ -966,6 +1185,7 @@ def _report(
         na_ignore_case=na_ignore_case,
         check_digits=result.check_digits,
         presences=result.presences,
+        orders=result.orders,
     )
 
 
@@ -987,6 +1207,7 @@ def build_report(
     na_ignore_case: bool = False,
     check_digits: Mapping[str, str] | None = None,
     required_values: Mapping[str, Iterable[str]] | None = None,
+    column_orders: Iterable[tuple[str, str, str]] = (),
 ) -> Report:
     """Profile every column of an in-memory ``table``.
 
@@ -1009,7 +1230,9 @@ def build_report(
     ``check_digits`` maps column names to check-digit schemes such as
     ``"cuit"`` or ``"gtin"`` their values must satisfy (``Report.check_digits``);
     ``required_values`` maps column names to values that must each appear in
-    at least one cell (``Report.presences``).
+    at least one cell (``Report.presences``); ``column_orders`` are
+    ``(left, operator, right)`` triples such as ``("Despacho", "<=", "Entrega")``
+    whose order every row must keep (``Report.orders``).
     """
     _validate_top_n(top_n)
     tokens = tuple(na_tokens)
@@ -1032,6 +1255,7 @@ def build_report(
         na_ignore_case,
         check_digits=check_digits,
         required_values=required_values,
+        column_orders=column_orders,
     )
     return _report(
         result,
@@ -1073,6 +1297,7 @@ def profile_file(
     na_ignore_case: bool = False,
     check_digits: Mapping[str, str] | None = None,
     required_values: Mapping[str, Iterable[str]] | None = None,
+    column_orders: Iterable[tuple[str, str, str]] = (),
 ) -> Report:
     """Stream ``path`` and profile it without loading the whole file into memory.
 
@@ -1082,8 +1307,8 @@ def profile_file(
     ``build_report(read_table(...))``. ``skip_lines`` lines before the header
     are skipped (``Report.skipped_lines``), and ``skip_footer`` records after
     the data are dropped (``Report.skipped_footer``). ``month_names``,
-    ``na_ignore_case``, ``check_digits`` and ``required_values`` are as in
-    ``build_report``.
+    ``na_ignore_case``, ``check_digits``, ``required_values`` and
+    ``column_orders`` are as in ``build_report``.
     """
     _validate_top_n(top_n)
     tokens = tuple(na_tokens)
@@ -1115,6 +1340,7 @@ def profile_file(
             na_ignore_case,
             check_digits=check_digits,
             required_values=required_values,
+            column_orders=column_orders,
         )
         return _report(
             result,

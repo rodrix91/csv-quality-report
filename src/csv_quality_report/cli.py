@@ -39,7 +39,14 @@ from .inference import (
     parse_datetime,
 )
 from .output import write_atomic
-from .profile import TOP_N, allowed_list, compile_pattern, profile_file, required_list
+from .profile import (
+    TOP_N,
+    allowed_list,
+    column_order,
+    compile_pattern,
+    profile_file,
+    required_list,
+)
 from .reader import (
     DEFAULT_ENCODING,
     DELIMITER_AUTO,
@@ -446,6 +453,28 @@ def _key_names(text: str) -> tuple[str, ...]:
     return names
 
 
+def _column_order(text: str) -> tuple[str, str, str]:
+    """Parse ``LEFT<=RIGHT`` or ``LEFT<RIGHT`` for --column-order.
+
+    The operator is the first ``<`` (``<=`` when an ``=`` follows), so LEFT
+    cannot contain ``<`` and RIGHT can; both names are stripped, so
+    ``Despacho <= Entrega`` works.
+    """
+    left, sep, rest = text.partition("<")
+    operator = "<=" if rest.startswith("=") else "<"
+    right = rest[1:] if operator == "<=" else rest
+    usage = (
+        f"invalid --column-order value: {text!r} (use LEFT<=RIGHT or LEFT<RIGHT, such as "
+        "'Fecha despacho<=Fecha entrega'"
+    )
+    if not sep or not left.strip() or not right.strip():
+        raise argparse.ArgumentTypeError(usage + ")")
+    try:
+        return column_order(left.strip(), operator, right.strip())
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError(usage + f"; {exc})") from None
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="python -m csv_quality_report",
@@ -688,6 +717,18 @@ def build_parser() -> argparse.ArgumentParser:
         help="fail if two rows share the values of all the comma-separated columns NAMES, "
         "such as invoice number and line (stripped text, case-sensitive; rows with a "
         "missing key cell are skipped); repeatable",
+    )
+    gates.add_argument(
+        "--column-order",
+        type=_column_order,
+        action="append",
+        default=[],
+        metavar="LEFT<=RIGHT",
+        help="fail if a row's value in column LEFT is greater than its value in column RIGHT "
+        "(or equal, with LEFT<RIGHT), such as 'Fecha despacho<=Fecha entrega' or "
+        "'Entregado<=Pedido'; numbers compare with numbers and dates or date-times with "
+        "each other, read with the reading options; rows with a missing cell are skipped, "
+        "and rows whose values cannot be compared fail; repeatable",
     )
     gates.add_argument(
         "--allowed-values",
@@ -1010,6 +1051,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             patterns=dict(args.pattern),  # the last pattern for a name wins
             check_digits=dict(args.check_digit),  # the last scheme for a name wins
             required_values=dict(args.require_values),  # the last list for a name wins
+            column_orders=args.column_order,  # a repeated order gives one check
             skip_lines=args.skip_lines,
             skip_footer=args.skip_footer,
             month_names=args.month_names,
@@ -1034,6 +1076,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         column_ranges=dict(args.range),  # the last range for a name wins
         unique_columns=args.unique,  # a repeated name gives one check
         unique_keys=args.unique_key,  # a repeated key gives one check
+        column_orders=args.column_order,  # a repeated order gives one check
         column_max_ages=dict(args.max_age),  # the last limit for a name wins
         now=now,
         utc_offset=args.utc_offset,
