@@ -124,7 +124,9 @@ def test_duplicate_json_key_with_many_controls_has_bounded_log_output(tmp_path: 
     with pytest.raises(FileReadError, match="duplicate baseline JSON key") as error:
         load_baseline(baseline)
     diagnostic = str(error.value)
-    assert len(diagnostic) < 350
+    # Pytest's absolute temporary directory has platform-specific length.
+    # Bound the diagnostic itself, excluding the expected filename prefix.
+    assert len(diagnostic) - len(str(baseline)) < 260
     assert "[truncated]" in diagnostic
     assert "\x1b" not in diagnostic
     assert "-private-trailing-token" not in diagnostic
