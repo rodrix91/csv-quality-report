@@ -117,17 +117,31 @@ def _growth(text: str) -> float:
 
 _DURATION = re.compile(r"([0-9]+)([smhdw])")
 _DURATION_SECONDS = {"s": 1, "m": 60, "h": 3600, "d": 86400, "w": 604800}
+# A duration needs at most a handful of digits for a realistic date range.
+# Limit the raw option before regex matching or int() so adversarial values
+# cannot hit Python's integer-string conversion cap or flood CLI diagnostics.
+_MAX_DURATION_CHARS = 64
 
 
 def _duration(text: str, option: str = "--max-baseline-age", shown: str | None = None) -> int:
     """Parse a duration such as ``36h`` or ``7d`` into seconds (a positive whole number)."""
+    if len(text) > _MAX_DURATION_CHARS:
+        raise argparse.ArgumentTypeError(
+            f"invalid {option} value: duration exceeds {_MAX_DURATION_CHARS} characters (too long)"
+        )
     match = _DURATION.fullmatch(text.strip())
-    if match is None or int(match[1]) == 0:
+    if match is None:
         raise argparse.ArgumentTypeError(
             f"invalid {option} value: {text if shown is None else shown!r} (use a positive "
             "whole number with s, m, h, d or w, such as 36h or 7d)"
         )
-    return int(match[1]) * _DURATION_SECONDS[match[2]]
+    count = int(match[1])
+    if count == 0:
+        raise argparse.ArgumentTypeError(
+            f"invalid {option} value: {text if shown is None else shown!r} (use a positive "
+            "whole number with s, m, h, d or w, such as 36h or 7d)"
+        )
+    return count * _DURATION_SECONDS[match[2]]
 
 
 def _column_allowed(text: str) -> tuple[str, tuple[str, ...]]:
