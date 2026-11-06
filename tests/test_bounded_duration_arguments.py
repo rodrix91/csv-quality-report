@@ -25,8 +25,13 @@ def test_maximum_width_preserves_leading_zero_padded_duration() -> None:
         ("--max-age", "private-duration-token-" * 2_000),
         ("--max-baseline-age", " " * 10_000 + "1d"),
     ],
-    ids=["65-digits", "large-digits-baseline", "large-digits-age",
-         "large-token-age", "large-whitespace"],
+    ids=[
+        "65-digits",
+        "large-digits-baseline",
+        "large-digits-age",
+        "large-token-age",
+        "large-whitespace",
+    ],
 )
 def test_oversized_duration_is_a_bounded_argparse_error(option: str, value: str) -> None:
     with pytest.raises(argparse.ArgumentTypeError) as caught:
