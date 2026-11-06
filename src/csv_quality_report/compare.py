@@ -97,13 +97,17 @@ class Comparison:
 def _baseline_error_label(value: str, *, limit: int = 120) -> str:
     """Escape and bound untrusted JSON names/tokens before error reporting.
 
-    A baseline is size-bounded, but an individual duplicate key or numeric
-    literal can still occupy almost that entire budget. Never echo an
-    unbounded value into a CLI or CI diagnostic.
+    Both the raw input and its escaped representation need limits. A single
+    control character can expand to four or six visible characters under
+    repr(), so bounding only the raw input can still amplify CI diagnostics.
     """
-    if len(value) <= limit:
-        return repr(value)
-    return repr(value[:limit]) + " [truncated]"
+    fragment = value[:limit]
+    displayed = repr(fragment)
+    truncated = len(value) > limit
+    if len(displayed) > 160:
+        displayed = displayed[:157] + "..."
+        truncated = True
+    return displayed + (" [truncated]" if truncated else "")
 
 
 def _baseline_columns(
