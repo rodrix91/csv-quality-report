@@ -972,9 +972,7 @@ def _safe_failed_check_message(message: str) -> str:
         elif point < 32 or 127 <= point <= 159:
             display = f"\\x{point:02x}"
         elif category(char) in {"Cf", "Cs", "Zl", "Zp"}:
-            display = (
-                f"\\u{point:04x}" if point <= 0xFFFF else f"\\U{point:08x}"
-            )
+            display = f"\\u{point:04x}" if point <= 0xFFFF else f"\\U{point:08x}"
         else:
             display = char
         if size + len(display) > _MAX_CHECK_LOG_CHARS:
