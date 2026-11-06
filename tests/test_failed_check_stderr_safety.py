@@ -79,7 +79,7 @@ def test_failed_missing_gate_keeps_stderr_safe_and_json_source_unchanged(
 def test_duplicate_value_gate_escapes_raw_csv_control_bytes(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    value = "north" + chr(27) + "[31m" + chr(0x2029)
+    value = "north" + chr(27) + "[31m" + chr(0x2029) + "south"
     csv = tmp_path / "control-values.csv"
     csv.write_text("supplier\n" + value + "\n" + value + "\n", encoding="utf-8")
     assert main([str(csv), "--unique", "supplier", "--format", "json"]) == EXIT_CHECKS
