@@ -11,6 +11,7 @@ import sys
 from collections.abc import Sequence
 from datetime import date, timedelta
 from pathlib import Path
+from unicodedata import category
 
 from . import __version__
 from .checkdigits import SCHEMES, check_scheme
@@ -948,6 +949,40 @@ def _check_output_path(args: argparse.Namespace) -> None:
             )
 
 
+_MAX_CHECK_LOG_CHARS = 4096
+
+
+def _safe_failed_check_message(message: str) -> str:
+    """Keep diagnostics on one terminal line without altering JSON or Markdown.
+
+    CSV identifiers and example values may contain newlines, ANSI controls,
+    bidi overrides or invisible format characters. Check descriptions remain
+    unchanged for report rendering; only stderr is escaped and length-bounded.
+    """
+    parts: list[str] = []
+    size = 0
+    for char in message:
+        point = ord(char)
+        if char == "\n":
+            display = r"\n"
+        elif char == "\r":
+            display = r"\r"
+        elif char == "\t":
+            display = r"\t"
+        elif point < 32 or 127 <= point <= 159:
+            display = f"\\x{point:02x}"
+        elif category(char) in {"Cf", "Cs", "Zl", "Zp"}:
+            display = f"\\u{point:04x}" if point <= 0xFFFF else f"\\U{point:08x}"
+        else:
+            display = char
+        if size + len(display) > _MAX_CHECK_LOG_CHARS:
+            parts.append(" [truncated]")
+            break
+        parts.append(display)
+        size += len(display)
+    return "".join(parts)
+
+
 def _use_utf8_streams() -> None:
     """Write stdout and stderr as UTF-8 with ``\\n`` line endings on every platform (#120).
 
@@ -1124,5 +1159,5 @@ def main(argv: Sequence[str] | None = None) -> int:
         sys.stdout.write(render_markdown(report, source, checks, comparison))
     failed = [c for c in checks if not c.passed]
     for check in failed:
-        print(f"check failed: {check.describe()}", file=sys.stderr)
+        print(f"check failed: {_safe_failed_check_message(check.describe())}", file=sys.stderr)
     return EXIT_CHECKS if failed else 0
