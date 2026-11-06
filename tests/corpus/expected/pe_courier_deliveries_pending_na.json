@@ -1,0 +1,281 @@
+{
+  "source": "tests/corpus/pe_courier_deliveries.csv",
+  "rows": 7,
+  "truncated": false,
+  "delimiter": ";",
+  "delimiter_detected": true,
+  "sep_line": false,
+  "na_tokens": [
+    "s/d",
+    "pendiente"
+  ],
+  "top_n": 3,
+  "compressed": false,
+  "encoding": "utf-8",
+  "thousands": null,
+  "date_order": "dmy",
+  "bool_words": [],
+  "number_affixes": [],
+  "accounting_negatives": false,
+  "selected_columns": null,
+  "header_columns": 7,
+  "duplicate_rows": 0,
+  "untrimmed_columns": [],
+  "columns": [
+    {
+      "name": "Guía",
+      "type": "string",
+      "type_hint": null,
+      "missing": 0,
+      "missing_pct": 0.0,
+      "distinct": 7,
+      "min": null,
+      "max": null,
+      "mean": null,
+      "min_length": 9,
+      "max_length": 9,
+      "top_values": [
+        {
+          "value": "PE-100231",
+          "count": 1
+        },
+        {
+          "value": "PE-100232",
+          "count": 1
+        },
+        {
+          "value": "PE-100233",
+          "count": 1
+        }
+      ],
+      "untrimmed": 0,
+      "affixes": {}
+    },
+    {
+      "name": "Fecha despacho",
+      "type": "date",
+      "type_hint": null,
+      "missing": 1,
+      "missing_pct": 14.3,
+      "distinct": 4,
+      "min": "2026-10-05",
+      "max": "2026-10-08",
+      "mean": null,
+      "min_length": 10,
+      "max_length": 10,
+      "top_values": [
+        {
+          "value": "05/10/2026",
+          "count": 2
+        },
+        {
+          "value": "06/10/2026",
+          "count": 2
+        },
+        {
+          "value": "08/10/2026",
+          "count": 1
+        }
+      ],
+      "untrimmed": 0,
+      "affixes": {}
+    },
+    {
+      "name": "Fecha entrega",
+      "type": "datetime",
+      "type_hint": null,
+      "missing": 1,
+      "missing_pct": 14.3,
+      "distinct": 6,
+      "min": "2026-10-05",
+      "max": "2026-10-09",
+      "mean": null,
+      "min_length": 10,
+      "max_length": 16,
+      "top_values": [
+        {
+          "value": "07/10/2026 14:30",
+          "count": 1
+        },
+        {
+          "value": "05/10/2026",
+          "count": 1
+        },
+        {
+          "value": "06/10/2026",
+          "count": 1
+        }
+      ],
+      "untrimmed": 0,
+      "affixes": {}
+    },
+    {
+      "name": "Cant. pedida",
+      "type": "int",
+      "type_hint": null,
+      "missing": 0,
+      "missing_pct": 0.0,
+      "distinct": 7,
+      "min": 2,
+      "max": 12,
+      "mean": 6.0,
+      "min_length": 1,
+      "max_length": 2,
+      "top_values": [
+        {
+          "value": "10",
+          "count": 1
+        },
+        {
+          "value": "4",
+          "count": 1
+        },
+        {
+          "value": "6",
+          "count": 1
+        }
+      ],
+      "untrimmed": 0,
+      "affixes": {}
+    },
+    {
+      "name": "Cant. entregada",
+      "type": "int",
+      "type_hint": null,
+      "missing": 0,
+      "missing_pct": 0.0,
+      "distinct": 6,
+      "min": 0,
+      "max": 11,
+      "mean": 5.57143,
+      "min_length": 1,
+      "max_length": 2,
+      "top_values": [
+        {
+          "value": "6",
+          "count": 2
+        },
+        {
+          "value": "10",
+          "count": 1
+        },
+        {
+          "value": "4",
+          "count": 1
+        }
+      ],
+      "untrimmed": 0,
+      "affixes": {}
+    },
+    {
+      "name": "Kg pedidos",
+      "type": "float",
+      "type_hint": null,
+      "missing": 0,
+      "missing_pct": 0.0,
+      "distinct": 7,
+      "min": 1.8,
+      "max": 20.75,
+      "mean": 7.74286,
+      "min_length": 3,
+      "max_length": 5,
+      "top_values": [
+        {
+          "value": "12,5",
+          "count": 1
+        },
+        {
+          "value": "3,25",
+          "count": 1
+        },
+        {
+          "value": "8,0",
+          "count": 1
+        }
+      ],
+      "untrimmed": 0,
+      "affixes": {}
+    },
+    {
+      "name": "Kg entregados",
+      "type": "float",
+      "type_hint": null,
+      "missing": 0,
+      "missing_pct": 0.0,
+      "distinct": 7,
+      "min": 0.0,
+      "max": 19.0,
+      "mean": 7.22857,
+      "min_length": 1,
+      "max_length": 5,
+      "top_values": [
+        {
+          "value": "12,50",
+          "count": 1
+        },
+        {
+          "value": "3,2",
+          "count": 1
+        },
+        {
+          "value": "8,0",
+          "count": 1
+        }
+      ],
+      "untrimmed": 0,
+      "affixes": {}
+    }
+  ],
+  "baseline": null,
+  "checks": [
+    {
+      "check": "column_order",
+      "column": null,
+      "limit": 0,
+      "value": 1,
+      "passed": false,
+      "left": "Fecha despacho",
+      "operator": "<=",
+      "right": "Fecha entrega",
+      "checked": 5,
+      "skipped": 2,
+      "violations": 1,
+      "uncomparable": 0,
+      "out_of_order": [
+        {
+          "row": 3,
+          "left": "08/10/2026",
+          "right": "06/10/2026"
+        }
+      ],
+      "uncomparable_rows": []
+    },
+    {
+      "check": "column_order",
+      "column": null,
+      "limit": 0,
+      "value": 2,
+      "passed": false,
+      "left": "Fecha despacho",
+      "operator": "<",
+      "right": "Fecha entrega",
+      "checked": 5,
+      "skipped": 2,
+      "violations": 2,
+      "uncomparable": 0,
+      "out_of_order": [
+        {
+          "row": 2,
+          "left": "05/10/2026",
+          "right": "05/10/2026"
+        },
+        {
+          "row": 3,
+          "left": "08/10/2026",
+          "right": "06/10/2026"
+        }
+      ],
+      "uncomparable_rows": []
+    }
+  ]
+}

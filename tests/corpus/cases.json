@@ -382,5 +382,19 @@
     "args": ["--delimiter", "auto", "--decimal-comma", "--thousands", "dot", "--date-order", "dmy", "--allowed-values", "Sucursal=La Paz,El Alto,Cochabamba,Santa Cruz,Sucre,Tarija", "--require-values", "Sucursal=La Paz,El Alto,Cochabamba,Santa Cruz,Sucre,Tarija", "--require-values", "Canal=Tienda,Delivery"],
     "exit_code": 8,
     "about": "A Bolivian retail chain's consolidated daily sales export whose Tarija branch did not upload: every branch name is one of the six expected (--allowed-values passes, the padded ' Santa Cruz ' counts as Santa Cruz) and both sales channels appear, but --require-values Sucursal fails and names Tarija."
+  },
+  {
+    "name": "pe_courier_deliveries_order",
+    "file": "pe_courier_deliveries.csv",
+    "args": ["--delimiter", "auto", "--decimal-comma", "--date-order", "dmy", "--na", "s/d", "--column-order", "Fecha despacho<=Fecha entrega", "--column-order", "Cant. entregada<=Cant. pedida", "--column-order", "Kg entregados<=Kg pedidos"],
+    "exit_code": 8,
+    "about": "A Peruvian courier's delivery export where every column is valid on its own: one parcel delivered two days before its dispatch, one with more units and kilos delivered than ordered, a pending delivery that cannot be compared and a dispatch date given as s/d, which is skipped. Dates compare with date-times and 12,50 with 12,5."
+  },
+  {
+    "name": "pe_courier_deliveries_pending_na",
+    "file": "pe_courier_deliveries.csv",
+    "args": ["--delimiter", "auto", "--decimal-comma", "--date-order", "dmy", "--na", "s/d,pendiente", "--column-order", "Fecha despacho<=Fecha entrega", "--column-order", "Fecha despacho<Fecha entrega"],
+    "exit_code": 8,
+    "about": "The same export with pendiente counted as missing: the pending row is skipped instead of failing, the early delivery still fails <=, and the strict < also fails the same-day delivery."
   }
 ]

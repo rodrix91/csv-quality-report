@@ -23,10 +23,12 @@ from .profile import (
     ColumnProfile,
     DomainProfile,
     KeyProfile,
+    OrderProfile,
     PatternProfile,
     PresenceProfile,
     Report,
     allowed_list,
+    column_order,
     compile_pattern,
     key_columns,
     required_list,
@@ -52,6 +54,7 @@ CHECK_ALLOWED_VALUES = "allowed_values"
 CHECK_PATTERN = "pattern"
 CHECK_CHECK_DIGIT = "check_digit"
 CHECK_REQUIRED_VALUES = "required_values"
+CHECK_COLUMN_ORDER = "column_order"
 # A baseline stamped up to this many seconds after the clock counts as 0
 # seconds old (clocks of two machines differ a little); later is an error.
 CLOCK_SKEW_TOLERANCE = 300
@@ -134,6 +137,16 @@ class CheckResult:
     mean_after: float | None = None  # mean_change checks: the current mean
     required: tuple[str, ...] = ()  # required_values checks: the values given
     absent: tuple[str, ...] = ()  # required_values checks: the values no cell holds
+    # column_order checks: (left, operator, right), the rows checked, the rows
+    # that break the order and those whose values cannot be compared, with the
+    # first of each as (data row, left value, right value); ``skipped`` counts
+    # the rows with a missing cell.
+    order: tuple[str, str, str] | None = None
+    checked: int = 0
+    violations: int = 0
+    uncomparable: int = 0
+    out_of_order: tuple[tuple[int, str, str], ...] = ()
+    uncomparable_rows: tuple[tuple[int, str, str], ...] = ()
 
     def describe(self) -> str:
         """One-line, human-readable explanation used on stderr and in Markdown."""
@@ -192,6 +205,8 @@ class CheckResult:
             return self._describe_check_digit()
         if self.check == CHECK_REQUIRED_VALUES:
             return self._describe_required_values()
+        if self.check == CHECK_COLUMN_ORDER:
+            return self._describe_column_order()
         if self.check == CHECK_MIN_ROWS:
             rows = int(self.value)
             noun = "data row" if rows == 1 else "data rows"
@@ -321,6 +336,44 @@ class CheckResult:
             absent += f", ... ({len(self.absent)} values)"
         return (
             f"column '{self.column}' lacks {len(self.absent)} of {total} required {noun}: {absent}"
+        )
+
+    def _describe_column_order(self) -> str:
+        assert self.order is not None
+        left, operator, right = self.order
+        names = f"columns '{left}' {operator} '{right}'"
+        skipped = ""
+        if self.skipped:
+            noun = (
+                "row with a missing cell was"
+                if self.skipped == 1
+                else "rows with a missing cell were"
+            )
+            skipped = f"; {self.skipped} {noun} skipped"
+        noun = "row" if self.checked == 1 else "rows"
+        if self.passed:
+            if not self.checked:
+                return f"{names} have no rows with both values to check{skipped}"
+            every = "the checked row" if self.checked == 1 else f"all {self.checked} checked rows"
+            return f"{names} hold in {every}{skipped}"
+        broken = ">" if operator == "<=" else ">="
+        parts = []
+        if self.violations:
+            rows = "; ".join(
+                f'data row {number}: "{low}" {broken} "{high}"'
+                for number, low, high in self.out_of_order
+            )
+            parts.append(f"{self.violations} out of order" + (f" ({rows})" if rows else ""))
+        if self.uncomparable:
+            rows = "; ".join(
+                f'data row {number}: "{low}", "{high}"'
+                for number, low, high in self.uncomparable_rows
+            )
+            parts.append(f"{self.uncomparable} cannot be compared" + (f" ({rows})" if rows else ""))
+        return (
+            f"{names} fail in {int(self.value)} of {self.checked} checked {noun}: "
+            + "; ".join(parts)
+            + skipped
         )
 
     def _describe_pattern(self) -> str:
@@ -1088,6 +1141,25 @@ def _required_values_check(presence: PresenceProfile) -> CheckResult:
     )
 
 
+def _column_order_check(order: OrderProfile) -> CheckResult:
+    """A check that fails when a checked row breaks ``order`` or cannot be compared."""
+    failing = order.violations + order.uncomparable
+    return CheckResult(
+        check=CHECK_COLUMN_ORDER,
+        column=None,
+        limit=0,
+        value=failing,
+        passed=failing == 0,
+        skipped=order.skipped,
+        order=(order.left, order.operator, order.right),
+        checked=order.checked,
+        violations=order.violations,
+        uncomparable=order.uncomparable,
+        out_of_order=order.examples,
+        uncomparable_rows=order.uncomparable_examples,
+    )
+
+
 def _unique_key_check(key: KeyProfile) -> CheckResult:
     """A check that fails when two checked rows share the values of ``key``'s columns."""
     return CheckResult(
@@ -1128,6 +1200,7 @@ def evaluate(
     patterns: Mapping[str, str] | None = None,
     check_digits: Mapping[str, str] | None = None,
     required_values: Mapping[str, Iterable[str]] | None = None,
+    column_orders: Iterable[tuple[str, str, str]] = (),
 ) -> list[CheckResult]:
     """Evaluate the requested thresholds; a value equal to its limit passes.
 
@@ -1233,6 +1306,22 @@ def evaluate(
     ``ValueError``. Values compare stripped, case-sensitive, as text; the
     check's ``value`` is the number of listed values no cell holds and
     ``absent`` names them, in the order given. Unknown names fail as
+    ``required_column``.
+
+    ``column_orders`` are ``(left, operator, right)`` triples (operator
+    ``"<="`` or ``"<"``), such as ``("Despacho", "<=", "Entrega")``: every row
+    must keep that order between its two values, such as a delivery date not
+    before its dispatch date or a delivered quantity not above the ordered
+    one. The report must have been built with the same orders
+    (``profile_file(..., column_orders=...)``), which compares the rows in
+    the single pass (``Report.orders``); an order it lacks raises
+    ``ValueError``, and so does an invalid one. The check's ``value`` is the
+    number of checked rows that break the order (``violations``) or whose
+    two values cannot be compared (``uncomparable``: text, booleans, a number
+    and a date, a time with a UTC offset and one without); rows with a
+    missing cell are ``skipped``. ``out_of_order`` and ``uncomparable_rows``
+    list the first of those rows. The columns may be left out of the profile
+    by ``columns``, since rows are read whole. Unknown names fail as
     ``required_column``.
 
     ``required_columns`` are matched exactly (case-sensitive) against the
@@ -1426,7 +1515,21 @@ def evaluate(
             names = ", ".join(columns)
             raise ValueError(f"key ({names}) has a unique_key check but was not profiled")
         results.append(_unique_key_check(key))
+    orders = list(dict.fromkeys(column_order(*order) for order in column_orders))
+    measured_orders = {(o.left, o.operator, o.right): o for o in report.orders}
+    for order in orders:
+        left, operator, right = order
+        if left not in present or right not in present:
+            continue  # the unknown names are reported below as missing required columns
+        measured_order = measured_orders.get(order)
+        if measured_order is None:
+            raise ValueError(
+                f"columns {left!r} {operator} {right!r} have a column_order check but "
+                "were not profiled with it"
+            )
+        results.append(_column_order_check(measured_order))
     key_names = [name for columns in keys for name in columns]
+    order_names = [name for left, _, right in orders for name in (left, right)]
     unknown_limited = (
         name
         for name in [
@@ -1436,6 +1539,7 @@ def evaluate(
             *ranges,
             *unique,
             *key_names,
+            *order_names,
             *max_ages,
             *domains,
             *formats,
