@@ -20,7 +20,9 @@ class UnsafeRepresentation:
     [None, False, True, 0, 1.5, b"0", [], {}, UnsafeRepresentation()],
 )
 def test_injected_epoch_mapping_rejects_nontext_values_without_echo(invalid: object) -> None:
-    with pytest.raises(ValueError, match="invalid SOURCE_DATE_EPOCH: value must be a string") as exc:
+    with pytest.raises(
+        ValueError, match="invalid SOURCE_DATE_EPOCH: value must be a string"
+    ) as exc:
         current_time({"SOURCE_DATE_EPOCH": cast(str, invalid)})
     assert len(str(exc.value)) < 100
 
