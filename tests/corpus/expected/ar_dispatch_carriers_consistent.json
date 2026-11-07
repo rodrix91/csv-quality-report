@@ -1,0 +1,291 @@
+{
+  "source": "tests/corpus/ar_dispatch_carriers.csv",
+  "rows": 12,
+  "truncated": false,
+  "delimiter": ";",
+  "delimiter_detected": true,
+  "sep_line": false,
+  "na_tokens": [],
+  "top_n": 3,
+  "compressed": false,
+  "encoding": "utf-8",
+  "thousands": null,
+  "date_order": "dmy",
+  "bool_words": [],
+  "number_affixes": [],
+  "accounting_negatives": false,
+  "selected_columns": null,
+  "header_columns": 6,
+  "duplicate_rows": 0,
+  "untrimmed_columns": [],
+  "columns": [
+    {
+      "name": "Fecha",
+      "type": "date",
+      "type_hint": null,
+      "missing": 0,
+      "missing_pct": 0.0,
+      "distinct": 3,
+      "min": "2026-11-03",
+      "max": "2026-11-05",
+      "mean": null,
+      "min_length": 10,
+      "max_length": 10,
+      "top_values": [
+        {
+          "value": "03/11/2026",
+          "count": 4
+        },
+        {
+          "value": "04/11/2026",
+          "count": 4
+        },
+        {
+          "value": "05/11/2026",
+          "count": 4
+        }
+      ],
+      "untrimmed": 0,
+      "affixes": {}
+    },
+    {
+      "name": "Guía",
+      "type": "string",
+      "type_hint": null,
+      "missing": 0,
+      "missing_pct": 0.0,
+      "distinct": 12,
+      "min": null,
+      "max": null,
+      "mean": null,
+      "min_length": 9,
+      "max_length": 9,
+      "top_values": [
+        {
+          "value": "AR-500101",
+          "count": 1
+        },
+        {
+          "value": "AR-500102",
+          "count": 1
+        },
+        {
+          "value": "AR-500103",
+          "count": 1
+        }
+      ],
+      "untrimmed": 0,
+      "affixes": {}
+    },
+    {
+      "name": "Transportista",
+      "type": "string",
+      "type_hint": null,
+      "missing": 0,
+      "missing_pct": 0.0,
+      "distinct": 6,
+      "min": null,
+      "max": null,
+      "mean": null,
+      "min_length": 3,
+      "max_length": 17,
+      "top_values": [
+        {
+          "value": "Andreani",
+          "count": 4
+        },
+        {
+          "value": "OCA",
+          "count": 3
+        },
+        {
+          "value": "Correo Argentino",
+          "count": 2
+        }
+      ],
+      "untrimmed": 1,
+      "affixes": {}
+    },
+    {
+      "name": "Provincia",
+      "type": "string",
+      "type_hint": null,
+      "missing": 0,
+      "missing_pct": 0.0,
+      "distinct": 8,
+      "min": null,
+      "max": null,
+      "mean": null,
+      "min_length": 7,
+      "max_length": 12,
+      "top_values": [
+        {
+          "value": "Córdoba",
+          "count": 3
+        },
+        {
+          "value": "Buenos Aires",
+          "count": 2
+        },
+        {
+          "value": "Santa Fe",
+          "count": 2
+        }
+      ],
+      "untrimmed": 0,
+      "affixes": {}
+    },
+    {
+      "name": "Estado",
+      "type": "string",
+      "type_hint": null,
+      "missing": 0,
+      "missing_pct": 0.0,
+      "distinct": 3,
+      "min": null,
+      "max": null,
+      "mean": null,
+      "min_length": 9,
+      "max_length": 11,
+      "top_values": [
+        {
+          "value": "Entregado",
+          "count": 7
+        },
+        {
+          "value": "Pendiente",
+          "count": 3
+        },
+        {
+          "value": "En tránsito",
+          "count": 2
+        }
+      ],
+      "untrimmed": 0,
+      "affixes": {}
+    },
+    {
+      "name": "Peso kg",
+      "type": "float",
+      "type_hint": null,
+      "missing": 1,
+      "missing_pct": 8.3,
+      "distinct": 11,
+      "min": 0.45,
+      "max": 12.0,
+      "mean": 3.78636,
+      "min_length": 4,
+      "max_length": 5,
+      "top_values": [
+        {
+          "value": "2,40",
+          "count": 1
+        },
+        {
+          "value": "1,10",
+          "count": 1
+        },
+        {
+          "value": "5,75",
+          "count": 1
+        }
+      ],
+      "untrimmed": 0,
+      "affixes": {}
+    }
+  ],
+  "baseline": null,
+  "checks": [
+    {
+      "check": "unique",
+      "column": "Guía",
+      "limit": 0,
+      "value": 0,
+      "passed": true,
+      "repeated": {}
+    },
+    {
+      "check": "consistent_values",
+      "column": "Transportista",
+      "limit": 0,
+      "value": 3,
+      "passed": false,
+      "variant_groups": 2,
+      "variants": [
+        [
+          {
+            "value": "Andreani",
+            "cells": 4
+          },
+          {
+            "value": "ANDREANI",
+            "cells": 1
+          },
+          {
+            "value": "andreani",
+            "cells": 1
+          }
+        ],
+        [
+          {
+            "value": "Correo Argentino",
+            "cells": 2
+          },
+          {
+            "value": "Correo  Argentino",
+            "cells": 1
+          }
+        ]
+      ]
+    },
+    {
+      "check": "consistent_values",
+      "column": "Provincia",
+      "limit": 0,
+      "value": 3,
+      "passed": false,
+      "variant_groups": 3,
+      "variants": [
+        [
+          {
+            "value": "Córdoba",
+            "cells": 3
+          },
+          {
+            "value": "Cordoba",
+            "cells": 1
+          }
+        ],
+        [
+          {
+            "value": "Buenos Aires",
+            "cells": 2
+          },
+          {
+            "value": "Buenos Aires",
+            "cells": 1
+          }
+        ],
+        [
+          {
+            "value": "Entre Ríos",
+            "cells": 1
+          },
+          {
+            "value": "Entre Rios",
+            "cells": 1
+          }
+        ]
+      ]
+    },
+    {
+      "check": "consistent_values",
+      "column": "Estado",
+      "limit": 0,
+      "value": 0,
+      "passed": true,
+      "variant_groups": 0,
+      "variants": []
+    }
+  ]
+}

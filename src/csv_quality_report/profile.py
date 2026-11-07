@@ -13,7 +13,7 @@ from datetime import datetime
 from itertools import compress, islice, repeat
 from operator import itemgetter
 from typing import Any
-from unicodedata import normalize
+from unicodedata import category, combining, normalize
 
 from .checkdigits import check_scheme, validator
 from .errors import ColumnSelectionError
@@ -204,6 +204,63 @@ class PresenceProfile:
     absent: tuple[str, ...] = ()
 
 
+@dataclass(frozen=True)
+class VariantProfile:
+    """Values of a column written in more than one way (``--consistent-values``).
+
+    Two distinct values are spellings of the same value when their
+    ``variant_key`` is equal: they differ only in case, accents (combining
+    marks after compatibility decomposition, so ``ñ`` matches ``n``), runs
+    of whitespace or invisible format characters. Values compare as the
+    report counts them (stripped of surrounding whitespace); missing cells
+    are not checked. ``groups`` is the number of values written in more than
+    one way and ``cells`` the cells not written like the most common spelling
+    of their value (the first seen on ties), both exact for any number of
+    rows. ``examples`` holds the
+    ``top_n`` groups with the most such cells (first seen on ties), each as
+    its spellings with their cells, the most common first.
+    """
+
+    column: str
+    groups: int
+    cells: int
+    examples: tuple[tuple[tuple[str, int], ...], ...] = ()
+
+
+def variant_key(value: str) -> str:
+    """The form under which ``--consistent-values`` compares ``value``.
+
+    Compatibility-decomposed (NFKD), case-folded, without combining marks or
+    invisible format characters (category ``Cf``, such as a zero-width space
+    or a soft hyphen) and with each run of whitespace as one space, so ``"COCHABAMBA"``,
+    ``"cochabamba"`` and ``"Cochabamba"`` share a key, as do ``"Ñuñoa"`` and
+    ``"Nunoa"``, and ``"Santa  Cruz"`` (two spaces, or a non-breaking one) and
+    ``"Santa Cruz"``.
+    """
+    if value.isascii():
+        return " ".join(value.lower().split())
+    # Case folding may produce characters that decompose further, hence NFKD twice.
+    folded = normalize("NFKD", normalize("NFKD", value).casefold())
+    return " ".join(folded.translate(_INVISIBLE).split())
+
+
+class _InvisibleTable(dict[int, int | None]):
+    """A ``str.translate`` table that drops combining marks and ``Cf`` characters.
+
+    Each code point is classified once, the first time it is seen, so the
+    table only holds the characters of the values folded so far.
+    """
+
+    def __missing__(self, point: int) -> int | None:
+        char = chr(point)
+        kept = None if combining(char) or category(char) == "Cf" else point
+        self[point] = kept
+        return kept
+
+
+_INVISIBLE = _InvisibleTable()
+
+
 ORDER_OPERATORS = ("<=", "<")  # --column-order: LEFT <= RIGHT, or LEFT < RIGHT
 
 
@@ -300,6 +357,7 @@ class Report:
     check_digits: tuple[CheckDigitProfile, ...] = ()  # --check-digit: one per profiled column
     presences: tuple[PresenceProfile, ...] = ()  # --require-values: one per profiled column
     orders: tuple[OrderProfile, ...] = ()  # --column-order: one per order whose columns exist
+    variants: tuple[VariantProfile, ...] = ()  # --consistent-values: one per profiled column
 
 
 def _untrimmed_names(header: list[str]) -> tuple[str, ...]:
@@ -874,6 +932,7 @@ class _Profiled:
     check_digits: tuple[CheckDigitProfile, ...] = ()
     presences: tuple[PresenceProfile, ...] = ()
     orders: tuple[OrderProfile, ...] = ()
+    variants: tuple[VariantProfile, ...] = ()
 
 
 def _columns(
@@ -945,6 +1004,7 @@ def profile_rows(
     check_digits: Mapping[str, str] | None = None,
     required_values: Mapping[str, Iterable[str]] | None = None,
     column_orders: Iterable[tuple[str, str, str]] = (),
+    consistent_values: Iterable[str] = (),
 ) -> _Profiled:
     """Profile ``rows`` in a single pass; each row must have ``len(header)`` cells.
 
@@ -1007,6 +1067,10 @@ def profile_rows(
     ``columns``. An order with an unknown name is skipped (``evaluate``
     reports it); an invalid one raises ``ValueError`` before any row is read.
     Without orders the pass does no extra work.
+
+    ``consistent_values`` names columns whose values must each be written one
+    way (see ``VariantProfile``). Each distinct value is folded once after the
+    pass, so it costs no extra pass; a name that is not profiled is skipped.
     """
     _validate_top_n(top_n)
     # Materialize one-shot iterables before validation and missing-cell accounting.
@@ -1026,6 +1090,7 @@ def profile_rows(
     schemes = {name: check_scheme(scheme) for name, scheme in (check_digits or {}).items()}
     presences = {name: required_list(values) for name, values in (required_values or {}).items()}
     orders = list(dict.fromkeys(column_order(*order) for order in column_orders))
+    consistent = set(consistent_values)
     selected = _selection(header, columns)
     accumulators = [
         _ColumnAccumulator(name)
@@ -1081,6 +1146,7 @@ def profile_rows(
             _presence(acc, presences[acc.name]) for acc in accumulators if acc.name in presences
         ),
         orders=tuple(order.finish(total) for order in order_checks),
+        variants=tuple(_variants(acc, top_n) for acc in accumulators if acc.name in consistent),
     )
 
 
@@ -1097,6 +1163,40 @@ def _presence(acc: _ColumnAccumulator, required: tuple[str, ...]) -> PresencePro
     # each with a positive count.
     absent = tuple(value for value in required if value not in acc.counts)
     return PresenceProfile(column=acc.name, required=required, absent=absent)
+
+
+def _variants(acc: _ColumnAccumulator, top_n: int) -> VariantProfile:
+    """The values of ``acc`` (stripped, non-missing) that share a ``variant_key``."""
+    # One key per distinct value; a list only for the keys with a second spelling.
+    first: dict[str, str] = {}
+    spellings: dict[str, list[str]] = {}
+    for value in acc.counts:
+        key = variant_key(value)
+        seen = first.setdefault(key, value)
+        if seen is not value:
+            spellings.setdefault(key, [seen]).append(value)
+    counts = acc.counts
+    groups: list[tuple[tuple[str, int], ...]] = []
+    cells = 0
+    # In the order of each group's first spelling; the most common spelling
+    # first in each group, first seen on ties (sorted is stable).
+    for key in (key for key in first if key in spellings):
+        group = sorted(((value, counts[value]) for value in spellings[key]), key=_minus_cells)
+        groups.append(tuple(group))
+        cells += sum(count for _, count in group[1:])
+    examples = heapq.nlargest(top_n, groups, key=_cells_to_fix)
+    return VariantProfile(
+        column=acc.name, groups=len(groups), cells=cells, examples=tuple(examples)
+    )
+
+
+def _minus_cells(spelling: tuple[str, int]) -> int:
+    return -spelling[1]
+
+
+def _cells_to_fix(group: tuple[tuple[str, int], ...]) -> int:
+    """The cells of ``group`` not written like its first (most common) spelling."""
+    return sum(count for _, count in group[1:])
 
 
 def _pattern(acc: _ColumnAccumulator, pattern: re.Pattern[str], top_n: int) -> PatternProfile:
@@ -1186,6 +1286,7 @@ def _report(
         check_digits=result.check_digits,
         presences=result.presences,
         orders=result.orders,
+        variants=result.variants,
     )
 
 
@@ -1208,6 +1309,7 @@ def build_report(
     check_digits: Mapping[str, str] | None = None,
     required_values: Mapping[str, Iterable[str]] | None = None,
     column_orders: Iterable[tuple[str, str, str]] = (),
+    consistent_values: Iterable[str] = (),
 ) -> Report:
     """Profile every column of an in-memory ``table``.
 
@@ -1232,7 +1334,9 @@ def build_report(
     ``required_values`` maps column names to values that must each appear in
     at least one cell (``Report.presences``); ``column_orders`` are
     ``(left, operator, right)`` triples such as ``("Despacho", "<=", "Entrega")``
-    whose order every row must keep (``Report.orders``).
+    whose order every row must keep (``Report.orders``); ``consistent_values``
+    names columns whose values must each be written one way, not in several
+    cases, accents or spacings (``Report.variants``).
     """
     _validate_top_n(top_n)
     tokens = tuple(na_tokens)
@@ -1256,6 +1360,7 @@ def build_report(
         check_digits=check_digits,
         required_values=required_values,
         column_orders=column_orders,
+        consistent_values=consistent_values,
     )
     return _report(
         result,
@@ -1298,6 +1403,7 @@ def profile_file(
     check_digits: Mapping[str, str] | None = None,
     required_values: Mapping[str, Iterable[str]] | None = None,
     column_orders: Iterable[tuple[str, str, str]] = (),
+    consistent_values: Iterable[str] = (),
 ) -> Report:
     """Stream ``path`` and profile it without loading the whole file into memory.
 
@@ -1307,8 +1413,8 @@ def profile_file(
     ``build_report(read_table(...))``. ``skip_lines`` lines before the header
     are skipped (``Report.skipped_lines``), and ``skip_footer`` records after
     the data are dropped (``Report.skipped_footer``). ``month_names``,
-    ``na_ignore_case``, ``check_digits``, ``required_values`` and
-    ``column_orders`` are as in ``build_report``.
+    ``na_ignore_case``, ``check_digits``, ``required_values``,
+    ``column_orders`` and ``consistent_values`` are as in ``build_report``.
     """
     _validate_top_n(top_n)
     tokens = tuple(na_tokens)
@@ -1341,6 +1447,7 @@ def profile_file(
             check_digits=check_digits,
             required_values=required_values,
             column_orders=column_orders,
+            consistent_values=consistent_values,
         )
         return _report(
             result,

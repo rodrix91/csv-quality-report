@@ -13,6 +13,7 @@ from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
 from fractions import Fraction
 from typing import Any
+from unicodedata import category
 
 from .checkdigits import check_scheme, scheme_label
 from .clock import format_stamp, parse_stamp
@@ -27,6 +28,7 @@ from .profile import (
     PatternProfile,
     PresenceProfile,
     Report,
+    VariantProfile,
     allowed_list,
     column_order,
     compile_pattern,
@@ -55,6 +57,7 @@ CHECK_PATTERN = "pattern"
 CHECK_CHECK_DIGIT = "check_digit"
 CHECK_REQUIRED_VALUES = "required_values"
 CHECK_COLUMN_ORDER = "column_order"
+CHECK_CONSISTENT_VALUES = "consistent_values"
 # A baseline stamped up to this many seconds after the clock counts as 0
 # seconds old (clocks of two machines differ a little); later is an error.
 CLOCK_SKEW_TOLERANCE = 300
@@ -147,6 +150,10 @@ class CheckResult:
     uncomparable: int = 0
     out_of_order: tuple[tuple[int, str, str], ...] = ()
     uncomparable_rows: tuple[tuple[int, str, str], ...] = ()
+    # consistent_values checks: the values written in more than one way and
+    # the groups listed, each as its spellings with their cells, most common first.
+    variant_groups: int = 0
+    variants: tuple[tuple[tuple[str, int], ...], ...] = ()
 
     def describe(self) -> str:
         """One-line, human-readable explanation used on stderr and in Markdown."""
@@ -207,6 +214,8 @@ class CheckResult:
             return self._describe_required_values()
         if self.check == CHECK_COLUMN_ORDER:
             return self._describe_column_order()
+        if self.check == CHECK_CONSISTENT_VALUES:
+            return self._describe_consistent_values()
         if self.check == CHECK_MIN_ROWS:
             rows = int(self.value)
             noun = "data row" if rows == 1 else "data rows"
@@ -249,6 +258,19 @@ class CheckResult:
         examples = ", ".join(f'"{value}" in {cells} cells' for value, cells in self.repeated)
         return f"column '{self.column}' is not unique: {count} {verb} an earlier value" + (
             f" ({examples})" if examples else ""
+        )
+
+    def _describe_consistent_values(self) -> str:
+        if self.passed:
+            return f"column '{self.column}' has every value written one way"
+        groups = self.variant_groups
+        cells = int(self.value)
+        noun = "value" if groups == 1 else "values"
+        differ = "cell differs" if cells == 1 else "cells differ"
+        listed = "; ".join(_spellings(group) for group in self.variants)
+        return (
+            f"column '{self.column}' has {groups} {noun} written in more than one way "
+            f"({cells} {differ} from the most common spelling)" + (f": {listed}" if listed else "")
         )
 
     def _describe_unique_key(self) -> str:
@@ -1128,6 +1150,43 @@ def _check_digit_check(profile: CheckDigitProfile) -> CheckResult:
     )
 
 
+def _visible(value: str) -> str:
+    """``value`` with whitespace other than a plain space and invisible characters escaped.
+
+    Spellings that differ only in such characters (a non-breaking space, a tab,
+    a zero-width space) would otherwise look identical in a message.
+    """
+    return "".join(
+        (f"\\u{ord(char):04x}" if ord(char) <= 0xFFFF else f"\\U{ord(char):08x}")
+        if char != " " and (char.isspace() or category(char) in {"Cc", "Cf"})
+        else char
+        for char in value
+    )
+
+
+def _spellings(group: tuple[tuple[str, int], ...]) -> str:
+    """``"Cochabamba" in 12 cells, "COCHABAMBA" in 3`` (at most ``_MAX_LISTED`` spellings)."""
+    (value, cells), *others = group
+    shown = [f'"{_visible(value)}" in {cells} {"cell" if cells == 1 else "cells"}']
+    shown += [f'"{_visible(other)}" in {count}' for other, count in others[: _MAX_LISTED - 1]]
+    if len(group) > _MAX_LISTED:
+        shown.append(f"... ({len(group)} spellings)")
+    return ", ".join(shown)
+
+
+def _consistent_values_check(variant: VariantProfile) -> CheckResult:
+    """A check that fails when a value of ``variant.column`` is written in more than one way."""
+    return CheckResult(
+        check=CHECK_CONSISTENT_VALUES,
+        column=variant.column,
+        limit=0,
+        value=variant.cells,
+        passed=variant.groups == 0,
+        variant_groups=variant.groups,
+        variants=variant.examples,
+    )
+
+
 def _required_values_check(presence: PresenceProfile) -> CheckResult:
     """A check that fails when a value of ``presence.required`` is in no non-missing cell."""
     return CheckResult(
@@ -1201,6 +1260,7 @@ def evaluate(
     check_digits: Mapping[str, str] | None = None,
     required_values: Mapping[str, Iterable[str]] | None = None,
     column_orders: Iterable[tuple[str, str, str]] = (),
+    consistent_values: Iterable[str] = (),
 ) -> list[CheckResult]:
     """Evaluate the requested thresholds; a value equal to its limit passes.
 
@@ -1308,6 +1368,17 @@ def evaluate(
     ``absent`` names them, in the order given. Unknown names fail as
     ``required_column``.
 
+    ``consistent_values`` names columns whose values must each be written one
+    way: two distinct values that differ only in case, accents or runs of
+    whitespace (``profile.variant_key``) fail, such as ``COCHABAMBA`` and
+    ``Cochabamba``. The report must have been built with the same names
+    (``profile_file(..., consistent_values=...)``, ``Report.variants``); a
+    name it lacks raises ``ValueError``. The check's ``value`` is the number
+    of cells not written like the most common spelling of their value,
+    ``variant_groups`` the number of such values and ``variants`` the groups
+    with the most such cells, up to the report's ``top_n``. Unknown names
+    fail as ``required_column``.
+
     ``column_orders`` are ``(left, operator, right)`` triples (operator
     ``"<="`` or ``"<"``), such as ``("Despacho", "<=", "Entrega")``: every row
     must keep that order between its two values, such as a delivery date not
@@ -1390,6 +1461,8 @@ def evaluate(
     presences = {name: required_list(values) for name, values in (required_values or {}).items()}
     gated += [*(column_ranges or {}), *unique, *max_ages, *domains, *formats, *schemes]
     gated += presences
+    consistent = list(dict.fromkeys(consistent_values))
+    gated += consistent
     unprofiled = [name for name in gated if name in present]
     unprofiled = [name for name in unprofiled if name not in by_name]
     if unprofiled:
@@ -1505,6 +1578,17 @@ def evaluate(
                 "profiled with the same list"
             )
         results.append(_required_values_check(presence))
+    measured_variants = {variant.column: variant for variant in report.variants}
+    for name in consistent:
+        if name not in by_name:
+            continue  # reported below as a missing required column
+        variant = measured_variants.get(name)
+        if variant is None:
+            raise ValueError(
+                f"column {name!r} has a consistent_values check but the report was not "
+                "profiled with it"
+            )
+        results.append(_consistent_values_check(variant))
     keys = list(dict.fromkeys(key_columns(key) for key in unique_keys))
     measured = {key.columns: key for key in report.keys}
     for columns in keys:
@@ -1545,6 +1629,7 @@ def evaluate(
             *formats,
             *schemes,
             *presences,
+            *consistent,
         ]
         if name not in present
     )
