@@ -31,8 +31,16 @@ def validate_read_path(raw: str, workspace_raw: str, label: str) -> None:
     # In particular, opening a FIFO can block the Action indefinitely.
     # Leave missing paths to the CLI and if-baseline-missing policy: both
     # currently give deliberate, documented outcomes for absent inputs.
-    if resolved.exists() and not resolved.is_file():
-        raise ValueError(f"{label} must name a regular file")
+    if resolved.exists():
+        if not resolved.is_file():
+            raise ValueError(f"{label} must name a regular file")
+        # realpath()/resolve() cannot identify hardlinks: a workspace alias
+        # can share an inode with private data outside GITHUB_WORKSPACE.
+        # Reject multiply linked sources before the Action reads either an
+        # input CSV or a reference baseline. Ordinary single-link files and
+        # in-workspace symlinks to them remain supported.
+        if resolved.stat().st_nlink != 1:
+            raise ValueError(f"{label} must not be a hard-linked file")
 
 
 def main() -> int:
