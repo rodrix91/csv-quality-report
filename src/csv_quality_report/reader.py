@@ -8,8 +8,8 @@ import gzip
 import io
 import os
 import re
-import sys
 import stat
+import sys
 import zlib
 from collections import deque
 from collections.abc import Iterator
