@@ -12,6 +12,7 @@ from .checks import (
     CHECK_BASELINE_AGE,
     CHECK_CHECK_DIGIT,
     CHECK_COLUMN_ORDER,
+    CHECK_CONSISTENT_VALUES,
     CHECK_MAX_AFFIXES,
     CHECK_MAX_AGE,
     CHECK_MEAN_CHANGE,
@@ -301,6 +302,16 @@ def _unique_key_fields(check: CheckResult) -> dict[str, Any]:
     }
 
 
+def _consistent_fields(check: CheckResult) -> dict[str, Any]:
+    """JSON fields of a consistent_values check: the values written in several ways."""
+    return {
+        "variant_groups": check.variant_groups,
+        "variants": [
+            [{"value": value, "cells": cells} for value, cells in group] for group in check.variants
+        ],
+    }
+
+
 def _column_order_fields(check: CheckResult) -> dict[str, Any]:
     """JSON fields of a column_order check: the order, the row counts and the first rows."""
     assert check.order is not None
@@ -453,6 +464,7 @@ def render_json(
                     if c.check == CHECK_REQUIRED_VALUES
                     else {}
                 ),
+                **(_consistent_fields(c) if c.check == CHECK_CONSISTENT_VALUES else {}),
             }
             for c in checks
         ],

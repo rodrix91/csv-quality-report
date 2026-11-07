@@ -396,5 +396,12 @@
     "args": ["--delimiter", "auto", "--decimal-comma", "--date-order", "dmy", "--na", "s/d,pendiente", "--column-order", "Fecha despacho<=Fecha entrega", "--column-order", "Fecha despacho<Fecha entrega"],
     "exit_code": 8,
     "about": "The same export with pendiente counted as missing: the pending row is skipped instead of failing, the early delivery still fails <=, and the strict < also fails the same-day delivery."
+  },
+  {
+    "name": "ar_dispatch_carriers_consistent",
+    "file": "ar_dispatch_carriers.csv",
+    "args": ["--delimiter", "auto", "--decimal-comma", "--date-order", "dmy", "--unique", "Guía", "--consistent-values", "Transportista", "--consistent-values", "Provincia", "--consistent-values", "Estado"],
+    "exit_code": 8,
+    "about": "An Argentine distributor's dispatch export with hand-typed carriers and provinces: ANDREANI, andreani and a padded 'Andreani ' (which counts as Andreani), 'Correo  Argentino' with two spaces, Cordoba and Entre Rios without accents, and Buenos Aires with a non-breaking space. --consistent-values fails on Transportista and Provincia and passes on Estado; the guide numbers are unique."
   }
 ]
