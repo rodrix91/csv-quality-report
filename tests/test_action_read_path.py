@@ -113,3 +113,52 @@ def test_named_pipes_are_rejected_without_blocking(tmp_path: Path, kind: str) ->
 
 def test_nonexistent_csv_still_reaches_cli_for_documented_error(tmp_path: Path) -> None:
     assert validate("missing.csv", tmp_path, "path").returncode == 0
+
+
+@pytest.mark.parametrize("kind", ["path", "baseline"])
+def test_hardlink_to_file_outside_workspace_is_rejected(tmp_path: Path, kind: str) -> None:
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    outside = tmp_path / "private-export.csv"
+    outside.write_text("private-csv-marker\n", encoding="utf-8")
+    alias = workspace / "export.csv"
+    try:
+        alias.hardlink_to(outside)
+    except (OSError, NotImplementedError) as error:
+        pytest.skip(f"hardlinks unavailable on this runner: {error}")
+    assert alias.is_file() and alias.stat().st_nlink >= 2
+    # Unlike a symlink, a hardlink is not visible to Path.resolve().
+    assert alias.resolve().is_relative_to(workspace.resolve())
+    result = validate("export.csv", workspace, kind)
+    assert result.returncode == 2
+    assert f"{kind} must not be a hard-linked file" in result.stderr
+    assert "private-csv-marker" not in result.stderr
+    assert "private-export" not in result.stderr
+    assert outside.read_text(encoding="utf-8") == "private-csv-marker\n"
+
+
+@pytest.mark.parametrize("kind", ["path", "baseline"])
+def test_internal_regular_symlink_remains_accepted(tmp_path: Path, kind: str) -> None:
+    source = tmp_path / "source.csv"
+    source.write_text("id\n1\n", encoding="utf-8")
+    alias = tmp_path / "alias.csv"
+    try:
+        alias.symlink_to(source)
+    except (OSError, NotImplementedError) as error:
+        pytest.skip(f"symlinks unavailable on this runner: {error}")
+    assert validate("alias.csv", tmp_path, kind).returncode == 0
+
+
+@pytest.mark.parametrize("kind", ["path", "baseline"])
+def test_multiple_workspace_hardlinks_are_rejected_as_ambiguous(
+    tmp_path: Path, kind: str
+) -> None:
+    source = tmp_path / "source.csv"
+    source.write_text("id\n1\n", encoding="utf-8")
+    alias = tmp_path / "copy.csv"
+    try:
+        alias.hardlink_to(source)
+    except (OSError, NotImplementedError) as error:
+        pytest.skip(f"hardlinks unavailable on this runner: {error}")
+    assert validate("copy.csv", tmp_path, kind).returncode == 2
+    assert validate("source.csv", tmp_path, kind).returncode == 2
