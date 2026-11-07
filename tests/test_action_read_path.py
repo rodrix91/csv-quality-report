@@ -150,9 +150,7 @@ def test_internal_regular_symlink_remains_accepted(tmp_path: Path, kind: str) ->
 
 
 @pytest.mark.parametrize("kind", ["path", "baseline"])
-def test_multiple_workspace_hardlinks_are_rejected_as_ambiguous(
-    tmp_path: Path, kind: str
-) -> None:
+def test_multiple_workspace_hardlinks_are_rejected_as_ambiguous(tmp_path: Path, kind: str) -> None:
     source = tmp_path / "source.csv"
     source.write_text("id\n1\n", encoding="utf-8")
     alias = tmp_path / "copy.csv"
