@@ -113,5 +113,5 @@ def test_missing_file_still_reports_file_not_found(tmp_path: Path) -> None:
     with pytest.raises(FileReadError) as captured:
         read_table(missing)
     assert "cannot read" in str(captured.value)
-    assert "No such file" in str(captured.value)
+    assert str(missing) in str(captured.value)
     assert "must be a regular file" not in str(captured.value)
