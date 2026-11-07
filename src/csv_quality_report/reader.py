@@ -9,6 +9,7 @@ import io
 import os
 import re
 import sys
+import stat
 import zlib
 from collections import deque
 from collections.abc import Iterator
@@ -588,6 +589,21 @@ def _text_stream(
     """
     owned = not is_stdin(path)
     try:
+        if owned:
+            # Opening a FIFO without a writer blocks before CSV validation.
+            # Device files can also supply an unbounded byte stream. Named
+            # file inputs must be regular files; pipes remain supported via
+            # '-' on standard input. Preserve missing-file error messages.
+            try:
+                details = path.stat()
+            except FileNotFoundError:
+                pass
+            else:
+                if not stat.S_ISREG(details.st_mode):
+                    raise FileReadError(
+                        f"cannot read '{name}': input must be a regular file; "
+                        "use '-' for standard input or a pipe"
+                    )
         binary = path.open("rb") if owned else cast(io.BufferedReader, sys.stdin.buffer)
         compressed = binary.peek(2)[:2] == _GZIP_MAGIC
     except OSError as exc:
