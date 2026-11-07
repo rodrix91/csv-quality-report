@@ -35,6 +35,10 @@ def current_time(environ: Mapping[str, str] | None = None) -> datetime:
     1970-01-01 UTC, otherwise ``ValueError``.
     """
     text = (os.environ if environ is None else environ).get(SOURCE_DATE_EPOCH, "")
+    # Direct Python integrations may supply arbitrary mapping values, unlike
+    # os.environ. Reject bad types without calling repr() on untrusted objects.
+    if not isinstance(text, str):
+        raise ValueError(f"invalid {SOURCE_DATE_EPOCH}: value must be a string")
     if text == "":
         return datetime.now(UTC).replace(microsecond=0)
     if len(text) > _MAX_EPOCH_CHARS:
@@ -57,7 +61,7 @@ def format_stamp(moment: datetime) -> str:
     # datetime.astimezone() silently interprets a naive datetime in the
     # machine's local timezone. A report stamp must describe the same
     # instant on every build runner and machine.
-    if moment.tzinfo is None or moment.utcoffset() is None:
+    if not isinstance(moment, datetime) or moment.tzinfo is None or moment.utcoffset() is None:
         raise ValueError("moment must be an aware datetime (with a UTC offset)")
     utc = moment.astimezone(UTC)
     return (
@@ -73,7 +77,7 @@ def parse_stamp(text: str) -> datetime | None:
     ``z``): the stamp is written by this tool, so anything else means the
     report was edited or written by something else.
     """
-    if _STAMP.fullmatch(text) is None:
+    if not isinstance(text, str) or _STAMP.fullmatch(text) is None:
         return None
     try:
         return datetime.strptime(text, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=UTC)
