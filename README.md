@@ -153,7 +153,15 @@ python -m csv_quality_report shipments.csv.gz --format json     # decompressed o
 curl -s https://example.org/export.csv | python -m csv_quality_report - --max-duplicates 0
 ```
 
-On standard input the report names the source `<stdin>`. `--delimiter auto` works on pipes too: it reads its sample, completes the current line and keeps reading the same stream, without seeking. Two limits come with pipes: a non-UTF-8 byte cannot be located by re-reading, so the error says the offset is not available; and corrupt or truncated gzip data stops with exit code 3. For gzip files on disk, the offset of an invalid byte is counted in the decompressed data.
+A path to a pipe is read the same way, so process substitution (`<(...)`, which passes a `/dev/fd/N` pipe), a named pipe made with `mkfifo` and `/dev/stdin` work too:
+
+```bash
+python -m csv_quality_report <(iconv -f cp1252 -t utf-8 ventas.csv) --delimiter auto --format json
+```
+
+Like any program reading a named pipe, the run waits until a program opens it for writing. A directory, a socket or a block device stops with exit code 3 (`cannot read 'exports': it is a directory, not a file or a pipe; use '-' to read standard input`).
+
+On standard input the report names the source `<stdin>`. `--delimiter auto` works on pipes too: it reads its sample, completes the current line and keeps reading the same stream, without seeking. Two limits come with pipes: a non-UTF-8 byte cannot be located by re-reading, so the error says the offset is not available (also for a path to a pipe, which is never opened twice); and corrupt or truncated gzip data stops with exit code 3. For gzip files on disk, the offset of an invalid byte is counted in the decompressed data.
 
 ### Quality gates for pipelines
 

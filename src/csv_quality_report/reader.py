@@ -384,6 +384,50 @@ def is_stdin(path: PathArg) -> bool:
     return os.fspath(path) == STDIN
 
 
+# What a named input that can never be a CSV stream is, for the error message.
+# Named pipes and character devices are read like standard input: process
+# substitution (``<(gunzip -c x.gz)``, a ``/dev/fd/N`` pipe), ``mkfifo``
+# pipelines and ``/dev/stdin`` worked in every release up to 0.23.0 (#293).
+_UNREADABLE_KINDS = (
+    (stat.S_ISDIR, "a directory"),
+    (stat.S_ISSOCK, "a socket"),
+    (stat.S_ISBLK, "a block device"),
+)
+
+
+def _check_input_kind(path: Path, name: str) -> None:
+    """Raise ``FileReadError`` when ``path`` is a directory, socket or block device.
+
+    Regular files, named pipes and character devices pass. A path that does
+    not exist or cannot be inspected passes too, so opening it reports the
+    usual reason (``No such file or directory``).
+    """
+    try:
+        mode = path.stat().st_mode
+    except OSError:
+        return
+    for test, kind in _UNREADABLE_KINDS:
+        if test(mode):
+            raise FileReadError(
+                f"cannot read '{name}': it is {kind}, not a file or a pipe; "
+                "use '-' to read standard input"
+            )
+
+
+def _rereadable(path: Path) -> bool:
+    """Whether the named input ``path`` can be opened again to locate an invalid byte.
+
+    Only a regular file gives the same bytes twice. A named pipe or a
+    ``/dev/fd/N`` pipe was consumed by the first read, and opening a named
+    pipe again would wait for a writer that already left (#293). Standard
+    input is never reopened; callers check it first.
+    """
+    try:
+        return stat.S_ISREG(path.stat().st_mode)
+    except OSError:
+        return False
+
+
 def display_name(path: PathArg) -> str:
     """Name used for ``path`` in messages and reports (``<stdin>`` for ``-``).
 
@@ -544,6 +588,11 @@ def _encoding_error(
 ) -> EncodingError:
     if is_stdin(path):
         where = "the offset of the invalid byte is not available on standard input"
+    elif not _rereadable(path):
+        where = (
+            "the offset of the invalid byte is not available: the input (a pipe) "
+            "cannot be read again"
+        )
     else:
         offset = _invalid_utf8_offset(path, compressed, encoding)
         where = f"invalid byte at offset {offset}"
@@ -590,20 +639,7 @@ def _text_stream(
     owned = not is_stdin(path)
     try:
         if owned:
-            # Opening a FIFO without a writer blocks before CSV validation.
-            # Device files can also supply an unbounded byte stream. Named
-            # file inputs must be regular files; pipes remain supported via
-            # '-' on standard input. Preserve missing-file error messages.
-            try:
-                details = path.stat()
-            except FileNotFoundError:
-                pass
-            else:
-                if not stat.S_ISREG(details.st_mode):
-                    raise FileReadError(
-                        f"cannot read '{name}': input must be a regular file; "
-                        "use '-' for standard input or a pipe"
-                    )
+            _check_input_kind(path, name)
         binary = path.open("rb") if owned else cast(io.BufferedReader, sys.stdin.buffer)
         compressed = binary.peek(2)[:2] == _GZIP_MAGIC
     except OSError as exc:
