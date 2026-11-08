@@ -5,7 +5,7 @@ type: software
 authors:
   - given-names: Rodrigo
     family-names: Pantoja Navajas
-version: 0.23.0
+version: 0.24.0
 repository-code: "https://github.com/rodrix91/csv-quality-report"
 license: MIT
 abstract: >-
