@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.24.0] - 2026-11-07
+
 ### Added
 
 - Add `--consistent-values NAME` (repeatable): fail with exit code 8 when column `NAME` holds one value written in more than one way, differing only in case, accents (so `Córdoba` matches `Cordoba` and `ñ` matches `n`), runs of inner whitespace (double, tab or non-breaking spaces) or invisible format characters, for category columns typed by hand where `ANDREANI`, `andreani` and `Andreani` split one carrier into three groups downstream and no list of valid values is known for `--allowed-values` (`column 'Transportista' has 2 values written in more than one way (3 cells differ from the most common spelling): "Andreani" in 4 cells, "ANDREANI" in 1, "andreani" in 1; ...`). The count of cells to fix is exact; up to `--top` values are listed with their spellings, and whitespace and invisible characters that would make two spellings look alike are shown escaped (`"Buenos\u00a0Aires"`). Without an extra pass: each distinct value the pass already counts is folded once after it (on a 1,000,000-row file, the same time and peak memory for a branch column with 8 values; about 1.8 s and 87 MB more for a column with 1,000,000 distinct non-ASCII values). JSON item `consistent_values` with `variant_groups` and `variants`; reports without the option are byte-identical. Python API: `profile_file(..., consistent_values=...)`, `build_report(..., consistent_values=...)` and `evaluate(report, consistent_values=...)`, measured in `Report.variants` (`VariantProfile` and `variant_key` in `csv_quality_report.profile`). The corpus gains an Argentine distributor's dispatch export with hand-typed carriers and provinces, and the guide to Spanish and Latin American exports a line for it (#288).
@@ -444,7 +446,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 - Initial version: per-column type inference, missing values, distinct counts, min/max and top values, duplicate rows, Markdown and JSON output.
 
-[Unreleased]: https://github.com/rodrix91/csv-quality-report/compare/v0.23.0...HEAD
+[Unreleased]: https://github.com/rodrix91/csv-quality-report/compare/v0.24.0...HEAD
+[0.24.0]: https://github.com/rodrix91/csv-quality-report/compare/v0.23.0...v0.24.0
 [0.23.0]: https://github.com/rodrix91/csv-quality-report/compare/v0.22.0...v0.23.0
 [0.22.0]: https://github.com/rodrix91/csv-quality-report/compare/v0.21.0...v0.22.0
 [0.21.0]: https://github.com/rodrix91/csv-quality-report/compare/v0.20.0...v0.21.0

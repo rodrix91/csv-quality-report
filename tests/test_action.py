@@ -216,12 +216,14 @@ def test_readme_pins_a_recent_release() -> None:
     # section or, while that version waits for its tag, the one before it.
     # Two versions may wait for their tags together (v0.18.0 and v0.19.0, and
     # v0.20.0 and v0.21.0, were published on the same day), so the pin may
-    # also name the third newest section, the newest one with a tag.
+    # also name the third newest section, the newest one with a tag. With
+    # v0.22.0, v0.23.0 and v0.24.0 all waiting for their tags, the newest
+    # tagged section is the fourth (v0.21.0), so the pin may name it too.
     pins = re.findall(r"rodrix91/csv-quality-report@v(\d+)\.(\d+)\.(\d+)\b", README)
     assert pins, "no pinned Action example in the README"
     assert len(set(pins)) == 1, f"the README examples pin different tags: {sorted(set(pins))}"
     released = _released_versions()
-    assert len(released) >= 3 and released == sorted(released, reverse=True)
-    assert tuple(map(int, pins[0])) in released[:3], (
+    assert len(released) >= 4 and released == sorted(released, reverse=True)
+    assert tuple(map(int, pins[0])) in released[:4], (
         f"the README pins v{'.'.join(pins[0])}; pin the latest release tag"
     )
