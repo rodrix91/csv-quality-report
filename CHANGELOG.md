@@ -14,6 +14,10 @@ All notable changes to this project are documented here. The format follows [Kee
 
 - Add `--max-mean-change NAME=PCT` (with `--baseline`, repeatable): fail with exit code 8 when the mean of numeric column `NAME` changed by more than `PCT` % of the baseline's mean, up or down, for an export whose values all moved by a factor while its schema, types, row count and missing values stayed the same, which no other gate sees: weights written in grams instead of kilos, amounts in cents instead of units, a thousands separator read as a decimal mark, another currency (`column 'Peso kg' mean rose 94857.8824% since the baseline (4.25 -> 4035.71; limit 50%)`). The change is `|after - before| / |before|`, computed exactly with `Fraction` on the means as both reports show them (6 significant digits); a change equal to the limit passes. `PCT` is a finite number of 0 or more and may exceed 100; `nan`, `inf`, negative values and a value without a name are usage errors (exit code 2); the name is split at the last `=` and the last limit for a name wins. A named column whose change cannot be measured fails and says why: no mean in the baseline or in the file, a baseline mean of 0 (unless the mean is still 0), or a column not in both reports. With `--columns`, naming a column that is left out is a usage error. Per-column `mean_change` check in JSON with `before` and `after`; reports without the option are byte-identical. Python API: `mean_change_checks(comparison, column_max_changes)` in `csv_quality_report.checks`, and `Comparison.means` (`ColumnMean` items in `csv_quality_report.compare`, empty by default). The corpus gains two daily dispatch exports of a Chilean courier whose weights switched to grams, and the guide to Spanish and Latin American exports a line for it (#260).
 
+### Changed
+
+- Development tools updated in the hashed lock: mypy 2.4.1 (#253) and Ruff 0.17.3 (#254), and the artifact upload action in the lock preview workflow (#255).
+
 ### Fixed
 
 - A path to a pipe is read again, as in every release up to 0.23.0: process substitution (`csv-quality-report <(iconv -f cp1252 -t utf-8 ventas.csv)`, a `/dev/fd/N` pipe), named pipes made with `mkfifo` and `/dev/stdin`, which the regular-file check of #292 had made fail with exit code 3. A named pipe waits for its writer, like any program reading one. Directories, sockets and block devices still stop with exit code 3, now naming what the path is (`cannot read 'exports': it is a directory, not a file or a pipe; use '-' to read standard input`). An invalid byte in a path to a pipe is no longer located by opening it a second time, which waited forever for a writer on a named pipe and reported offset 0 for a `/dev/fd/N` pipe in 0.23.0: the error says, as on standard input, that the offset is not available (#293).
@@ -29,6 +33,26 @@ All notable changes to this project are documented here. The format follows [Kee
 - `baseline_age_check()` in `csv_quality_report.checks` refuses a `now` whose `tzinfo` returns no UTC offset with the same `ValueError` as a naive one (`now must be an aware datetime (with a UTC offset)`), instead of failing later in the age arithmetic with a `TypeError`. CLI behavior is unchanged (#256).
 
 - The GitHub Action's report freshness check (`scripts/report_freshness.py`) inspects the report path itself instead of following symbolic links, so a symlink left at `report-path`, dangling or pointing at a regular file, is never taken as a fresh JSON report written by this run (#257).
+
+- Datetimes whose UTC offset has minutes above 59 or hours above 23 (`2026-10-01T10:00+01:99`) are no longer read as `datetime`: Python's `datetime.fromisoformat()` silently normalized `+01:99` to `+02:39`. They stay text, like other malformed values (27de6e6).
+
+- The check-digit validators of `csv_quality_report.checkdigits` (`valid_cuit`, `valid_rut`, `valid_cpf`, `valid_cnpj`, `valid_gtin`) return `False` for a value that is not a `str` (`None`, a number, a dataframe's missing value) instead of raising `AttributeError` or `TypeError` (9649f6f).
+
+- `current_time()`, `format_stamp()` and `parse_stamp()` in `csv_quality_report.clock` handle arguments of the wrong type predictably: a `SOURCE_DATE_EPOCH` that is not a `str` in the mapping given to `current_time()` and a `format_stamp()` argument that is not a `datetime` raise `ValueError` without echoing the value, and `parse_stamp()` returns `None` for a non-`str`. The CLI always passes the right types, so its behavior is unchanged (#290).
+
+- Untrusted text in error messages is bounded: a `SOURCE_DATE_EPOCH` longer than 64 characters (#280) and a `--max-age` or `--max-baseline-age` duration longer than 64 characters (#283) are rejected before they are parsed or converted to an integer, which could hit Python's integer conversion limit; an unknown `--check-digit` scheme is shown escaped and cut at 120 characters (#282); and a baseline's column names, duplicate keys and numeric literals are shown escaped and cut in its error messages, also after escaping expands control characters (#281, #286).
+
+- A baseline report larger than 32 MiB (#279) or nested more than 256 levels deep (#273) stops with exit code 3 (`baseline '...' exceeds the 33554432-byte size limit`, `baseline '...' is too deeply nested`) before it is decoded, instead of being read whole into memory or ending in a Python `RecursionError`.
+
+- The `check failed:` lines on standard error escape newlines, tabs, terminal controls (C0, DEL and C1) and invisible format characters taken from CSV names and values, and are cut at 4,096 characters, so a crafted cell cannot forge or flood CI log lines. JSON and Markdown reports are unchanged (#287).
+
+- GitHub Action: refuses a `report-path` that is empty, ends with a separator or names a directory or device (#264); refuses a `path` or `baseline` that is a directory or named pipe (#265) or a hard-linked file, which could share its data with a file outside the workspace (#291); requires a non-blank `source` and check names in the JSON report it verifies (#263); prints the Markdown report to the log and the job summary only after the fresh JSON report was verified (#268); and rejects a JSON report with an integer too large for a float or nested too deeply, instead of failing with a Python traceback (#268, #269).
+
+### Security
+
+- `--json-output` writes the report into a temporary file with mode `0600` and gives it its final mode (that of the replaced file, or the default for a new one) only after the whole report was written and flushed, so another local user cannot read a report while it is being written into a directory they can list (43a90a4).
+
+- Development: CI checks that every entry of `requirements-dev.lock` has a SHA-256 hash and rejects hash options that pip would ignore (an orphan `--hash` line or a dangling line continuation), so `pip install --require-hashes` cannot silently install an unpinned tool (#258, #262).
 
 ## [0.23.0] - 2026-11-01
 
