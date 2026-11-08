@@ -16,6 +16,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Fixed
 
+- A path to a pipe is read again, as in every release up to 0.23.0: process substitution (`csv-quality-report <(iconv -f cp1252 -t utf-8 ventas.csv)`, a `/dev/fd/N` pipe), named pipes made with `mkfifo` and `/dev/stdin`, which the regular-file check of #292 had made fail with exit code 3. A named pipe waits for its writer, like any program reading one. Directories, sockets and block devices still stop with exit code 3, now naming what the path is (`cannot read 'exports': it is a directory, not a file or a pipe; use '-' to read standard input`). An invalid byte in a path to a pipe is no longer located by opening it a second time, which waited forever for a writer on a named pipe and reported offset 0 for a `/dev/fd/N` pipe in 0.23.0: the error says, as on standard input, that the offset is not available (#293).
+
 - Preserve every rejected byte of a malformed UTF-8 sequence in default-encoding diagnostics (for example, `0xE2 0x82` rather than reporting only `0xE2`), including truncated encodings and bytes split across input chunks, without affecting valid reports or explicit codec errors. Standard input diagnostics remain unchanged (#267 follow-up).
 
 - Improve default UTF-8 input errors for on-disk CSV and gzip files: recognize UTF-16/UTF-32 byte order marks and likely no-BOM Unicode export layouts, suggest an explicit `--encoding` without automatically guessing one, and otherwise report the first bad byte in hex, its physical line (LF, CRLF or bare CR), and the corresponding cp1252 character when defined. Existing byte-offset prefixes, explicit-encoding diagnostics, and stdin behavior remain intact (#266).
