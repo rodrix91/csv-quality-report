@@ -24,7 +24,7 @@ Use `csv-quality-report` for broader profiling and pipeline-oriented quality gat
 
 The CLI also supports stdin, JSON or Markdown output, configurable missing-rate and duplicate limits, and a configurable top-group count.
 
-Status: **0.3.0 with additional Unreleased work**. CI runs **63 tests** on Python 3.10 through 3.13 on Ubuntu, with Python 3.10 and 3.13 also validated on Windows and macOS. A dedicated quality job enforces branch coverage of at least 90%, Ruff lint/format checks, and mypy. Packaging is smoke-tested in a clean environment. See [CONTRIBUTING.md](https://github.com/rodrix91/ops-field-brief/blob/main/CONTRIBUTING.md).
+Status: **0.3.0 with additional Unreleased work**. CI runs **460 tests** on Python 3.10 through 3.14 on Ubuntu, with Python 3.10, 3.13 and 3.14 also validated on Windows and macOS. A dedicated quality job enforces 100% line and branch coverage, Ruff lint/format checks, and mypy, while `installed-cli` smoke-tests the built wheel in a clean environment across Linux, Windows and macOS. See [CONTRIBUTING.md](https://github.com/rodrix91/ops-field-brief/blob/main/CONTRIBUTING.md).
 
 ## inventory-policy-lab
 
@@ -41,4 +41,4 @@ It includes:
 
 Use `csv-quality-report` first to verify that the demand extract is structurally sound, then use `inventory-policy-lab` to study policy choices. `ops-field-brief` can sit between them when an operations team also wants fast checks on required fields, repeated keys, row counts, or counterparty concentration.
 
-Status: **0.10.0 alpha**. The project has **403 tests**, 100% line and branch coverage, Ruff, strict mypy, and cross-platform CI on supported Python versions. Its README documents formulas, assumptions, limitations, worked examples, and empirical comparisons so the output remains auditable rather than a black box.
+Status: **0.10.0 alpha with additional Unreleased work**. The project has over **700 test methods**, 100% line and branch coverage, Ruff, strict mypy, and cross-platform CI on Python 3.11 through 3.14 across Linux, Windows and macOS. Its README documents formulas, assumptions, limitations, worked examples, and empirical comparisons so the output remains auditable rather than a black box.
