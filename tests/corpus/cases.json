@@ -403,5 +403,26 @@
     "args": ["--delimiter", "auto", "--decimal-comma", "--date-order", "dmy", "--unique", "Guía", "--consistent-values", "Transportista", "--consistent-values", "Provincia", "--consistent-values", "Estado"],
     "exit_code": 8,
     "about": "An Argentine distributor's dispatch export with hand-typed carriers and provinces: ANDREANI, andreani and a padded 'Andreani ' (which counts as Andreani), 'Correo  Argentino' with two spaces, Cordoba and Entre Rios without accents, and Buenos Aires with a non-breaking space. --consistent-values fails on Transportista and Provincia and passes on Estado; the guide numbers are unique."
+  },
+  {
+    "name": "uy_pos_sales_trailing",
+    "file": "uy_pos_sales_trailing.csv",
+    "args": ["--delimiter", "auto", "--trailing-delimiter", "--decimal-comma", "--thousands", "dot", "--date-order", "dmy", "--require-type", "Fecha=date", "--require-type", "Importe=float", "--max-missing-column", "Descuento=70"],
+    "exit_code": 0,
+    "about": "A Uruguayan point-of-sale export whose data lines end with a semicolon and whose header does not: --trailing-delimiter drops the empty extra field of the eight rows (two product names hold a quoted semicolon, and five rows leave Descuento empty before it), the semicolon is detected and the gates pass."
+  },
+  {
+    "name": "uy_pos_sales_trailing_undetected",
+    "file": "uy_pos_sales_trailing.csv",
+    "args": ["--delimiter", "auto", "--decimal-comma", "--thousands", "dot", "--date-order", "dmy"],
+    "exit_code": 7,
+    "about": "The same export without --trailing-delimiter: the rows have one field more than the header, so detection fails, and the message suggests the option."
+  },
+  {
+    "name": "uy_pos_sales_trailing_ragged",
+    "file": "uy_pos_sales_trailing.csv",
+    "args": ["--delimiter", ";", "--decimal-comma", "--thousands", "dot", "--date-order", "dmy"],
+    "exit_code": 6,
+    "about": "The same export with an explicit semicolon and no --trailing-delimiter: the first row fails as a ragged row, and the message suggests the option instead of --skip-footer."
   }
 ]

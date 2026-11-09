@@ -104,6 +104,18 @@ def _footer_line(report: Report) -> list[str]:
     return [f"- Skipped footer: {report.skipped_footer} {records} (after the data)"]
 
 
+def _trailing_line(report: Report) -> list[str]:
+    """Markdown line on what ``--trailing-delimiter`` dropped, only with that option."""
+    dropped = report.trailing_delimiter
+    if dropped is None:
+        return []
+    parts = ["the header"] if dropped.header else []
+    if dropped.rows:
+        parts.append(f"{dropped.rows} {'row' if dropped.rows == 1 else 'rows'}")
+    found = f"dropped from {' and '.join(parts)}" if parts else "none found"
+    return [f"- Trailing delimiter: {found}"]
+
+
 def _na_line(report: Report) -> list[str]:
     """Markdown line listing the extra missing-value tokens, only when there are some."""
     if not report.na_tokens:
@@ -260,6 +272,7 @@ def render_markdown(
         *_delimiter_line(report),
         *_skipped_line(report),
         *_footer_line(report),
+        *_trailing_line(report),
         *_na_line(report),
         *(["- Compression: gzip"] if report.compressed else []),
         *([f"- Encoding: {report.encoding}"] if report.encoding != DEFAULT_ENCODING else []),
@@ -379,6 +392,16 @@ def render_json(
         "sep_line": report.sep_line,
         **({"skipped_lines": report.skipped_lines} if report.skipped_lines else {}),
         **({"skipped_footer": report.skipped_footer} if report.skipped_footer else {}),
+        **(
+            {}
+            if report.trailing_delimiter is None
+            else {
+                "trailing_delimiter": {
+                    "header": report.trailing_delimiter.header,
+                    "rows": report.trailing_delimiter.rows,
+                }
+            }
+        ),
         "na_tokens": list(report.na_tokens),
         **({"na_ignore_case": True} if report.na_ignore_case else {}),
         "top_n": report.top_n,

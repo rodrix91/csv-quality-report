@@ -1,0 +1,1 @@
+error: row at line 2 has 8 fields, expected 7 (from the header); if the lines end with a delimiter, read them with --trailing-delimiter
