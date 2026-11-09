@@ -12,6 +12,7 @@ csv-quality-report never guesses these conventions: each one is turned on with a
 | A first line `sep=;` (Excel) | `--delimiter auto` follows it |
 | Title lines before the header (report name, period, issue date), exit code 6 or 7 | `--skip-lines N` (the error message suggests `N`) |
 | A footer after the data (a totals row, `Cantidad de registros: 7`, a generated-by line), exit code 6 or 7, or a total that shows up as the maximum | `--skip-footer N` (the error message suggests `N`; count a totals row too) |
+| Every line, or only the header, ends with the separator (`A1;Yerba;3;`), exit code 6 or 7, or a column with no name, 100% missing | `--trailing-delimiter` (the error message suggests it) |
 | Accents broken, `UnicodeDecodeError`, exit code 4 | `--encoding cp1252` (Excel on Windows) or `latin-1` |
 | Exit code 4 and `the file starts with a UTF-16 byte order mark` (Excel's "Texto Unicode", some ERP and database exports) | `--encoding utf-16`; these files are usually tab-separated, so add `--delimiter auto` |
 | `10,5` | `--decimal-comma` |
@@ -194,6 +195,54 @@ $ python -m csv_quality_report tests/corpus/erp_dispatch_footer.csv --encoding c
 ```
 
 The `Skipped footer` line records that the report did not end at the last line of the file, next to `Skipped lines` for the titles.
+
+## Lines that end with a delimiter
+
+Many point-of-sale and ERP exports write the separator after every field, the last one included. The corpus has a day of sales of a Uruguayan chain whose data lines end with a semicolon while the header does not:
+
+```text
+Ticket;Fecha;Sucursal;Producto;Cantidad;Importe;Descuento
+T-000981;02/11/2026;Montevideo Centro;Yerba mate 1 kg;2;389,00;;
+T-000982;02/11/2026;Montevideo Centro;"Galletitas surtidas; caja 400 g";1;145,50;10,00;
+```
+
+Each row then has an eighth, empty field, so with `--delimiter ";"` the first one fails as a ragged row (exit code 6), and with `--delimiter auto` detection fails (exit code 7). Both messages suggest the option:
+
+`error: row at line 2 has 8 fields, expected 7 (from the header); if the lines end with a delimiter, read them with --trailing-delimiter`
+
+Cutting the last character of each line with `sed` would also cut the product names that hold a quoted semicolon, and a header that ends with the separator too gives a column with no name, 100% missing. `--trailing-delimiter` drops an empty last header field and the empty extra field of a row that has exactly one field more than the header, and nothing else: a row with an extra value, or two extra fields, still fails. The empty `Descuento` before the trailing semicolon of the first row stays a missing value.
+
+```console
+$ python -m csv_quality_report tests/corpus/uy_pos_sales_trailing.csv --delimiter auto --trailing-delimiter --decimal-comma --thousands dot --date-order dmy --require-type Importe=float
+```
+
+```markdown
+# CSV quality report: tests/corpus/uy_pos_sales_trailing.csv
+
+- Rows analyzed: 8
+- Columns: 7
+- Delimiter: semicolon (detected)
+- Trailing delimiter: dropped from 8 rows
+- Thousands separator: dot
+- Date order: day/month/year
+- Duplicate rows: 0
+
+| Column | Type | Missing | Missing % | Distinct | Min | Max | Mean | Top 3 values |
+|---|---|---|---|---|---|---|---|---|
+| Ticket | string | 0 | 0.0 | 8 |  |  |  | T-000981 (1), T-000982 (1), T-000983 (1) |
+| Fecha | date | 0 | 0.0 | 3 | 2026-11-02 | 2026-11-04 |  | 02/11/2026 (3), 03/11/2026 (3), 04/11/2026 (2) |
+| Sucursal | string | 0 | 0.0 | 4 |  |  |  | Montevideo Centro (3), Pocitos (2), Salto (2) |
+| Producto | string | 0 | 0.0 | 8 |  |  |  | Yerba mate 1 kg (1), Galletitas surtidas; caja 400 g (1), Aceite de girasol 900 ml (1) |
+| Cantidad | int | 0 | 0.0 | 5 | 1 | 5 | 2.5 | 2 (3), 1 (2), 3 (1) |
+| Importe | float | 0 | 0.0 | 8 | 145.5 | 1120.0 | 361.062 | 389,00 (1), 145,50 (1), 297,00 (1) |
+| Descuento | float | 5 | 62.5 | 3 | 10.0 | 56.0 | 28.6 | 10,00 (1), 56,00 (1), 19,80 (1) |
+
+## Checks: passed (0 of 1 failed)
+
+- pass: column 'Importe' is float, as required (float)
+```
+
+The `Trailing delimiter` line says what was dropped: the header's last field, when it ended with the separator, and the number of rows.
 
 ## Day-first dates and times
 

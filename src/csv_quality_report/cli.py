@@ -531,6 +531,12 @@ def build_parser() -> argparse.ArgumentParser:
         "blank lines are not counted)",
     )
     parser.add_argument(
+        "--trailing-delimiter",
+        action="store_true",
+        help="the lines may end with the delimiter: drop an empty last header field and the "
+        "empty extra last field of a row (A1;Yerba;3; for three columns)",
+    )
+    parser.add_argument(
         "--decimal-comma",
         action="store_true",
         help="numbers use ',' as decimal mark (10,5); values written with '.' are not floats",
@@ -1105,6 +1111,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             consistent_values=args.consistent_values,  # a repeated name gives one check
             skip_lines=args.skip_lines,
             skip_footer=args.skip_footer,
+            trailing_delimiter=args.trailing_delimiter,
             month_names=args.month_names,
             na_ignore_case=args.na_ignore_case,
         )

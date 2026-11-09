@@ -63,6 +63,9 @@ class Table:
     sep_line: bool = False  # True when a first line such as "sep=;" was skipped
     skipped_lines: int = 0  # lines skipped before the header (``skip_lines``)
     skipped_footer: int = 0  # records dropped after the data (``skip_footer``)
+    trailing_delimiter: bool = False  # ``trailing_delimiter`` was given
+    trailing_header: bool = False  # an empty last header field was dropped
+    trailing_rows: int = 0  # data rows whose empty extra last field was dropped
 
 
 def declared_delimiter(line: str) -> str | None:
@@ -110,20 +113,50 @@ def dedupe_header(header: list[str]) -> list[str]:
     return result
 
 
-def _record_widths(sample: str, delimiter: str) -> set[int] | None:
-    """Field counts of the first records of ``sample``; ``None`` if it does not parse."""
+def _record_widths(
+    sample: str, delimiter: str, trailing_delimiter: bool = False
+) -> set[int] | None:
+    """Field counts of the first records of ``sample``; ``None`` if it does not parse.
+
+    With ``trailing_delimiter`` the records are counted as the reader reads
+    them with that option (``trailing_width``): the first one is the header.
+    """
     widths: set[int] = set()
     reader = csv.reader(io.StringIO(sample, newline=""), delimiter=delimiter)
+    header: int | None = None
     try:
         for record in reader:
             if not record:
                 continue
-            widths.add(len(record))
+            if trailing_delimiter:
+                if header is None:
+                    header = len(trailing_header(record))
+                widths.add(header if trailing_row(record, header) else len(record))
+            else:
+                widths.add(len(record))
             if len(widths) > 1 or reader.line_num >= SNIFF_RECORDS:
                 break
     except csv.Error:
         return None
     return widths
+
+
+def trailing_header(header: list[str]) -> list[str]:
+    """``header`` without an empty last field, when it has more than one (#299).
+
+    ``Codigo;Producto;`` gives ``["Codigo", "Producto"]``: a line that ends
+    with the delimiter has an empty field after it, not an unnamed column.
+    """
+    return header[:-1] if len(header) > 1 and header[-1] == "" else header
+
+
+def trailing_row(record: list[str], width: int) -> bool:
+    """Whether ``record`` is a row of ``width`` fields followed by a trailing delimiter (#299).
+
+    True when it has exactly one field more than ``width`` and that last
+    field is empty (``""``, not blank): ``A1;Yerba;3;`` for three columns.
+    """
+    return len(record) == width + 1 and record[-1] == ""
 
 
 def _describe(delimiter: str) -> str:
@@ -136,7 +169,7 @@ def delimiter_name(delimiter: str) -> str:
     return DELIMITER_NAMES.get(delimiter, delimiter)
 
 
-def detect_delimiter(text: str) -> str:
+def detect_delimiter(text: str, trailing_delimiter: bool = False) -> str:
     """Pick the field separator of ``text`` among ``, ; tab |``.
 
     A candidate qualifies when every record in the first ``SNIFF_RECORDS``
@@ -145,6 +178,10 @@ def detect_delimiter(text: str) -> str:
     returned. A file where every candidate gives a single field is a
     one-column file and gets ``,``. Anything else (no candidate or several)
     raises ``DelimiterDetectionError`` instead of guessing.
+
+    With ``trailing_delimiter`` the fields are counted as the reader reads
+    them with that option: without an empty last header field, and without
+    the empty extra last field of a row (``trailing_header``, ``trailing_row``).
     """
     sample = text[:SNIFF_CHARS]
     if len(text) > SNIFF_CHARS:
@@ -157,7 +194,7 @@ def detect_delimiter(text: str) -> str:
     qualifying: list[str] = []
     single_column = True
     for candidate in DELIMITER_CANDIDATES:
-        widths = _record_widths(sample, candidate)
+        widths = _record_widths(sample, candidate, trailing_delimiter)
         if widths is None or len(widths) > 1:
             single_column = False
             continue
@@ -247,6 +284,11 @@ class RowStream:
     Iterate it once. Each row has exactly ``len(header)`` cells. ``truncated``
     becomes ``True`` when ``max_rows`` stopped reading before the end of the
     file; it is only meaningful after iteration has finished.
+
+    With ``trailing_delimiter`` (#299), ``raw_header`` is read without an
+    empty last field (``trailing_header``; ``trailing_header`` says whether
+    one was dropped), and a record with one field more than the header whose
+    last field is empty has it dropped; ``trailing_rows`` counts them.
     """
 
     def __init__(
@@ -264,6 +306,7 @@ class RowStream:
         sep_line: bool = False,
         skipped_lines: int = 0,
         skipped_footer: int = 0,
+        trailing_delimiter: bool = False,
     ) -> None:
         self.path = path
         self.name = name  # the path as given, for messages
@@ -272,6 +315,13 @@ class RowStream:
         self.sep_line = sep_line
         self.skipped_lines = skipped_lines
         self.skipped_footer = skipped_footer
+        self.trailing_delimiter = trailing_delimiter
+        kept = trailing_header(raw_header) if trailing_delimiter else raw_header
+        self.trailing_header = len(kept) < len(raw_header)
+        # The header would lose its empty last field with the option (for the hint).
+        self._header_trailing = len(trailing_header(raw_header)) < len(raw_header)
+        self.trailing_rows = 0
+        raw_header = kept
         self.header = dedupe_header(raw_header)
         self.delimiter = delimiter
         self.delimiter_detected = delimiter_detected
@@ -297,7 +347,12 @@ class RowStream:
                 self.truncated = True
                 return
             if len(record) != self._width:
-                raise RaggedRowError(self._ragged_message(record, line, numbered))
+                # Only rows of another width are looked at, so the option
+                # costs nothing on rows of the header's width.
+                if not (self.trailing_delimiter and trailing_row(record, self._width)):
+                    raise RaggedRowError(self._ragged_message(record, line, numbered))
+                record.pop()  # the empty field after a trailing delimiter
+                self.trailing_rows += 1
             count += 1
             yield record
 
@@ -311,7 +366,13 @@ class RowStream:
         message = (
             f"row at line {line} has {len(record)} fields, expected {self._width} (from the header)"
         )
-        if self._width == 1 and len(record) > 1 and not self.skipped_lines:
+        if not self.trailing_delimiter and (
+            trailing_row(record, self._width)
+            or (self._header_trailing and len(record) == self._width - 1)
+        ):
+            # A delimiter at the end of the data lines, or of the header only (#299).
+            message += "; if the lines end with a delimiter, read them with --trailing-delimiter"
+        elif self._width == 1 and len(record) > 1 and not self.skipped_lines:
             # The usual symptom of a title line read as the header (#161):
             # this row is then the real header, after the title lines.
             titles = line - 1 - int(self.sep_line)
@@ -669,6 +730,7 @@ def open_rows(
     max_field_size: int | None = None,
     skip_lines: int = 0,
     skip_footer: int = 0,
+    trailing_delimiter: bool = False,
 ) -> Iterator[RowStream]:
     """Open ``path`` and yield a ``RowStream`` that reads it lazily.
 
@@ -711,6 +773,15 @@ def open_rows(
     last ``skip_footer`` non-blank lines are left out of it. A negative
     ``skip_footer`` raises ``ValueError``.
 
+    ``trailing_delimiter`` reads exports whose lines end with the delimiter
+    (#299): an empty last header field is dropped (``trailing_header``), and
+    so is the empty last field of a data row that has exactly one field more
+    than the header (``trailing_row``); ``RowStream.trailing_header`` and
+    ``RowStream.trailing_rows`` record them. Other rows of another width are
+    still ragged, rows of the header's width are read as they are, and footer
+    records are never looked at. With ``"auto"`` the sample is judged with
+    the same rule. A value that is not a ``bool`` raises ``ValueError``.
+
     ``max_field_size`` raises Python's ``csv`` field size limit (131,072
     characters by default) while the file is read. The limit is process-wide
     in the ``csv`` module, so the previous value is restored when the stream
@@ -736,12 +807,14 @@ def open_rows(
         raise ValueError("skip_footer must be a non-negative integer")
     if skip_footer < 0:
         raise ValueError(f"skip_footer must be >= 0, got {skip_footer}")
+    if not isinstance(trailing_delimiter, bool):
+        raise ValueError("trailing_delimiter must be a bool")
     name = display_name(path)  # as given: Path() would change the separators on Windows
     path = Path(path)  # the rest of the reader works on Path objects
     previous_limit = None if max_field_size is None else csv.field_size_limit(max_field_size)
     try:
         with _open_rows(
-            path, name, max_rows, delimiter, encoding, skip_lines, skip_footer
+            path, name, max_rows, delimiter, encoding, skip_lines, skip_footer, trailing_delimiter
         ) as stream:
             yield stream
     finally:
@@ -758,6 +831,7 @@ def _open_rows(
     encoding: str,
     skip_lines: int = 0,
     skip_footer: int = 0,
+    trailing_delimiter: bool = False,
 ) -> Iterator[RowStream]:
     """``open_rows`` without the field size handling; ``name`` is used in messages."""
     with _text_stream(path, name, encoding) as (handle, compressed):
@@ -796,9 +870,9 @@ def _open_rows(
             if whole and skip_footer:
                 judged = _without_last_lines(sample, skip_footer)  # the footer is not data
             try:
-                delimiter = detect_delimiter(judged)
+                delimiter = detect_delimiter(judged, trailing_delimiter)
             except DelimiterDetectionError as exc:
-                hinted = _detection_hint(exc, sample, whole, skip_lines, skip_footer)
+                hinted = _detection_hint(exc, judged, sample, whole, skip_lines, skip_footer)
                 if hinted is exc:
                     raise
                 raise hinted from exc
@@ -834,16 +908,25 @@ def _open_rows(
             sep_line=declared is not None,
             skipped_lines=skip_lines,
             skipped_footer=skip_footer,
+            trailing_delimiter=trailing_delimiter,
         )
 
 
 def _detection_hint(
-    exc: DelimiterDetectionError, sample: str, whole: bool, skip_lines: int, skip_footer: int
+    exc: DelimiterDetectionError,
+    judged: str,
+    sample: str,
+    whole: bool,
+    skip_lines: int,
+    skip_footer: int,
 ) -> DelimiterDetectionError:
-    """``exc`` with a ``--skip-lines`` or ``--skip-footer`` suggestion when one fits.
+    """``exc`` with a ``--skip-lines``, ``--skip-footer`` or ``--trailing-delimiter`` hint.
 
     Title lines are looked for first (#161), then, when ``sample`` holds the
-    whole file, a footer (#192). Neither is looked for once its option is given.
+    whole file, a footer (#192), then lines that end with the delimiter in
+    ``judged``, the sample detection failed on (#299). Titles and a footer are
+    not looked for once their option is given; with ``--trailing-delimiter``
+    detection already judged ``judged`` with that rule, so it cannot fit.
     """
     titles = None if skip_lines else title_lines(sample)
     if titles is not None:
@@ -860,7 +943,24 @@ def _detection_hint(
             f"skip {'it' if footer == 1 else 'them'} with --skip-footer {footer} "
             f"(add one for each totals row above {'it' if footer == 1 else 'them'})"
         )
+    if _trailing_fits(judged):
+        return DelimiterDetectionError(
+            f"{exc.message}; if the lines end with a delimiter, read them with --trailing-delimiter"
+        )
     return exc
+
+
+def _trailing_fits(judged: str) -> bool:
+    """Whether detection succeeds on ``judged`` with ``trailing_delimiter``, on several columns.
+
+    A one-column result does not count, as for ``title_lines`` and ``footer_lines``.
+    """
+    try:
+        delimiter = detect_delimiter(judged, trailing_delimiter=True)
+    except DelimiterDetectionError:
+        return False
+    widths = _record_widths(judged, delimiter, trailing_delimiter=True)
+    return widths is not None and max(widths, default=0) > 1
 
 
 def _skip(handle: io.TextIOWrapper, name: str, first: str, count: int) -> str:
@@ -889,6 +989,7 @@ def read_table(
     max_field_size: int | None = None,
     skip_lines: int = 0,
     skip_footer: int = 0,
+    trailing_delimiter: bool = False,
 ) -> Table:
     """Read the whole of ``path`` into a ``Table`` (see ``open_rows`` for the rules).
 
@@ -903,6 +1004,7 @@ def read_table(
         max_field_size=max_field_size,
         skip_lines=skip_lines,
         skip_footer=skip_footer,
+        trailing_delimiter=trailing_delimiter,
     ) as stream:
         rows = list(stream)
         return Table(
@@ -916,4 +1018,7 @@ def read_table(
             sep_line=stream.sep_line,
             skipped_lines=stream.skipped_lines,
             skipped_footer=stream.skipped_footer,
+            trailing_delimiter=stream.trailing_delimiter,
+            trailing_header=stream.trailing_header,
+            trailing_rows=stream.trailing_rows,
         )

@@ -325,6 +325,14 @@ def compile_pattern(pattern: str) -> re.Pattern[str]:
 
 
 @dataclass(frozen=True)
+class TrailingDelimiters:
+    """What ``--trailing-delimiter`` dropped (#299): ``Report.trailing_delimiter``."""
+
+    header: bool  # the header's empty last field
+    rows: int  # data rows whose empty extra last field
+
+
+@dataclass(frozen=True)
 class Report:
     rows: int
     duplicate_rows: int
@@ -343,6 +351,7 @@ class Report:
     sep_line: bool = False  # the input started with an Excel "sep=" line, which was skipped
     skipped_lines: int = 0  # --skip-lines: lines skipped before the header
     skipped_footer: int = 0  # --skip-footer: records dropped after the data
+    trailing_delimiter: TrailingDelimiters | None = None  # None without --trailing-delimiter
     number_affixes: tuple[str, ...] = ()  # --number-affix texts, as validated
     accounting_negatives: bool = False  # (1.234,56) and 1.234,56- were read as negative
     month_names: bool = False  # --month-names: dates such as 05-oct-2026 were read
@@ -1271,6 +1280,9 @@ def _report(
         sep_line=source.sep_line,
         skipped_lines=source.skipped_lines,
         skipped_footer=source.skipped_footer,
+        trailing_delimiter=TrailingDelimiters(source.trailing_header, source.trailing_rows)
+        if source.trailing_delimiter
+        else None,
         thousands=thousands,
         date_order=date_order,
         bool_words=bool_words,
@@ -1404,6 +1416,7 @@ def profile_file(
     required_values: Mapping[str, Iterable[str]] | None = None,
     column_orders: Iterable[tuple[str, str, str]] = (),
     consistent_values: Iterable[str] = (),
+    trailing_delimiter: bool = False,
 ) -> Report:
     """Stream ``path`` and profile it without loading the whole file into memory.
 
@@ -1412,7 +1425,9 @@ def profile_file(
     Same rules and errors as ``reader.open_rows``; same result as
     ``build_report(read_table(...))``. ``skip_lines`` lines before the header
     are skipped (``Report.skipped_lines``), and ``skip_footer`` records after
-    the data are dropped (``Report.skipped_footer``). ``month_names``,
+    the data are dropped (``Report.skipped_footer``). With ``trailing_delimiter``
+    lines may end with the delimiter (``reader.open_rows``; counted in
+    ``Report.trailing_delimiter``). ``month_names``,
     ``na_ignore_case``, ``check_digits``, ``required_values``,
     ``column_orders`` and ``consistent_values`` are as in ``build_report``.
     """
@@ -1426,6 +1441,7 @@ def profile_file(
         max_field_size=max_field_size,
         skip_lines=skip_lines,
         skip_footer=skip_footer,
+        trailing_delimiter=trailing_delimiter,
     ) as stream:
         result = profile_rows(
             stream.header,
