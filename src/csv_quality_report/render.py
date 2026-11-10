@@ -19,6 +19,7 @@ from .checks import (
     CHECK_PATTERN,
     CHECK_REQUIRED_VALUES,
     CHECK_SCHEMA_CHANGE,
+    CHECK_SCIENTIFIC_NOTATION,
     CHECK_UNIQUE,
     CHECK_UNIQUE_KEY,
     CHECK_VALUE_RANGE,
@@ -488,6 +489,11 @@ def render_json(
                     else {}
                 ),
                 **(_consistent_fields(c) if c.check == CHECK_CONSISTENT_VALUES else {}),
+                **(
+                    {"scientific": dict(c.scientific)}
+                    if c.check == CHECK_SCIENTIFIC_NOTATION
+                    else {}
+                ),
             }
             for c in checks
         ],

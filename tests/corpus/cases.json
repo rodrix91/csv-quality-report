@@ -424,5 +424,12 @@
     "args": ["--delimiter", ";", "--decimal-comma", "--thousands", "dot", "--date-order", "dmy"],
     "exit_code": 6,
     "about": "The same export with an explicit semicolon and no --trailing-delimiter: the first row fails as a ragged row, and the message suggests the option instead of --skip-footer."
+  },
+  {
+    "name": "co_orders_resaved_scientific",
+    "file": "co_orders_resaved.csv",
+    "args": ["--delimiter", "auto", "--encoding", "cp1252", "--decimal-comma", "--thousands", "dot", "--date-order", "dmy", "--na", "s/d", "--unique", "Guía", "--forbid-scientific", "Guía", "--forbid-scientific", "EAN", "--forbid-scientific", "Pedido"],
+    "exit_code": 8,
+    "about": "A Colombian online store's orders export (cp1252, CRLF, ';', day-first dates, decimal comma, '.' thousands) with rows appended from a copy that went through a spreadsheet: two different 12-digit tracking numbers became the same text, 2,40012E+11, and three 13-digit barcodes lost their last digits (7,702E+12 twice). --forbid-scientific fails on Guía and EAN and passes on Pedido; --unique Guía fails on the collapsed numbers, and both columns are inferred as float. The padded tracking number is stripped and the s/d one is missing."
   }
 ]

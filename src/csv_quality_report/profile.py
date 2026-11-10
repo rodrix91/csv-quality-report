@@ -261,6 +261,42 @@ class _InvisibleTable(dict[int, int | None]):
 _INVISIBLE = _InvisibleTable()
 
 
+@dataclass(frozen=True)
+class ScientificProfile:
+    """Which values of a column are written in scientific notation (``--forbid-scientific``).
+
+    Spreadsheets save numbers of 12 or more digits as ``7,79E+12`` or
+    ``1.23457E+11``, which loses every digit after the mantissa and can make
+    two identifiers the same text. Values are checked as the report counts
+    them: stripped of surrounding whitespace, as text, with ``is_scientific``;
+    missing cells are not checked. ``cells`` is the exact number of
+    non-missing cells in scientific notation; ``examples`` are the most
+    frequent of those values, up to ``top_n``, with their cells (first seen
+    on ties).
+    """
+
+    column: str
+    cells: int
+    examples: tuple[tuple[str, int], ...] = ()
+
+
+# A mantissa with an optional decimal part (either mark), then E or e, an
+# explicit sign and the exponent: how Excel, LibreOffice and pandas write it.
+_SCIENTIFIC = re.compile(r"[+-]?(?:[0-9]+(?:[.,][0-9]*)?|[.,][0-9]+)[eE][+-][0-9]+")
+
+
+def is_scientific(value: str) -> bool:
+    """Whether ``value`` (already stripped) is a number written in scientific notation.
+
+    The mantissa may use ``.`` or ``,`` as its decimal mark (``7,79E+12``,
+    ``1.5e-05``, ``,5E+3``), and the exponent needs an explicit sign, as
+    spreadsheets and pandas write it, so codes such as ``12E45`` do not
+    count. Only ASCII digits are accepted. A value that is not a ``str``
+    is not scientific.
+    """
+    return isinstance(value, str) and _SCIENTIFIC.fullmatch(value) is not None
+
+
 ORDER_OPERATORS = ("<=", "<")  # --column-order: LEFT <= RIGHT, or LEFT < RIGHT
 
 
@@ -367,6 +403,7 @@ class Report:
     presences: tuple[PresenceProfile, ...] = ()  # --require-values: one per profiled column
     orders: tuple[OrderProfile, ...] = ()  # --column-order: one per order whose columns exist
     variants: tuple[VariantProfile, ...] = ()  # --consistent-values: one per profiled column
+    scientific: tuple[ScientificProfile, ...] = ()  # --forbid-scientific: one per profiled column
 
 
 def _untrimmed_names(header: list[str]) -> tuple[str, ...]:
@@ -942,6 +979,7 @@ class _Profiled:
     presences: tuple[PresenceProfile, ...] = ()
     orders: tuple[OrderProfile, ...] = ()
     variants: tuple[VariantProfile, ...] = ()
+    scientific: tuple[ScientificProfile, ...] = ()
 
 
 def _columns(
@@ -1014,6 +1052,7 @@ def profile_rows(
     required_values: Mapping[str, Iterable[str]] | None = None,
     column_orders: Iterable[tuple[str, str, str]] = (),
     consistent_values: Iterable[str] = (),
+    forbid_scientific: Iterable[str] = (),
 ) -> _Profiled:
     """Profile ``rows`` in a single pass; each row must have ``len(header)`` cells.
 
@@ -1080,6 +1119,11 @@ def profile_rows(
     ``consistent_values`` names columns whose values must each be written one
     way (see ``VariantProfile``). Each distinct value is folded once after the
     pass, so it costs no extra pass; a name that is not profiled is skipped.
+
+    ``forbid_scientific`` names columns whose values must not be written in
+    scientific notation (see ``ScientificProfile``). Like ``patterns``, each
+    distinct value is tested once after the pass; a name that is not profiled
+    is skipped.
     """
     _validate_top_n(top_n)
     # Materialize one-shot iterables before validation and missing-cell accounting.
@@ -1100,6 +1144,7 @@ def profile_rows(
     presences = {name: required_list(values) for name, values in (required_values or {}).items()}
     orders = list(dict.fromkeys(column_order(*order) for order in column_orders))
     consistent = set(consistent_values)
+    exact = set(forbid_scientific)
     selected = _selection(header, columns)
     accumulators = [
         _ColumnAccumulator(name)
@@ -1156,6 +1201,7 @@ def profile_rows(
         ),
         orders=tuple(order.finish(total) for order in order_checks),
         variants=tuple(_variants(acc, top_n) for acc in accumulators if acc.name in consistent),
+        scientific=tuple(_scientific(acc, top_n) for acc in accumulators if acc.name in exact),
     )
 
 
@@ -1214,6 +1260,20 @@ def _pattern(acc: _ColumnAccumulator, pattern: re.Pattern[str], top_n: int) -> P
     return PatternProfile(
         column=acc.name, pattern=pattern.pattern, mismatched=mismatched, examples=examples
     )
+
+
+def _scientific(acc: _ColumnAccumulator, top_n: int) -> ScientificProfile:
+    """The cells of ``acc`` (stripped, without missing ones) written in scientific notation."""
+    # Only values with an E can match: selecting them first is about 15 times
+    # faster than matching every distinct value (dicts keep the order of the
+    # counts, so ties still list the first seen value first).
+    candidates = Counter({v: n for v, n in acc.counts.items() if "E" in v or "e" in v})
+    cells, examples = _outside(candidates, _not_scientific, top_n)
+    return ScientificProfile(column=acc.name, cells=cells, examples=examples)
+
+
+def _not_scientific(value: str) -> bool:
+    return _SCIENTIFIC.fullmatch(value) is None
 
 
 def _check_digit(acc: _ColumnAccumulator, scheme: str, top_n: int) -> CheckDigitProfile:
@@ -1299,6 +1359,7 @@ def _report(
         presences=result.presences,
         orders=result.orders,
         variants=result.variants,
+        scientific=result.scientific,
     )
 
 
@@ -1322,6 +1383,7 @@ def build_report(
     required_values: Mapping[str, Iterable[str]] | None = None,
     column_orders: Iterable[tuple[str, str, str]] = (),
     consistent_values: Iterable[str] = (),
+    forbid_scientific: Iterable[str] = (),
 ) -> Report:
     """Profile every column of an in-memory ``table``.
 
@@ -1348,7 +1410,9 @@ def build_report(
     ``(left, operator, right)`` triples such as ``("Despacho", "<=", "Entrega")``
     whose order every row must keep (``Report.orders``); ``consistent_values``
     names columns whose values must each be written one way, not in several
-    cases, accents or spacings (``Report.variants``).
+    cases, accents or spacings (``Report.variants``); ``forbid_scientific``
+    names columns whose values must not be written in scientific notation,
+    as spreadsheets save long numbers (``Report.scientific``).
     """
     _validate_top_n(top_n)
     tokens = tuple(na_tokens)
@@ -1373,6 +1437,7 @@ def build_report(
         required_values=required_values,
         column_orders=column_orders,
         consistent_values=consistent_values,
+        forbid_scientific=forbid_scientific,
     )
     return _report(
         result,
@@ -1417,6 +1482,7 @@ def profile_file(
     column_orders: Iterable[tuple[str, str, str]] = (),
     consistent_values: Iterable[str] = (),
     trailing_delimiter: bool = False,
+    forbid_scientific: Iterable[str] = (),
 ) -> Report:
     """Stream ``path`` and profile it without loading the whole file into memory.
 
@@ -1429,7 +1495,8 @@ def profile_file(
     lines may end with the delimiter (``reader.open_rows``; counted in
     ``Report.trailing_delimiter``). ``month_names``,
     ``na_ignore_case``, ``check_digits``, ``required_values``,
-    ``column_orders`` and ``consistent_values`` are as in ``build_report``.
+    ``column_orders``, ``consistent_values`` and ``forbid_scientific`` are as
+    in ``build_report``.
     """
     _validate_top_n(top_n)
     tokens = tuple(na_tokens)
@@ -1464,6 +1531,7 @@ def profile_file(
             required_values=required_values,
             column_orders=column_orders,
             consistent_values=consistent_values,
+            forbid_scientific=forbid_scientific,
         )
         return _report(
             result,
