@@ -28,6 +28,7 @@ from .profile import (
     PatternProfile,
     PresenceProfile,
     Report,
+    ScientificProfile,
     VariantProfile,
     allowed_list,
     column_order,
@@ -58,6 +59,7 @@ CHECK_CHECK_DIGIT = "check_digit"
 CHECK_REQUIRED_VALUES = "required_values"
 CHECK_COLUMN_ORDER = "column_order"
 CHECK_CONSISTENT_VALUES = "consistent_values"
+CHECK_SCIENTIFIC_NOTATION = "scientific_notation"
 # A baseline stamped up to this many seconds after the clock counts as 0
 # seconds old (clocks of two machines differ a little); later is an error.
 CLOCK_SKEW_TOLERANCE = 300
@@ -154,6 +156,8 @@ class CheckResult:
     # the groups listed, each as its spellings with their cells, most common first.
     variant_groups: int = 0
     variants: tuple[tuple[tuple[str, int], ...], ...] = ()
+    # scientific_notation checks: most frequent (value, cells) in scientific notation
+    scientific: tuple[tuple[str, int], ...] = ()
 
     def describe(self) -> str:
         """One-line, human-readable explanation used on stderr and in Markdown."""
@@ -216,6 +220,8 @@ class CheckResult:
             return self._describe_column_order()
         if self.check == CHECK_CONSISTENT_VALUES:
             return self._describe_consistent_values()
+        if self.check == CHECK_SCIENTIFIC_NOTATION:
+            return self._describe_scientific()
         if self.check == CHECK_MIN_ROWS:
             rows = int(self.value)
             noun = "data row" if rows == 1 else "data rows"
@@ -271,6 +277,21 @@ class CheckResult:
         return (
             f"column '{self.column}' has {groups} {noun} written in more than one way "
             f"({cells} {differ} from the most common spelling)" + (f": {listed}" if listed else "")
+        )
+
+    def _describe_scientific(self) -> str:
+        if self.passed:
+            return f"column '{self.column}' has no values in scientific notation"
+        count = int(self.value)
+        noun = "cell" if count == 1 else "cells"
+        examples = ", ".join(
+            f'"{value}" in {cells} cell' + ("s" if cells != 1 else "")
+            for value, cells in self.scientific
+        )
+        return (
+            f"column '{self.column}' has {count} {noun} written in scientific notation, "
+            "as spreadsheets save long numbers (only the digits of the mantissa are kept; "
+            "export the column as text)" + (f": {examples}" if examples else "")
         )
 
     def _describe_unique_key(self) -> str:
@@ -1187,6 +1208,18 @@ def _consistent_values_check(variant: VariantProfile) -> CheckResult:
     )
 
 
+def _scientific_check(profile: ScientificProfile) -> CheckResult:
+    """A check that fails when a non-missing cell of ``profile.column`` is in E notation."""
+    return CheckResult(
+        check=CHECK_SCIENTIFIC_NOTATION,
+        column=profile.column,
+        limit=0,
+        value=profile.cells,
+        passed=profile.cells == 0,
+        scientific=profile.examples,
+    )
+
+
 def _required_values_check(presence: PresenceProfile) -> CheckResult:
     """A check that fails when a value of ``presence.required`` is in no non-missing cell."""
     return CheckResult(
@@ -1261,6 +1294,7 @@ def evaluate(
     required_values: Mapping[str, Iterable[str]] | None = None,
     column_orders: Iterable[tuple[str, str, str]] = (),
     consistent_values: Iterable[str] = (),
+    forbid_scientific: Iterable[str] = (),
 ) -> list[CheckResult]:
     """Evaluate the requested thresholds; a value equal to its limit passes.
 
@@ -1379,6 +1413,16 @@ def evaluate(
     with the most such cells, up to the report's ``top_n``. Unknown names
     fail as ``required_column``.
 
+    ``forbid_scientific`` names columns whose non-missing values must not be
+    written in scientific notation (``profile.is_scientific``), as
+    spreadsheets save numbers of 12 or more digits (``7,79E+12``), which
+    loses digits of identifiers such as GTINs, tax ids or tracking numbers.
+    The report must have been built with the same names
+    (``profile_file(..., forbid_scientific=...)``, ``Report.scientific``); a
+    name it lacks raises ``ValueError``. The check's ``value`` is the number
+    of such cells and ``scientific`` lists the most frequent of their values,
+    up to the report's ``top_n``. Unknown names fail as ``required_column``.
+
     ``column_orders`` are ``(left, operator, right)`` triples (operator
     ``"<="`` or ``"<"``), such as ``("Despacho", "<=", "Entrega")``: every row
     must keep that order between its two values, such as a delivery date not
@@ -1462,7 +1506,8 @@ def evaluate(
     gated += [*(column_ranges or {}), *unique, *max_ages, *domains, *formats, *schemes]
     gated += presences
     consistent = list(dict.fromkeys(consistent_values))
-    gated += consistent
+    exact = list(dict.fromkeys(forbid_scientific))
+    gated += [*consistent, *exact]
     unprofiled = [name for name in gated if name in present]
     unprofiled = [name for name in unprofiled if name not in by_name]
     if unprofiled:
@@ -1589,6 +1634,17 @@ def evaluate(
                 "profiled with it"
             )
         results.append(_consistent_values_check(variant))
+    measured_scientific = {profile.column: profile for profile in report.scientific}
+    for name in exact:
+        if name not in by_name:
+            continue  # reported below as a missing required column
+        scientific = measured_scientific.get(name)
+        if scientific is None:
+            raise ValueError(
+                f"column {name!r} has a scientific_notation check but the report was not "
+                "profiled with it"
+            )
+        results.append(_scientific_check(scientific))
     keys = list(dict.fromkeys(key_columns(key) for key in unique_keys))
     measured = {key.columns: key for key in report.keys}
     for columns in keys:
@@ -1630,6 +1686,7 @@ def evaluate(
             *schemes,
             *presences,
             *consistent,
+            *exact,
         ]
         if name not in present
     )

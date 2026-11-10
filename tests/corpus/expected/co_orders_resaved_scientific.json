@@ -1,0 +1,241 @@
+{
+  "source": "tests/corpus/co_orders_resaved.csv",
+  "rows": 7,
+  "truncated": false,
+  "delimiter": ";",
+  "delimiter_detected": true,
+  "sep_line": false,
+  "na_tokens": [
+    "s/d"
+  ],
+  "top_n": 3,
+  "compressed": false,
+  "encoding": "cp1252",
+  "thousands": ".",
+  "date_order": "dmy",
+  "bool_words": [],
+  "number_affixes": [],
+  "accounting_negatives": false,
+  "selected_columns": null,
+  "header_columns": 6,
+  "duplicate_rows": 0,
+  "untrimmed_columns": [],
+  "columns": [
+    {
+      "name": "Pedido",
+      "type": "string",
+      "type_hint": null,
+      "missing": 0,
+      "missing_pct": 0.0,
+      "distinct": 7,
+      "min": null,
+      "max": null,
+      "mean": null,
+      "min_length": 8,
+      "max_length": 8,
+      "top_values": [
+        {
+          "value": "CO-10231",
+          "count": 1
+        },
+        {
+          "value": "CO-10232",
+          "count": 1
+        },
+        {
+          "value": "CO-10233",
+          "count": 1
+        }
+      ],
+      "untrimmed": 0,
+      "affixes": {}
+    },
+    {
+      "name": "Fecha",
+      "type": "date",
+      "type_hint": null,
+      "missing": 0,
+      "missing_pct": 0.0,
+      "distinct": 3,
+      "min": "2026-11-02",
+      "max": "2026-11-04",
+      "mean": null,
+      "min_length": 10,
+      "max_length": 10,
+      "top_values": [
+        {
+          "value": "03/11/2026",
+          "count": 3
+        },
+        {
+          "value": "02/11/2026",
+          "count": 2
+        },
+        {
+          "value": "04/11/2026",
+          "count": 2
+        }
+      ],
+      "untrimmed": 0,
+      "affixes": {}
+    },
+    {
+      "name": "Guía",
+      "type": "float",
+      "type_hint": null,
+      "missing": 1,
+      "missing_pct": 14.3,
+      "distinct": 5,
+      "min": 240012000000.0,
+      "max": 240012345726.0,
+      "mean": 240012000000.0,
+      "min_length": 11,
+      "max_length": 12,
+      "top_values": [
+        {
+          "value": "2,40012E+11",
+          "count": 2
+        },
+        {
+          "value": "240012345678",
+          "count": 1
+        },
+        {
+          "value": "240012345702",
+          "count": 1
+        }
+      ],
+      "untrimmed": 1,
+      "affixes": {}
+    },
+    {
+      "name": "EAN",
+      "type": "float",
+      "type_hint": null,
+      "missing": 0,
+      "missing_pct": 0.0,
+      "distinct": 6,
+      "min": 7702000000000.0,
+      "max": 7702010000000.0,
+      "mean": 7702000000000.0,
+      "min_length": 9,
+      "max_length": 13,
+      "top_values": [
+        {
+          "value": "7,702E+12",
+          "count": 2
+        },
+        {
+          "value": "7702001023456",
+          "count": 1
+        },
+        {
+          "value": "7702001023470",
+          "count": 1
+        }
+      ],
+      "untrimmed": 0,
+      "affixes": {}
+    },
+    {
+      "name": "Cantidad",
+      "type": "int",
+      "type_hint": null,
+      "missing": 0,
+      "missing_pct": 0.0,
+      "distinct": 4,
+      "min": 1,
+      "max": 4,
+      "mean": 2.0,
+      "min_length": 1,
+      "max_length": 1,
+      "top_values": [
+        {
+          "value": "1",
+          "count": 3
+        },
+        {
+          "value": "2",
+          "count": 2
+        },
+        {
+          "value": "3",
+          "count": 1
+        }
+      ],
+      "untrimmed": 0,
+      "affixes": {}
+    },
+    {
+      "name": "Valor",
+      "type": "float",
+      "type_hint": null,
+      "missing": 0,
+      "missing_pct": 0.0,
+      "distinct": 7,
+      "min": 9900.0,
+      "max": 129900.0,
+      "mean": 46535.7,
+      "min_length": 8,
+      "max_length": 10,
+      "top_values": [
+        {
+          "value": "45.900,00",
+          "count": 1
+        },
+        {
+          "value": "18.750,00",
+          "count": 1
+        },
+        {
+          "value": "37.500,00",
+          "count": 1
+        }
+      ],
+      "untrimmed": 0,
+      "affixes": {}
+    }
+  ],
+  "baseline": null,
+  "checks": [
+    {
+      "check": "unique",
+      "column": "Guía",
+      "limit": 0,
+      "value": 1,
+      "passed": false,
+      "repeated": {
+        "2,40012E+11": 2
+      }
+    },
+    {
+      "check": "scientific_notation",
+      "column": "Guía",
+      "limit": 0,
+      "value": 2,
+      "passed": false,
+      "scientific": {
+        "2,40012E+11": 2
+      }
+    },
+    {
+      "check": "scientific_notation",
+      "column": "EAN",
+      "limit": 0,
+      "value": 3,
+      "passed": false,
+      "scientific": {
+        "7,702E+12": 2,
+        "7,70201E+12": 1
+      }
+    },
+    {
+      "check": "scientific_notation",
+      "column": "Pedido",
+      "limit": 0,
+      "value": 0,
+      "passed": true,
+      "scientific": {}
+    }
+  ]
+}
