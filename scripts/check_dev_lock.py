@@ -73,6 +73,8 @@ def read_hashed_versions(path: Path) -> dict[str, str]:
         current = re.sub(r"[-_.]+", "-", match.group(1)).lower()
         has_hash = False
         continued = line_continues
+    if continued:
+        raise ValueError(f"{path.name}: dangling line continuation at end of lock")
     if current is not None and not has_hash:
         raise ValueError(f"{path.name}: package {current} lacks a SHA-256 hash")
     return versions
