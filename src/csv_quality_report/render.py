@@ -16,6 +16,7 @@ from .checks import (
     CHECK_MAX_AFFIXES,
     CHECK_MAX_AGE,
     CHECK_MEAN_CHANGE,
+    CHECK_MOJIBAKE,
     CHECK_PATTERN,
     CHECK_REQUIRED_VALUES,
     CHECK_SCHEMA_CHANGE,
@@ -494,6 +495,7 @@ def render_json(
                     if c.check == CHECK_SCIENTIFIC_NOTATION
                     else {}
                 ),
+                **({"mojibake": dict(c.mojibake)} if c.check == CHECK_MOJIBAKE else {}),
             }
             for c in checks
         ],

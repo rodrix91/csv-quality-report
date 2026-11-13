@@ -297,6 +297,88 @@ def is_scientific(value: str) -> bool:
     return isinstance(value, str) and _SCIENTIFIC.fullmatch(value) is not None
 
 
+@dataclass(frozen=True)
+class MojibakeProfile:
+    """Which values of a column hold text garbled by a wrong encoding (``--forbid-mojibake``).
+
+    A UTF-8 export read as Windows-1252 and saved again turns ``Peña`` into
+    ``PeÃ±a`` and ``Córdoba`` into ``CÃ³rdoba``; a Windows-1252 export read as
+    UTF-8 with replacement turns ``Peña`` into ``Pe\ufffda``, losing the
+    letter. Values are checked as the report counts them: stripped of
+    surrounding whitespace, as text, with ``unmojibake``; missing cells are
+    not checked. ``cells`` is the exact number of non-missing garbled cells;
+    ``examples`` are the most frequent of those values, up to ``top_n``, with
+    their cells (first seen on ties).
+    """
+
+    column: str
+    cells: int
+    examples: tuple[tuple[str, int], ...] = ()
+
+
+REPLACEMENT_CHARACTER = "\ufffd"
+# The characters Windows-1252 shows for bytes 0x80-0x9F (all but the five it
+# leaves unassigned, 0x81, 0x8D, 0x8F, 0x90 and 0x9D), mapped back to the
+# ISO-8859-1 character of the same byte, so that ``encode("latin-1")`` gives
+# the bytes a Windows-1252 (or ISO-8859-1) reader displayed. Every other
+# character up to U+00FF already is its own byte in both.
+_CP1252_BYTES = {
+    ord(char): byte
+    for byte in range(0x80, 0xA0)
+    for char in bytes([byte]).decode("cp1252", errors="ignore")
+}
+
+# A garbled value holds a character that a UTF-8 lead byte (C2-F4) displays
+# followed by one that a continuation byte (80-BF) displays, or U+FFFD; a
+# value without either cannot be garbled. Searching for this pair is about
+# 10 times faster than trying to decode every value that is not ASCII.
+_CONTINUATION = "\u0080-\u00bf" + "".join(re.escape(chr(char)) for char in _CP1252_BYTES)
+_MAYBE_GARBLED = re.compile(f"[\u00c2-\u00f4][{_CONTINUATION}]|{REPLACEMENT_CHARACTER}")
+
+
+def unmojibake(value: str) -> str | None:
+    """The text ``value`` probably was before a wrong decode, or ``None`` if it was not garbled.
+
+    ``value`` (already stripped) is garbled when it holds U+FFFD, the
+    character a decoder writes for bytes it cannot read, which means letters
+    are lost (the result is ``value`` itself, as nothing can be recovered);
+    or when it is not plain ASCII and its characters, taken as the
+    Windows-1252 bytes they display (ISO-8859-1 for the bytes Windows-1252
+    leaves unassigned and for C1 controls), form strict UTF-8: the result is
+    that UTF-8 text (``"PeÃ±a"`` gives ``"Peña"``), undone again while it
+    is still garbled, for text that went through the wrong decode more than
+    once (``"PeÃƒÂ±a"`` gives ``"Peña"`` too). Correct Spanish or
+    Portuguese text never forms UTF-8 that way (``ñ`` is the byte ``F1``,
+    which needs three continuation bytes; ``SÃO`` is ``C3 4F``), and a value
+    that mixes correct accents with garbled ones is not taken as garbled.
+    The one correct text that does form UTF-8 is a capital accented letter
+    directly followed by a symbol such as ``»``, ``°`` or a curly quote, with
+    no other accent in the value (``PERÚ»``), which is rare in a column. A
+    value that is not a ``str`` is not garbled.
+    """
+    if not isinstance(value, str):
+        return None
+    if REPLACEMENT_CHARACTER in value:
+        return value
+    repaired = _redecode(value)
+    if repaired is None:
+        return None
+    # Each round makes the text shorter, so this ends.
+    while (again := _redecode(repaired)) is not None:
+        repaired = again
+    return repaired
+
+
+def _redecode(value: str) -> str | None:
+    """``value``'s characters as the Windows-1252 bytes they display, read as UTF-8."""
+    if value.isascii():
+        return None
+    try:
+        return value.translate(_CP1252_BYTES).encode("latin-1").decode("utf-8")
+    except UnicodeError:  # a character beyond one byte, or bytes that are not UTF-8
+        return None
+
+
 ORDER_OPERATORS = ("<=", "<")  # --column-order: LEFT <= RIGHT, or LEFT < RIGHT
 
 
@@ -404,6 +486,7 @@ class Report:
     orders: tuple[OrderProfile, ...] = ()  # --column-order: one per order whose columns exist
     variants: tuple[VariantProfile, ...] = ()  # --consistent-values: one per profiled column
     scientific: tuple[ScientificProfile, ...] = ()  # --forbid-scientific: one per profiled column
+    mojibake: tuple[MojibakeProfile, ...] = ()  # --forbid-mojibake: one per profiled column
 
 
 def _untrimmed_names(header: list[str]) -> tuple[str, ...]:
@@ -980,6 +1063,7 @@ class _Profiled:
     orders: tuple[OrderProfile, ...] = ()
     variants: tuple[VariantProfile, ...] = ()
     scientific: tuple[ScientificProfile, ...] = ()
+    mojibake: tuple[MojibakeProfile, ...] = ()
 
 
 def _columns(
@@ -1053,6 +1137,7 @@ def profile_rows(
     column_orders: Iterable[tuple[str, str, str]] = (),
     consistent_values: Iterable[str] = (),
     forbid_scientific: Iterable[str] = (),
+    forbid_mojibake: Iterable[str] = (),
 ) -> _Profiled:
     """Profile ``rows`` in a single pass; each row must have ``len(header)`` cells.
 
@@ -1124,6 +1209,11 @@ def profile_rows(
     scientific notation (see ``ScientificProfile``). Like ``patterns``, each
     distinct value is tested once after the pass; a name that is not profiled
     is skipped.
+
+    ``forbid_mojibake`` names columns whose values must not hold text garbled
+    by a wrong encoding (see ``MojibakeProfile``). Only the distinct values
+    that could be garbled are decoded, once, after the pass; a name that is
+    not profiled is skipped.
     """
     _validate_top_n(top_n)
     # Materialize one-shot iterables before validation and missing-cell accounting.
@@ -1145,6 +1235,7 @@ def profile_rows(
     orders = list(dict.fromkeys(column_order(*order) for order in column_orders))
     consistent = set(consistent_values)
     exact = set(forbid_scientific)
+    garbled = set(forbid_mojibake)
     selected = _selection(header, columns)
     accumulators = [
         _ColumnAccumulator(name)
@@ -1202,6 +1293,7 @@ def profile_rows(
         orders=tuple(order.finish(total) for order in order_checks),
         variants=tuple(_variants(acc, top_n) for acc in accumulators if acc.name in consistent),
         scientific=tuple(_scientific(acc, top_n) for acc in accumulators if acc.name in exact),
+        mojibake=tuple(_mojibake(acc, top_n) for acc in accumulators if acc.name in garbled),
     )
 
 
@@ -1274,6 +1366,21 @@ def _scientific(acc: _ColumnAccumulator, top_n: int) -> ScientificProfile:
 
 def _not_scientific(value: str) -> bool:
     return _SCIENTIFIC.fullmatch(value) is None
+
+
+def _mojibake(acc: _ColumnAccumulator, top_n: int) -> MojibakeProfile:
+    """The cells of ``acc`` (stripped, without missing ones) garbled by a wrong encoding."""
+    # Only values with a lead and a continuation character in a row, or
+    # U+FFFD, can be garbled; selecting them first decodes nothing for most
+    # values (dicts keep the order of the counts, so ties still list the first
+    # seen value first).
+    candidates = Counter({v: n for v, n in acc.counts.items() if _MAYBE_GARBLED.search(v)})
+    cells, examples = _outside(candidates, _not_mojibake, top_n)
+    return MojibakeProfile(column=acc.name, cells=cells, examples=examples)
+
+
+def _not_mojibake(value: str) -> bool:
+    return unmojibake(value) is None
 
 
 def _check_digit(acc: _ColumnAccumulator, scheme: str, top_n: int) -> CheckDigitProfile:
@@ -1360,6 +1467,7 @@ def _report(
         orders=result.orders,
         variants=result.variants,
         scientific=result.scientific,
+        mojibake=result.mojibake,
     )
 
 
@@ -1384,6 +1492,7 @@ def build_report(
     column_orders: Iterable[tuple[str, str, str]] = (),
     consistent_values: Iterable[str] = (),
     forbid_scientific: Iterable[str] = (),
+    forbid_mojibake: Iterable[str] = (),
 ) -> Report:
     """Profile every column of an in-memory ``table``.
 
@@ -1412,7 +1521,9 @@ def build_report(
     names columns whose values must each be written one way, not in several
     cases, accents or spacings (``Report.variants``); ``forbid_scientific``
     names columns whose values must not be written in scientific notation,
-    as spreadsheets save long numbers (``Report.scientific``).
+    as spreadsheets save long numbers (``Report.scientific``); and
+    ``forbid_mojibake`` names columns whose values must not hold text garbled
+    by a wrong encoding, such as ``PeÃ±a`` for ``Peña`` (``Report.mojibake``).
     """
     _validate_top_n(top_n)
     tokens = tuple(na_tokens)
@@ -1438,6 +1549,7 @@ def build_report(
         column_orders=column_orders,
         consistent_values=consistent_values,
         forbid_scientific=forbid_scientific,
+        forbid_mojibake=forbid_mojibake,
     )
     return _report(
         result,
@@ -1483,6 +1595,7 @@ def profile_file(
     consistent_values: Iterable[str] = (),
     trailing_delimiter: bool = False,
     forbid_scientific: Iterable[str] = (),
+    forbid_mojibake: Iterable[str] = (),
 ) -> Report:
     """Stream ``path`` and profile it without loading the whole file into memory.
 
@@ -1495,8 +1608,8 @@ def profile_file(
     lines may end with the delimiter (``reader.open_rows``; counted in
     ``Report.trailing_delimiter``). ``month_names``,
     ``na_ignore_case``, ``check_digits``, ``required_values``,
-    ``column_orders``, ``consistent_values`` and ``forbid_scientific`` are as
-    in ``build_report``.
+    ``column_orders``, ``consistent_values``, ``forbid_scientific`` and
+    ``forbid_mojibake`` are as in ``build_report``.
     """
     _validate_top_n(top_n)
     tokens = tuple(na_tokens)
@@ -1532,6 +1645,7 @@ def profile_file(
             column_orders=column_orders,
             consistent_values=consistent_values,
             forbid_scientific=forbid_scientific,
+            forbid_mojibake=forbid_mojibake,
         )
         return _report(
             result,

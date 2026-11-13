@@ -1,0 +1,252 @@
+{
+  "source": "tests/corpus/mx_customers_garbled.csv",
+  "rows": 8,
+  "truncated": false,
+  "delimiter": ",",
+  "delimiter_detected": true,
+  "sep_line": false,
+  "na_tokens": [],
+  "top_n": 5,
+  "compressed": false,
+  "encoding": "utf-8",
+  "thousands": null,
+  "date_order": null,
+  "bool_words": [],
+  "number_affixes": [],
+  "accounting_negatives": false,
+  "selected_columns": null,
+  "header_columns": 5,
+  "duplicate_rows": 0,
+  "untrimmed_columns": [],
+  "columns": [
+    {
+      "name": "RFC",
+      "type": "string",
+      "type_hint": null,
+      "missing": 0,
+      "missing_pct": 0.0,
+      "distinct": 8,
+      "min": null,
+      "max": null,
+      "mean": null,
+      "min_length": 13,
+      "max_length": 13,
+      "top_values": [
+        {
+          "value": "GOMJ800101AB1",
+          "count": 1
+        },
+        {
+          "value": "PEÑA790315XY2",
+          "count": 1
+        },
+        {
+          "value": "LOMA850720K93",
+          "count": 1
+        },
+        {
+          "value": "CAST900412QW8",
+          "count": 1
+        },
+        {
+          "value": "RUIZ881130HB4",
+          "count": 1
+        }
+      ],
+      "untrimmed": 0,
+      "affixes": {}
+    },
+    {
+      "name": "Cliente",
+      "type": "string",
+      "type_hint": null,
+      "missing": 0,
+      "missing_pct": 0.0,
+      "distinct": 7,
+      "min": null,
+      "max": null,
+      "mean": null,
+      "min_length": 11,
+      "max_length": 28,
+      "top_values": [
+        {
+          "value": "JosÃ© CastaÃ±eda",
+          "count": 2
+        },
+        {
+          "value": "José Gómez Muñoz",
+          "count": 1
+        },
+        {
+          "value": "Ferretería Peña S.A. de C.V.",
+          "count": 1
+        },
+        {
+          "value": "María López",
+          "count": 1
+        },
+        {
+          "value": "FerreterÃ­a del BajÃ­o",
+          "count": 1
+        }
+      ],
+      "untrimmed": 0,
+      "affixes": {}
+    },
+    {
+      "name": "Ciudad",
+      "type": "string",
+      "type_hint": null,
+      "missing": 0,
+      "missing_pct": 0.0,
+      "distinct": 8,
+      "min": null,
+      "max": null,
+      "mean": null,
+      "min_length": 4,
+      "max_length": 16,
+      "top_values": [
+        {
+          "value": "Mérida",
+          "count": 1
+        },
+        {
+          "value": "León",
+          "count": 1
+        },
+        {
+          "value": "Querétaro",
+          "count": 1
+        },
+        {
+          "value": "MÃ©rida",
+          "count": 1
+        },
+        {
+          "value": "LeÃ³n",
+          "count": 1
+        }
+      ],
+      "untrimmed": 0,
+      "affixes": {}
+    },
+    {
+      "name": "Estado",
+      "type": "string",
+      "type_hint": null,
+      "missing": 0,
+      "missing_pct": 0.0,
+      "distinct": 6,
+      "min": null,
+      "max": null,
+      "mean": null,
+      "min_length": 6,
+      "max_length": 15,
+      "top_values": [
+        {
+          "value": "Yucatán",
+          "count": 2
+        },
+        {
+          "value": "Guanajuato",
+          "count": 2
+        },
+        {
+          "value": "Querétaro",
+          "count": 1
+        },
+        {
+          "value": "San Luis Potosí",
+          "count": 1
+        },
+        {
+          "value": "México",
+          "count": 1
+        }
+      ],
+      "untrimmed": 0,
+      "affixes": {}
+    },
+    {
+      "name": "Saldo",
+      "type": "float",
+      "type_hint": null,
+      "missing": 0,
+      "missing_pct": 0.0,
+      "distinct": 8,
+      "min": 0.0,
+      "max": 12650.0,
+      "mean": 3299.57,
+      "min_length": 4,
+      "max_length": 8,
+      "top_values": [
+        {
+          "value": "1520.50",
+          "count": 1
+        },
+        {
+          "value": "8300.00",
+          "count": 1
+        },
+        {
+          "value": "0.00",
+          "count": 1
+        },
+        {
+          "value": "410.75",
+          "count": 1
+        },
+        {
+          "value": "12650.00",
+          "count": 1
+        }
+      ],
+      "untrimmed": 0,
+      "affixes": {}
+    }
+  ],
+  "baseline": null,
+  "checks": [
+    {
+      "check": "mojibake",
+      "column": "Cliente",
+      "limit": 0,
+      "value": 5,
+      "passed": false,
+      "mojibake": {
+        "JosÃ© CastaÃ±eda": 2,
+        "FerreterÃ­a del BajÃ­o": 1,
+        "Distribuidora Ã‘andÃº": 1,
+        "Mart�nez Vega": 1
+      }
+    },
+    {
+      "check": "mojibake",
+      "column": "Ciudad",
+      "limit": 0,
+      "value": 3,
+      "passed": false,
+      "mojibake": {
+        "MÃ©rida": 1,
+        "LeÃ³n": 1,
+        "San Luis PotosÃ­": 1
+      }
+    },
+    {
+      "check": "mojibake",
+      "column": "Estado",
+      "limit": 0,
+      "value": 0,
+      "passed": true,
+      "mojibake": {}
+    },
+    {
+      "check": "mojibake",
+      "column": "RFC",
+      "limit": 0,
+      "value": 0,
+      "passed": true,
+      "mojibake": {}
+    }
+  ]
+}
