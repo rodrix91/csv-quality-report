@@ -20,10 +20,12 @@ from .clock import format_stamp, parse_stamp
 from .compare import ColumnMean, Comparison, TypeChange
 from .inference import parse_datetime
 from .profile import (
+    REPLACEMENT_CHARACTER,
     CheckDigitProfile,
     ColumnProfile,
     DomainProfile,
     KeyProfile,
+    MojibakeProfile,
     OrderProfile,
     PatternProfile,
     PresenceProfile,
@@ -35,6 +37,7 @@ from .profile import (
     compile_pattern,
     key_columns,
     required_list,
+    unmojibake,
 )
 
 CHECK_MAX_MISSING = "max_missing"
@@ -60,6 +63,7 @@ CHECK_REQUIRED_VALUES = "required_values"
 CHECK_COLUMN_ORDER = "column_order"
 CHECK_CONSISTENT_VALUES = "consistent_values"
 CHECK_SCIENTIFIC_NOTATION = "scientific_notation"
+CHECK_MOJIBAKE = "mojibake"
 # A baseline stamped up to this many seconds after the clock counts as 0
 # seconds old (clocks of two machines differ a little); later is an error.
 CLOCK_SKEW_TOLERANCE = 300
@@ -158,6 +162,8 @@ class CheckResult:
     variants: tuple[tuple[tuple[str, int], ...], ...] = ()
     # scientific_notation checks: most frequent (value, cells) in scientific notation
     scientific: tuple[tuple[str, int], ...] = ()
+    # mojibake checks: most frequent garbled (value, cells)
+    mojibake: tuple[tuple[str, int], ...] = ()
 
     def describe(self) -> str:
         """One-line, human-readable explanation used on stderr and in Markdown."""
@@ -222,6 +228,8 @@ class CheckResult:
             return self._describe_consistent_values()
         if self.check == CHECK_SCIENTIFIC_NOTATION:
             return self._describe_scientific()
+        if self.check == CHECK_MOJIBAKE:
+            return self._describe_mojibake()
         if self.check == CHECK_MIN_ROWS:
             rows = int(self.value)
             noun = "data row" if rows == 1 else "data rows"
@@ -292,6 +300,23 @@ class CheckResult:
             f"column '{self.column}' has {count} {noun} written in scientific notation, "
             "as spreadsheets save long numbers (only the digits of the mantissa are kept; "
             "export the column as text)" + (f": {examples}" if examples else "")
+        )
+
+    def _describe_mojibake(self) -> str:
+        if self.passed:
+            return f"column '{self.column}' has no text garbled by a wrong encoding"
+        count = int(self.value)
+        noun = "cell" if count == 1 else "cells"
+        examples = ", ".join(
+            f'"{_visible(value)}" in {cells} cell'
+            + ("s" if cells != 1 else "")
+            + f" ({_repair_hint(value)})"
+            for value, cells in self.mojibake
+        )
+        return (
+            f"column '{self.column}' has {count} {noun} with text garbled by a wrong encoding "
+            "(UTF-8 read as Windows-1252, or characters replaced by U+FFFD; fix the step "
+            "that converted the file)" + (f": {examples}" if examples else "")
         )
 
     def _describe_unique_key(self) -> str:
@@ -1208,6 +1233,26 @@ def _consistent_values_check(variant: VariantProfile) -> CheckResult:
     )
 
 
+def _repair_hint(value: str) -> str:
+    """``probably "Peña"`` for a garbled ``value``, or ``characters lost``."""
+    repaired = unmojibake(value)
+    if repaired is None or REPLACEMENT_CHARACTER in repaired:
+        return "characters lost"
+    return f'probably "{_visible(repaired)}"'
+
+
+def _mojibake_check(profile: MojibakeProfile) -> CheckResult:
+    """A check that fails when a non-missing cell of ``profile.column`` is garbled."""
+    return CheckResult(
+        check=CHECK_MOJIBAKE,
+        column=profile.column,
+        limit=0,
+        value=profile.cells,
+        passed=profile.cells == 0,
+        mojibake=profile.examples,
+    )
+
+
 def _scientific_check(profile: ScientificProfile) -> CheckResult:
     """A check that fails when a non-missing cell of ``profile.column`` is in E notation."""
     return CheckResult(
@@ -1295,6 +1340,7 @@ def evaluate(
     column_orders: Iterable[tuple[str, str, str]] = (),
     consistent_values: Iterable[str] = (),
     forbid_scientific: Iterable[str] = (),
+    forbid_mojibake: Iterable[str] = (),
 ) -> list[CheckResult]:
     """Evaluate the requested thresholds; a value equal to its limit passes.
 
@@ -1423,6 +1469,15 @@ def evaluate(
     of such cells and ``scientific`` lists the most frequent of their values,
     up to the report's ``top_n``. Unknown names fail as ``required_column``.
 
+    ``forbid_mojibake`` names columns whose non-missing values must not hold
+    text garbled by a wrong encoding (``profile.unmojibake``): a UTF-8 export
+    read as Windows-1252 (``PeÃ±a`` for ``Peña``) or letters a decoder
+    replaced by U+FFFD. The report must have been built with the same names
+    (``profile_file(..., forbid_mojibake=...)``, ``Report.mojibake``); a name
+    it lacks raises ``ValueError``. The check's ``value`` is the number of
+    such cells and ``mojibake`` lists the most frequent of their values, up
+    to the report's ``top_n``. Unknown names fail as ``required_column``.
+
     ``column_orders`` are ``(left, operator, right)`` triples (operator
     ``"<="`` or ``"<"``), such as ``("Despacho", "<=", "Entrega")``: every row
     must keep that order between its two values, such as a delivery date not
@@ -1507,7 +1562,8 @@ def evaluate(
     gated += presences
     consistent = list(dict.fromkeys(consistent_values))
     exact = list(dict.fromkeys(forbid_scientific))
-    gated += [*consistent, *exact]
+    garbled = list(dict.fromkeys(forbid_mojibake))
+    gated += [*consistent, *exact, *garbled]
     unprofiled = [name for name in gated if name in present]
     unprofiled = [name for name in unprofiled if name not in by_name]
     if unprofiled:
@@ -1645,6 +1701,16 @@ def evaluate(
                 "profiled with it"
             )
         results.append(_scientific_check(scientific))
+    measured_mojibake = {profile.column: profile for profile in report.mojibake}
+    for name in garbled:
+        if name not in by_name:
+            continue  # reported below as a missing required column
+        mojibake = measured_mojibake.get(name)
+        if mojibake is None:
+            raise ValueError(
+                f"column {name!r} has a mojibake check but the report was not profiled with it"
+            )
+        results.append(_mojibake_check(mojibake))
     keys = list(dict.fromkeys(key_columns(key) for key in unique_keys))
     measured = {key.columns: key for key in report.keys}
     for columns in keys:
@@ -1687,6 +1753,7 @@ def evaluate(
             *presences,
             *consistent,
             *exact,
+            *garbled,
         ]
         if name not in present
     )

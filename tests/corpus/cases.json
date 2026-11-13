@@ -431,5 +431,12 @@
     "args": ["--delimiter", "auto", "--encoding", "cp1252", "--decimal-comma", "--thousands", "dot", "--date-order", "dmy", "--na", "s/d", "--unique", "Guía", "--forbid-scientific", "Guía", "--forbid-scientific", "EAN", "--forbid-scientific", "Pedido"],
     "exit_code": 8,
     "about": "A Colombian online store's orders export (cp1252, CRLF, ';', day-first dates, decimal comma, '.' thousands) with rows appended from a copy that went through a spreadsheet: two different 12-digit tracking numbers became the same text, 2,40012E+11, and three 13-digit barcodes lost their last digits (7,702E+12 twice). --forbid-scientific fails on Guía and EAN and passes on Pedido; --unique Guía fails on the collapsed numbers, and both columns are inferred as float. The padded tracking number is stripped and the s/d one is missing."
+  },
+  {
+    "name": "mx_customers_garbled_mojibake",
+    "file": "mx_customers_garbled.csv",
+    "args": ["--delimiter", "auto", "--forbid-mojibake", "Cliente", "--forbid-mojibake", "Ciudad", "--forbid-mojibake", "Estado", "--forbid-mojibake", "RFC", "--top", "5"],
+    "exit_code": 8,
+    "about": "A Mexican distributor's customer master (UTF-8, CRLF, ',') with rows appended by a step that read the UTF-8 file as Windows-1252 and saved it again: José became JosÃ©, León LeÃ³n, Ñandú Ã‘andÃº, Potosí PotosÃ followed by a soft hyphen, and one name lost a letter to U+FFFD (Mart\ufffdnez). --forbid-mojibake fails on Cliente and Ciudad, naming the probable original of each value, and passes on Estado and on RFC, whose correct Ñ (PEÑA790315XY2) is not taken as garbled. Without the option nothing in the report points at the damage: every column is a plain string column."
   }
 ]
