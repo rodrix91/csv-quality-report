@@ -9,7 +9,7 @@ import re
 from collections import Counter, deque
 from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import date, datetime, timedelta
 from itertools import compress, islice, repeat
 from operator import itemgetter
 from typing import Any
@@ -379,6 +379,89 @@ def _redecode(value: str) -> str | None:
         return None
 
 
+@dataclass(frozen=True)
+class DateSerialProfile:
+    """Which values of a column are spreadsheet date serials (``--forbid-date-serial``).
+
+    A date column that a spreadsheet saved formatted as a number holds the
+    dates' serial numbers: ``46331`` for 2026-11-05, ``46336,5`` for
+    2026-11-10 12:00. Values are checked as the report counts them: stripped
+    of surrounding whitespace, as text, with ``is_date_serial``; missing cells
+    are not checked. ``cells`` is the exact number of non-missing cells that
+    are serials; ``examples`` are the most frequent of those values, up to
+    ``top_n``, with their cells (first seen on ties).
+    """
+
+    column: str
+    cells: int
+    examples: tuple[tuple[str, int], ...] = ()
+
+
+# The serial of 9999-12-31, the last date spreadsheets can show.
+MAX_DATE_SERIAL = 2958465
+# A whole number without sign, leading zero, spaces or thousands separators,
+# then an optional time of day as a decimal part with either mark.
+_DATE_SERIAL = re.compile(r"([1-9][0-9]{0,6})(?:[.,]([0-9]+))?")
+_SECONDS_PER_DAY = 86400
+
+
+def is_date_serial(value: str) -> bool:
+    """Whether ``value`` (already stripped) is a spreadsheet date serial.
+
+    A serial is a whole number from 1 to ``MAX_DATE_SERIAL`` (9999-12-31),
+    written without sign, leading zero, spaces or thousands separators, with
+    an optional decimal part written with ``.`` or ``,`` (a time of day):
+    ``46331``, ``46336,5``, ``46336.75``. Compact dates such as ``20261105``
+    are above the range and are not serials, and neither are ``0``, ``-5``,
+    ``046331``, ``46.331,5`` (two marks) or ``1E+5``. A value
+    that is not a ``str`` is not a serial.
+    """
+    if not isinstance(value, str):
+        return False
+    match = _DATE_SERIAL.fullmatch(value)
+    return match is not None and int(match.group(1)) <= MAX_DATE_SERIAL
+
+
+def serial_date(value: str) -> str | None:
+    """The date (``2026-11-05``) or date-time (``2026-11-10 12:00``) serial ``value`` stands for.
+
+    Uses the 1900 date system, the default of Excel and LibreOffice: serial
+    1 is 1900-01-01 and, since Excel counts a 1900-02-29 that never existed,
+    serials from 61 on are days after 1899-12-30. A decimal part is the time
+    of day, rounded to the second and written as ``HH:MM`` (``HH:MM:SS`` when
+    the seconds are not zero); a value without one gives a date. Returns
+    ``None`` for a value that is not a serial (``is_date_serial``) and for 60,
+    Excel's 1900-02-29. A workbook in the 1904 date system (an option of
+    Excel for Mac) gives serials 1462 days smaller, so its real dates are 4
+    years and 1 day after the ones given here.
+    """
+    if not is_date_serial(value):
+        return None
+    match = _DATE_SERIAL.fullmatch(value)
+    assert match is not None  # is_date_serial matched it
+    serial = int(match.group(1))
+    if serial == 60:
+        return None
+    day = date(1899, 12, 31 if serial < 60 else 30) + timedelta(days=serial)
+    fraction = match.group(2)
+    if fraction is None:
+        return day.isoformat()
+    # Exact rounding of 0.<fraction> days to seconds, half up; a time that
+    # rounds up to midnight moves to the next day, except after 9999-12-31.
+    digits = 10 ** len(fraction)
+    seconds = (2 * int(fraction) * _SECONDS_PER_DAY + digits) // (2 * digits)
+    if seconds == _SECONDS_PER_DAY:
+        if serial < MAX_DATE_SERIAL:
+            day += timedelta(days=1)
+            seconds = 0
+        else:
+            seconds -= 1
+    hours, rest = divmod(seconds, 3600)
+    minutes, secs = divmod(rest, 60)
+    time = f"{hours:02d}:{minutes:02d}" + (f":{secs:02d}" if secs else "")
+    return f"{day.isoformat()} {time}"
+
+
 ORDER_OPERATORS = ("<=", "<")  # --column-order: LEFT <= RIGHT, or LEFT < RIGHT
 
 
@@ -487,6 +570,7 @@ class Report:
     variants: tuple[VariantProfile, ...] = ()  # --consistent-values: one per profiled column
     scientific: tuple[ScientificProfile, ...] = ()  # --forbid-scientific: one per profiled column
     mojibake: tuple[MojibakeProfile, ...] = ()  # --forbid-mojibake: one per profiled column
+    date_serials: tuple[DateSerialProfile, ...] = ()  # --forbid-date-serial: one per column
 
 
 def _untrimmed_names(header: list[str]) -> tuple[str, ...]:
@@ -1064,6 +1148,7 @@ class _Profiled:
     variants: tuple[VariantProfile, ...] = ()
     scientific: tuple[ScientificProfile, ...] = ()
     mojibake: tuple[MojibakeProfile, ...] = ()
+    date_serials: tuple[DateSerialProfile, ...] = ()
 
 
 def _columns(
@@ -1138,6 +1223,7 @@ def profile_rows(
     consistent_values: Iterable[str] = (),
     forbid_scientific: Iterable[str] = (),
     forbid_mojibake: Iterable[str] = (),
+    forbid_date_serial: Iterable[str] = (),
 ) -> _Profiled:
     """Profile ``rows`` in a single pass; each row must have ``len(header)`` cells.
 
@@ -1214,6 +1300,11 @@ def profile_rows(
     by a wrong encoding (see ``MojibakeProfile``). Only the distinct values
     that could be garbled are decoded, once, after the pass; a name that is
     not profiled is skipped.
+
+    ``forbid_date_serial`` names columns whose values must not be spreadsheet
+    date serials (see ``DateSerialProfile``). Only the distinct values that
+    start with a digit are matched, once, after the pass; a name that is not
+    profiled is skipped.
     """
     _validate_top_n(top_n)
     # Materialize one-shot iterables before validation and missing-cell accounting.
@@ -1236,6 +1327,7 @@ def profile_rows(
     consistent = set(consistent_values)
     exact = set(forbid_scientific)
     garbled = set(forbid_mojibake)
+    serials = set(forbid_date_serial)
     selected = _selection(header, columns)
     accumulators = [
         _ColumnAccumulator(name)
@@ -1294,6 +1386,9 @@ def profile_rows(
         variants=tuple(_variants(acc, top_n) for acc in accumulators if acc.name in consistent),
         scientific=tuple(_scientific(acc, top_n) for acc in accumulators if acc.name in exact),
         mojibake=tuple(_mojibake(acc, top_n) for acc in accumulators if acc.name in garbled),
+        date_serials=tuple(
+            _date_serials(acc, top_n) for acc in accumulators if acc.name in serials
+        ),
     )
 
 
@@ -1383,6 +1478,21 @@ def _not_mojibake(value: str) -> bool:
     return unmojibake(value) is None
 
 
+def _date_serials(acc: _ColumnAccumulator, top_n: int) -> DateSerialProfile:
+    """The cells of ``acc`` (stripped, without missing ones) that are spreadsheet date serials."""
+    # Only values that start with a digit from 1 to 9 can be serials:
+    # selecting them first matches nothing for text and for dates written
+    # with a leading zero (05/11/2026); dicts keep the order of the counts, so
+    # ties still list the first seen value first.
+    candidates = Counter({v: n for v, n in acc.counts.items() if "1" <= v[:1] <= "9"})
+    cells, examples = _outside(candidates, _not_date_serial, top_n)
+    return DateSerialProfile(column=acc.name, cells=cells, examples=examples)
+
+
+def _not_date_serial(value: str) -> bool:
+    return not is_date_serial(value)
+
+
 def _check_digit(acc: _ColumnAccumulator, scheme: str, top_n: int) -> CheckDigitProfile:
     """The cells of ``acc`` (stripped, without missing ones) that are not valid ``scheme`` ids."""
     invalid, examples = _outside(acc.counts, validator(scheme), top_n)
@@ -1468,6 +1578,7 @@ def _report(
         variants=result.variants,
         scientific=result.scientific,
         mojibake=result.mojibake,
+        date_serials=result.date_serials,
     )
 
 
@@ -1493,6 +1604,7 @@ def build_report(
     consistent_values: Iterable[str] = (),
     forbid_scientific: Iterable[str] = (),
     forbid_mojibake: Iterable[str] = (),
+    forbid_date_serial: Iterable[str] = (),
 ) -> Report:
     """Profile every column of an in-memory ``table``.
 
@@ -1521,9 +1633,12 @@ def build_report(
     names columns whose values must each be written one way, not in several
     cases, accents or spacings (``Report.variants``); ``forbid_scientific``
     names columns whose values must not be written in scientific notation,
-    as spreadsheets save long numbers (``Report.scientific``); and
+    as spreadsheets save long numbers (``Report.scientific``);
     ``forbid_mojibake`` names columns whose values must not hold text garbled
-    by a wrong encoding, such as ``PeÃ±a`` for ``Peña`` (``Report.mojibake``).
+    by a wrong encoding, such as ``PeÃ±a`` for ``Peña`` (``Report.mojibake``);
+    and ``forbid_date_serial`` names date columns whose values must not be
+    spreadsheet date serials, such as ``46331`` for 2026-11-05
+    (``Report.date_serials``).
     """
     _validate_top_n(top_n)
     tokens = tuple(na_tokens)
@@ -1550,6 +1665,7 @@ def build_report(
         consistent_values=consistent_values,
         forbid_scientific=forbid_scientific,
         forbid_mojibake=forbid_mojibake,
+        forbid_date_serial=forbid_date_serial,
     )
     return _report(
         result,
@@ -1596,6 +1712,7 @@ def profile_file(
     trailing_delimiter: bool = False,
     forbid_scientific: Iterable[str] = (),
     forbid_mojibake: Iterable[str] = (),
+    forbid_date_serial: Iterable[str] = (),
 ) -> Report:
     """Stream ``path`` and profile it without loading the whole file into memory.
 
@@ -1608,8 +1725,8 @@ def profile_file(
     lines may end with the delimiter (``reader.open_rows``; counted in
     ``Report.trailing_delimiter``). ``month_names``,
     ``na_ignore_case``, ``check_digits``, ``required_values``,
-    ``column_orders``, ``consistent_values``, ``forbid_scientific`` and
-    ``forbid_mojibake`` are as in ``build_report``.
+    ``column_orders``, ``consistent_values``, ``forbid_scientific``,
+    ``forbid_mojibake`` and ``forbid_date_serial`` are as in ``build_report``.
     """
     _validate_top_n(top_n)
     tokens = tuple(na_tokens)
@@ -1646,6 +1763,7 @@ def profile_file(
             consistent_values=consistent_values,
             forbid_scientific=forbid_scientific,
             forbid_mojibake=forbid_mojibake,
+            forbid_date_serial=forbid_date_serial,
         )
         return _report(
             result,

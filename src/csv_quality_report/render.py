@@ -13,6 +13,7 @@ from .checks import (
     CHECK_CHECK_DIGIT,
     CHECK_COLUMN_ORDER,
     CHECK_CONSISTENT_VALUES,
+    CHECK_DATE_SERIAL,
     CHECK_MAX_AFFIXES,
     CHECK_MAX_AGE,
     CHECK_MEAN_CHANGE,
@@ -496,6 +497,7 @@ def render_json(
                     else {}
                 ),
                 **({"mojibake": dict(c.mojibake)} if c.check == CHECK_MOJIBAKE else {}),
+                **({"serials": dict(c.serials)} if c.check == CHECK_DATE_SERIAL else {}),
             }
             for c in checks
         ],
