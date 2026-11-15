@@ -23,6 +23,7 @@ from .profile import (
     REPLACEMENT_CHARACTER,
     CheckDigitProfile,
     ColumnProfile,
+    DateSerialProfile,
     DomainProfile,
     KeyProfile,
     MojibakeProfile,
@@ -37,6 +38,7 @@ from .profile import (
     compile_pattern,
     key_columns,
     required_list,
+    serial_date,
     unmojibake,
 )
 
@@ -64,6 +66,7 @@ CHECK_COLUMN_ORDER = "column_order"
 CHECK_CONSISTENT_VALUES = "consistent_values"
 CHECK_SCIENTIFIC_NOTATION = "scientific_notation"
 CHECK_MOJIBAKE = "mojibake"
+CHECK_DATE_SERIAL = "date_serial"
 # A baseline stamped up to this many seconds after the clock counts as 0
 # seconds old (clocks of two machines differ a little); later is an error.
 CLOCK_SKEW_TOLERANCE = 300
@@ -164,6 +167,8 @@ class CheckResult:
     scientific: tuple[tuple[str, int], ...] = ()
     # mojibake checks: most frequent garbled (value, cells)
     mojibake: tuple[tuple[str, int], ...] = ()
+    # date_serial checks: most frequent (value, cells) written as date serials
+    serials: tuple[tuple[str, int], ...] = ()
 
     def describe(self) -> str:
         """One-line, human-readable explanation used on stderr and in Markdown."""
@@ -230,6 +235,8 @@ class CheckResult:
             return self._describe_scientific()
         if self.check == CHECK_MOJIBAKE:
             return self._describe_mojibake()
+        if self.check == CHECK_DATE_SERIAL:
+            return self._describe_date_serial()
         if self.check == CHECK_MIN_ROWS:
             rows = int(self.value)
             noun = "data row" if rows == 1 else "data rows"
@@ -317,6 +324,23 @@ class CheckResult:
             f"column '{self.column}' has {count} {noun} with text garbled by a wrong encoding "
             "(UTF-8 read as Windows-1252, or characters replaced by U+FFFD; fix the step "
             "that converted the file)" + (f": {examples}" if examples else "")
+        )
+
+    def _describe_date_serial(self) -> str:
+        if self.passed:
+            return f"column '{self.column}' has no spreadsheet date serials"
+        count = int(self.value)
+        noun = "cell" if count == 1 else "cells"
+        examples = ", ".join(
+            f'"{_visible(value)}" in {cells} cell'
+            + ("s" if cells != 1 else "")
+            + f" ({_serial_hint(value)})"
+            for value, cells in self.serials
+        )
+        return (
+            f"column '{self.column}' has {count} {noun} written as spreadsheet date serials "
+            "(the column was saved as a number; format it as a date before exporting)"
+            + (f": {examples}" if examples else "")
         )
 
     def _describe_unique_key(self) -> str:
@@ -1253,6 +1277,26 @@ def _mojibake_check(profile: MojibakeProfile) -> CheckResult:
     )
 
 
+def _serial_hint(value: str) -> str:
+    """``probably 2026-11-05`` for a date serial ``value``, or why no date is given."""
+    stands_for = serial_date(value)
+    if stands_for is None:
+        return "Excel's 1900-02-29, a date that does not exist"
+    return f"probably {stands_for}"
+
+
+def _date_serial_check(profile: DateSerialProfile) -> CheckResult:
+    """A check that fails when a non-missing cell of ``profile.column`` is a date serial."""
+    return CheckResult(
+        check=CHECK_DATE_SERIAL,
+        column=profile.column,
+        limit=0,
+        value=profile.cells,
+        passed=profile.cells == 0,
+        serials=profile.examples,
+    )
+
+
 def _scientific_check(profile: ScientificProfile) -> CheckResult:
     """A check that fails when a non-missing cell of ``profile.column`` is in E notation."""
     return CheckResult(
@@ -1341,6 +1385,7 @@ def evaluate(
     consistent_values: Iterable[str] = (),
     forbid_scientific: Iterable[str] = (),
     forbid_mojibake: Iterable[str] = (),
+    forbid_date_serial: Iterable[str] = (),
 ) -> list[CheckResult]:
     """Evaluate the requested thresholds; a value equal to its limit passes.
 
@@ -1478,6 +1523,15 @@ def evaluate(
     such cells and ``mojibake`` lists the most frequent of their values, up
     to the report's ``top_n``. Unknown names fail as ``required_column``.
 
+    ``forbid_date_serial`` names date or date-time columns whose non-missing
+    values must not be spreadsheet date serials (``profile.is_date_serial``),
+    such as ``46331`` for 2026-11-05. The report must have been built with
+    the same names (``profile_file(..., forbid_date_serial=...)``,
+    ``Report.date_serials``); a name it lacks raises ``ValueError``. The
+    check's ``value`` is the number of such cells and ``serials`` lists the
+    most frequent of their values, up to the report's ``top_n``. Unknown
+    names fail as ``required_column``.
+
     ``column_orders`` are ``(left, operator, right)`` triples (operator
     ``"<="`` or ``"<"``), such as ``("Despacho", "<=", "Entrega")``: every row
     must keep that order between its two values, such as a delivery date not
@@ -1563,7 +1617,8 @@ def evaluate(
     consistent = list(dict.fromkeys(consistent_values))
     exact = list(dict.fromkeys(forbid_scientific))
     garbled = list(dict.fromkeys(forbid_mojibake))
-    gated += [*consistent, *exact, *garbled]
+    dated = list(dict.fromkeys(forbid_date_serial))
+    gated += [*consistent, *exact, *garbled, *dated]
     unprofiled = [name for name in gated if name in present]
     unprofiled = [name for name in unprofiled if name not in by_name]
     if unprofiled:
@@ -1711,6 +1766,16 @@ def evaluate(
                 f"column {name!r} has a mojibake check but the report was not profiled with it"
             )
         results.append(_mojibake_check(mojibake))
+    measured_serials = {profile.column: profile for profile in report.date_serials}
+    for name in dated:
+        if name not in by_name:
+            continue  # reported below as a missing required column
+        serials = measured_serials.get(name)
+        if serials is None:
+            raise ValueError(
+                f"column {name!r} has a date serial check but the report was not profiled with it"
+            )
+        results.append(_date_serial_check(serials))
     keys = list(dict.fromkeys(key_columns(key) for key in unique_keys))
     measured = {key.columns: key for key in report.keys}
     for columns in keys:
@@ -1754,6 +1819,7 @@ def evaluate(
             *consistent,
             *exact,
             *garbled,
+            *dated,
         ]
         if name not in present
     )

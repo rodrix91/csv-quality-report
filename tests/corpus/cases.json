@@ -438,5 +438,12 @@
     "args": ["--delimiter", "auto", "--forbid-mojibake", "Cliente", "--forbid-mojibake", "Ciudad", "--forbid-mojibake", "Estado", "--forbid-mojibake", "RFC", "--top", "5"],
     "exit_code": 8,
     "about": "A Mexican distributor's customer master (UTF-8, CRLF, ',') with rows appended by a step that read the UTF-8 file as Windows-1252 and saved it again: José became JosÃ©, León LeÃ³n, Ñandú Ã‘andÃº, Potosí PotosÃ followed by a soft hyphen, and one name lost a letter to U+FFFD (Mart\ufffdnez). --forbid-mojibake fails on Cliente and Ciudad, naming the probable original of each value, and passes on Estado and on RFC, whose correct Ñ (PEÑA790315XY2) is not taken as garbled. Without the option nothing in the report points at the damage: every column is a plain string column."
+  },
+  {
+    "name": "py_deliveries_pasted_date_serial",
+    "file": "py_deliveries_pasted.csv",
+    "args": ["--delimiter", "auto", "--decimal-comma", "--date-order", "dmy", "--na", "s/d", "--forbid-date-serial", "Fecha despacho", "--forbid-date-serial", "Entrega", "--forbid-date-serial", "Sucursal", "--require-type", "Fecha despacho=date"],
+    "exit_code": 8,
+    "about": "A Paraguayan courier's delivery log (UTF-8, CRLF, ';', day-first dates, decimal comma) consolidated by hand: the rows pasted from the Ciudad del Este and Encarnación workbooks carry the dates' spreadsheet serial numbers (46328 for 02/11/2026, 46329,4270833333 for 03/11/2026 10:15). --forbid-date-serial fails on Fecha despacho and Entrega, naming the date each serial probably was, and passes on Sucursal; both date columns are inferred as string, and --require-type Fecha despacho=date fails without naming the cause. The s/d delivery is missing."
   }
 ]

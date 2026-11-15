@@ -1,0 +1,213 @@
+{
+  "source": "tests/corpus/py_deliveries_pasted.csv",
+  "rows": 7,
+  "truncated": false,
+  "delimiter": ";",
+  "delimiter_detected": true,
+  "sep_line": false,
+  "na_tokens": [
+    "s/d"
+  ],
+  "top_n": 3,
+  "compressed": false,
+  "encoding": "utf-8",
+  "thousands": null,
+  "date_order": "dmy",
+  "bool_words": [],
+  "number_affixes": [],
+  "accounting_negatives": false,
+  "selected_columns": null,
+  "header_columns": 5,
+  "duplicate_rows": 0,
+  "untrimmed_columns": [],
+  "columns": [
+    {
+      "name": "Sucursal",
+      "type": "string",
+      "type_hint": null,
+      "missing": 0,
+      "missing_pct": 0.0,
+      "distinct": 3,
+      "min": null,
+      "max": null,
+      "mean": null,
+      "min_length": 8,
+      "max_length": 15,
+      "top_values": [
+        {
+          "value": "Asunción",
+          "count": 3
+        },
+        {
+          "value": "Ciudad del Este",
+          "count": 2
+        },
+        {
+          "value": "Encarnación",
+          "count": 2
+        }
+      ],
+      "untrimmed": 0,
+      "affixes": {}
+    },
+    {
+      "name": "Guía",
+      "type": "string",
+      "type_hint": null,
+      "missing": 0,
+      "missing_pct": 0.0,
+      "distinct": 7,
+      "min": null,
+      "max": null,
+      "mean": null,
+      "min_length": 8,
+      "max_length": 8,
+      "top_values": [
+        {
+          "value": "PY-50211",
+          "count": 1
+        },
+        {
+          "value": "PY-50212",
+          "count": 1
+        },
+        {
+          "value": "PY-50213",
+          "count": 1
+        }
+      ],
+      "untrimmed": 0,
+      "affixes": {}
+    },
+    {
+      "name": "Fecha despacho",
+      "type": "string",
+      "type_hint": null,
+      "missing": 0,
+      "missing_pct": 0.0,
+      "distinct": 5,
+      "min": null,
+      "max": null,
+      "mean": null,
+      "min_length": 5,
+      "max_length": 10,
+      "top_values": [
+        {
+          "value": "02/11/2026",
+          "count": 2
+        },
+        {
+          "value": "46328",
+          "count": 2
+        },
+        {
+          "value": "03/11/2026",
+          "count": 1
+        }
+      ],
+      "untrimmed": 0,
+      "affixes": {}
+    },
+    {
+      "name": "Entrega",
+      "type": "string",
+      "type_hint": null,
+      "missing": 1,
+      "missing_pct": 14.3,
+      "distinct": 6,
+      "min": null,
+      "max": null,
+      "mean": null,
+      "min_length": 9,
+      "max_length": 16,
+      "top_values": [
+        {
+          "value": "03/11/2026 10:15",
+          "count": 1
+        },
+        {
+          "value": "03/11/2026 16:40",
+          "count": 1
+        },
+        {
+          "value": "46329,4270833333",
+          "count": 1
+        }
+      ],
+      "untrimmed": 0,
+      "affixes": {}
+    },
+    {
+      "name": "Kilos",
+      "type": "float",
+      "type_hint": null,
+      "missing": 0,
+      "missing_pct": 0.0,
+      "distinct": 7,
+      "min": 1.8,
+      "max": 12.5,
+      "mean": 5.25,
+      "min_length": 1,
+      "max_length": 4,
+      "top_values": [
+        {
+          "value": "12,5",
+          "count": 1
+        },
+        {
+          "value": "3,2",
+          "count": 1
+        },
+        {
+          "value": "7",
+          "count": 1
+        }
+      ],
+      "untrimmed": 0,
+      "affixes": {}
+    }
+  ],
+  "baseline": null,
+  "checks": [
+    {
+      "check": "column_type",
+      "column": "Fecha despacho",
+      "limit": 1,
+      "value": 0,
+      "passed": false,
+      "expected": "date",
+      "actual": "string"
+    },
+    {
+      "check": "date_serial",
+      "column": "Fecha despacho",
+      "limit": 0,
+      "value": 3,
+      "passed": false,
+      "serials": {
+        "46328": 2,
+        "46329": 1
+      }
+    },
+    {
+      "check": "date_serial",
+      "column": "Entrega",
+      "limit": 0,
+      "value": 3,
+      "passed": false,
+      "serials": {
+        "46329,4270833333": 1,
+        "46330,6875": 1,
+        "46330,375": 1
+      }
+    },
+    {
+      "check": "date_serial",
+      "column": "Sucursal",
+      "limit": 0,
+      "value": 0,
+      "passed": true,
+      "serials": {}
+    }
+  ]
+}

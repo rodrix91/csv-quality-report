@@ -459,6 +459,11 @@ def _mojibake_name(text: str) -> str:
     return _column_name(text, "--forbid-mojibake")
 
 
+def _date_serial_name(text: str) -> str:
+    """The column name of --forbid-date-serial, exactly as written."""
+    return _column_name(text, "--forbid-date-serial")
+
+
 def _key_names(text: str) -> tuple[str, ...]:
     """Reject omitted composite-key columns before checking their uniqueness."""
     names = _column_names(text, "--unique-key")
@@ -791,6 +796,15 @@ def build_parser() -> argparse.ArgumentParser:
         "replaced by \ufffd; repeatable",
     )
     gates.add_argument(
+        "--forbid-date-serial",
+        type=_date_serial_name,
+        action="append",
+        default=[],
+        metavar="NAME",
+        help="fail if a non-missing cell of date column NAME is a spreadsheet date serial, "
+        "such as 46331 for 05/11/2026 (a date column saved as a number); repeatable",
+    )
+    gates.add_argument(
         "--require-values",
         type=_column_required,
         action="append",
@@ -962,6 +976,7 @@ def _check_selected(args: argparse.Namespace) -> None:
         ("--consistent-values", args.consistent_values),
         ("--forbid-scientific", args.forbid_scientific),
         ("--forbid-mojibake", args.forbid_mojibake),
+        ("--forbid-date-serial", args.forbid_date_serial),
         ("--allow-type-change", [r.column for r in args.allow_type_change if r.column]),
         ("--allow-added-column", args.allow_added_column),
         ("--allow-removed-column", args.allow_removed_column),
@@ -1142,6 +1157,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             consistent_values=args.consistent_values,  # a repeated name gives one check
             forbid_scientific=args.forbid_scientific,  # a repeated name gives one check
             forbid_mojibake=args.forbid_mojibake,  # a repeated name gives one check
+            forbid_date_serial=args.forbid_date_serial,  # a repeated name gives one check
             skip_lines=args.skip_lines,
             skip_footer=args.skip_footer,
             trailing_delimiter=args.trailing_delimiter,
@@ -1171,6 +1187,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         consistent_values=args.consistent_values,  # a repeated name gives one check
         forbid_scientific=args.forbid_scientific,  # a repeated name gives one check
         forbid_mojibake=args.forbid_mojibake,  # a repeated name gives one check
+        forbid_date_serial=args.forbid_date_serial,  # a repeated name gives one check
         column_max_ages=dict(args.max_age),  # the last limit for a name wins
         now=now,
         utc_offset=args.utc_offset,
