@@ -464,6 +464,11 @@ def _date_serial_name(text: str) -> str:
     return _column_name(text, "--forbid-date-serial")
 
 
+def _formula_name(text: str) -> str:
+    """The column name of --forbid-formula, exactly as written."""
+    return _column_name(text, "--forbid-formula")
+
+
 def _key_names(text: str) -> tuple[str, ...]:
     """Reject omitted composite-key columns before checking their uniqueness."""
     names = _column_names(text, "--unique-key")
@@ -805,6 +810,16 @@ def build_parser() -> argparse.ArgumentParser:
         "such as 46331 for 05/11/2026 (a date column saved as a number); repeatable",
     )
     gates.add_argument(
+        "--forbid-formula",
+        type=_formula_name,
+        action="append",
+        default=[],
+        metavar="NAME",
+        help="fail if a spreadsheet would read a non-missing cell of column NAME as a "
+        "formula: it starts with =, @, or + or - without being a number, such as "
+        "=HYPERLINK(...) or +54 9 11 5555-1234 (CSV injection); repeatable",
+    )
+    gates.add_argument(
         "--require-values",
         type=_column_required,
         action="append",
@@ -977,6 +992,7 @@ def _check_selected(args: argparse.Namespace) -> None:
         ("--forbid-scientific", args.forbid_scientific),
         ("--forbid-mojibake", args.forbid_mojibake),
         ("--forbid-date-serial", args.forbid_date_serial),
+        ("--forbid-formula", args.forbid_formula),
         ("--allow-type-change", [r.column for r in args.allow_type_change if r.column]),
         ("--allow-added-column", args.allow_added_column),
         ("--allow-removed-column", args.allow_removed_column),
@@ -1158,6 +1174,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             forbid_scientific=args.forbid_scientific,  # a repeated name gives one check
             forbid_mojibake=args.forbid_mojibake,  # a repeated name gives one check
             forbid_date_serial=args.forbid_date_serial,  # a repeated name gives one check
+            forbid_formula=args.forbid_formula,  # a repeated name gives one check
             skip_lines=args.skip_lines,
             skip_footer=args.skip_footer,
             trailing_delimiter=args.trailing_delimiter,
@@ -1188,6 +1205,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         forbid_scientific=args.forbid_scientific,  # a repeated name gives one check
         forbid_mojibake=args.forbid_mojibake,  # a repeated name gives one check
         forbid_date_serial=args.forbid_date_serial,  # a repeated name gives one check
+        forbid_formula=args.forbid_formula,  # a repeated name gives one check
         column_max_ages=dict(args.max_age),  # the last limit for a name wins
         now=now,
         utc_offset=args.utc_offset,

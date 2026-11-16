@@ -462,6 +462,53 @@ def serial_date(value: str) -> str | None:
     return f"{day.isoformat()} {time}"
 
 
+@dataclass(frozen=True)
+class FormulaProfile:
+    """Which values of a column a spreadsheet would read as formulas (``--forbid-formula``).
+
+    Excel, and LibreOffice when it evaluates formulas on import, read a cell
+    that starts with ``=``, ``+``, ``-`` or ``@`` as a formula, not as text:
+    ``=HYPERLINK(...)`` is the classic CSV (formula) injection, and a phone
+    such as ``+54 9 11 5555-1234`` or a handle such as ``@tienda.sur`` shows
+    as an error. Values are checked as the report counts them: stripped of
+    surrounding whitespace, as text; a value that starts with ``+`` or ``-``
+    does not count when it is a number under the column's reading options
+    (``--decimal-comma``, ``--thousands``, ``--number-affix``,
+    ``--accounting-negatives``), and neither does a lone ``+`` or ``-``.
+    Missing cells are not checked. ``cells`` is the exact number of such
+    non-missing cells; ``examples`` are the most frequent of those values, up
+    to ``top_n``, with their cells (first seen on ties).
+    """
+
+    column: str
+    cells: int
+    examples: tuple[tuple[str, int], ...] = ()
+
+
+# The first characters that make a spreadsheet read a cell as a formula
+# (OWASP's list, without the tab and carriage return that stripping removes).
+_FORMULA_FIRST = frozenset("=+-@")
+_SIGNS = frozenset("+-")
+_NUMBER_TYPES = frozenset({TYPE_INT, TYPE_FLOAT})
+
+
+def is_formula(value: str, decimal_comma: bool = False) -> bool:
+    """Whether a spreadsheet would read ``value`` (already stripped) as a formula.
+
+    A value counts when it starts with ``=`` or ``@``, or with ``+`` or
+    ``-`` unless it is a lone sign or a number (``-12``, ``+3.5``, ``-1e5``;
+    with ``decimal_comma``, ``-3,5`` instead of ``-3.5``). This function
+    reads numbers plainly; the profile also accepts the numbers that the
+    column's other reading options make (thousands separators, affixes,
+    accounting negatives). A value that is not a ``str`` is not a formula.
+    """
+    if not isinstance(value, str) or value[:1] not in _FORMULA_FIRST:
+        return False
+    if value[0] in _SIGNS:
+        return len(value) > 1 and value_type(value, decimal_comma) not in _NUMBER_TYPES
+    return True
+
+
 ORDER_OPERATORS = ("<=", "<")  # --column-order: LEFT <= RIGHT, or LEFT < RIGHT
 
 
@@ -571,6 +618,7 @@ class Report:
     scientific: tuple[ScientificProfile, ...] = ()  # --forbid-scientific: one per profiled column
     mojibake: tuple[MojibakeProfile, ...] = ()  # --forbid-mojibake: one per profiled column
     date_serials: tuple[DateSerialProfile, ...] = ()  # --forbid-date-serial: one per column
+    formulas: tuple[FormulaProfile, ...] = ()  # --forbid-formula: one per profiled column
 
 
 def _untrimmed_names(header: list[str]) -> tuple[str, ...]:
@@ -1149,6 +1197,7 @@ class _Profiled:
     scientific: tuple[ScientificProfile, ...] = ()
     mojibake: tuple[MojibakeProfile, ...] = ()
     date_serials: tuple[DateSerialProfile, ...] = ()
+    formulas: tuple[FormulaProfile, ...] = ()
 
 
 def _columns(
@@ -1224,6 +1273,7 @@ def profile_rows(
     forbid_scientific: Iterable[str] = (),
     forbid_mojibake: Iterable[str] = (),
     forbid_date_serial: Iterable[str] = (),
+    forbid_formula: Iterable[str] = (),
 ) -> _Profiled:
     """Profile ``rows`` in a single pass; each row must have ``len(header)`` cells.
 
@@ -1305,6 +1355,11 @@ def profile_rows(
     date serials (see ``DateSerialProfile``). Only the distinct values that
     start with a digit are matched, once, after the pass; a name that is not
     profiled is skipped.
+
+    ``forbid_formula`` names columns whose values must not be read as
+    formulas by a spreadsheet (see ``FormulaProfile``). Only the distinct
+    values that start with ``=``, ``+``, ``-`` or ``@`` are tested, once,
+    after the pass; a name that is not profiled is skipped.
     """
     _validate_top_n(top_n)
     # Materialize one-shot iterables before validation and missing-cell accounting.
@@ -1328,6 +1383,7 @@ def profile_rows(
     exact = set(forbid_scientific)
     garbled = set(forbid_mojibake)
     serials = set(forbid_date_serial)
+    formulas = set(forbid_formula)
     selected = _selection(header, columns)
     accumulators = [
         _ColumnAccumulator(name)
@@ -1388,6 +1444,9 @@ def profile_rows(
         mojibake=tuple(_mojibake(acc, top_n) for acc in accumulators if acc.name in garbled),
         date_serials=tuple(
             _date_serials(acc, top_n) for acc in accumulators if acc.name in serials
+        ),
+        formulas=tuple(
+            _formulas(acc, rules, top_n) for acc in accumulators if acc.name in formulas
         ),
     )
 
@@ -1493,6 +1552,25 @@ def _not_date_serial(value: str) -> bool:
     return not is_date_serial(value)
 
 
+def _formulas(acc: _ColumnAccumulator, rules: _Rules, top_n: int) -> FormulaProfile:
+    """The cells of ``acc`` (stripped, without missing ones) a spreadsheet reads as formulas."""
+    # Only values that start with = + - or @ can be formulas: selecting them
+    # first tests nothing for most text (dicts keep the order of the counts,
+    # so ties still list the first seen value first). Signed values are
+    # numbers when the column's reading rules make them int or float.
+    candidates = Counter({v: n for v, n in acc.counts.items() if v[:1] in _FORMULA_FIRST})
+    signed = [v for v in candidates if v[0] in _SIGNS]
+    plain = _plain_values(signed, rules)
+    decimal_comma = rules.decimal_comma
+    safe = {
+        value
+        for value, number in zip(signed, plain, strict=True)
+        if len(value) == 1 or value_type(number, decimal_comma) in _NUMBER_TYPES
+    }
+    cells, examples = _outside(candidates, safe.__contains__, top_n)
+    return FormulaProfile(column=acc.name, cells=cells, examples=examples)
+
+
 def _check_digit(acc: _ColumnAccumulator, scheme: str, top_n: int) -> CheckDigitProfile:
     """The cells of ``acc`` (stripped, without missing ones) that are not valid ``scheme`` ids."""
     invalid, examples = _outside(acc.counts, validator(scheme), top_n)
@@ -1579,6 +1657,7 @@ def _report(
         scientific=result.scientific,
         mojibake=result.mojibake,
         date_serials=result.date_serials,
+        formulas=result.formulas,
     )
 
 
@@ -1605,6 +1684,7 @@ def build_report(
     forbid_scientific: Iterable[str] = (),
     forbid_mojibake: Iterable[str] = (),
     forbid_date_serial: Iterable[str] = (),
+    forbid_formula: Iterable[str] = (),
 ) -> Report:
     """Profile every column of an in-memory ``table``.
 
@@ -1636,9 +1716,11 @@ def build_report(
     as spreadsheets save long numbers (``Report.scientific``);
     ``forbid_mojibake`` names columns whose values must not hold text garbled
     by a wrong encoding, such as ``PeÃ±a`` for ``Peña`` (``Report.mojibake``);
-    and ``forbid_date_serial`` names date columns whose values must not be
+    ``forbid_date_serial`` names date columns whose values must not be
     spreadsheet date serials, such as ``46331`` for 2026-11-05
-    (``Report.date_serials``).
+    (``Report.date_serials``); and ``forbid_formula`` names columns whose
+    values a spreadsheet must not read as formulas, such as
+    ``=HYPERLINK(...)`` (``Report.formulas``).
     """
     _validate_top_n(top_n)
     tokens = tuple(na_tokens)
@@ -1666,6 +1748,7 @@ def build_report(
         forbid_scientific=forbid_scientific,
         forbid_mojibake=forbid_mojibake,
         forbid_date_serial=forbid_date_serial,
+        forbid_formula=forbid_formula,
     )
     return _report(
         result,
@@ -1713,6 +1796,7 @@ def profile_file(
     forbid_scientific: Iterable[str] = (),
     forbid_mojibake: Iterable[str] = (),
     forbid_date_serial: Iterable[str] = (),
+    forbid_formula: Iterable[str] = (),
 ) -> Report:
     """Stream ``path`` and profile it without loading the whole file into memory.
 
@@ -1726,7 +1810,8 @@ def profile_file(
     ``Report.trailing_delimiter``). ``month_names``,
     ``na_ignore_case``, ``check_digits``, ``required_values``,
     ``column_orders``, ``consistent_values``, ``forbid_scientific``,
-    ``forbid_mojibake`` and ``forbid_date_serial`` are as in ``build_report``.
+    ``forbid_mojibake``, ``forbid_date_serial`` and ``forbid_formula`` are as
+    in ``build_report``.
     """
     _validate_top_n(top_n)
     tokens = tuple(na_tokens)
@@ -1764,6 +1849,7 @@ def profile_file(
             forbid_scientific=forbid_scientific,
             forbid_mojibake=forbid_mojibake,
             forbid_date_serial=forbid_date_serial,
+            forbid_formula=forbid_formula,
         )
         return _report(
             result,
