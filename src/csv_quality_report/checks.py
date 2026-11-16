@@ -25,6 +25,7 @@ from .profile import (
     ColumnProfile,
     DateSerialProfile,
     DomainProfile,
+    FormulaProfile,
     KeyProfile,
     MojibakeProfile,
     OrderProfile,
@@ -67,6 +68,7 @@ CHECK_CONSISTENT_VALUES = "consistent_values"
 CHECK_SCIENTIFIC_NOTATION = "scientific_notation"
 CHECK_MOJIBAKE = "mojibake"
 CHECK_DATE_SERIAL = "date_serial"
+CHECK_FORMULA = "formula"
 # A baseline stamped up to this many seconds after the clock counts as 0
 # seconds old (clocks of two machines differ a little); later is an error.
 CLOCK_SKEW_TOLERANCE = 300
@@ -169,6 +171,8 @@ class CheckResult:
     mojibake: tuple[tuple[str, int], ...] = ()
     # date_serial checks: most frequent (value, cells) written as date serials
     serials: tuple[tuple[str, int], ...] = ()
+    # formula checks: most frequent (value, cells) a spreadsheet reads as formulas
+    formulas: tuple[tuple[str, int], ...] = ()
 
     def describe(self) -> str:
         """One-line, human-readable explanation used on stderr and in Markdown."""
@@ -237,6 +241,8 @@ class CheckResult:
             return self._describe_mojibake()
         if self.check == CHECK_DATE_SERIAL:
             return self._describe_date_serial()
+        if self.check == CHECK_FORMULA:
+            return self._describe_formula()
         if self.check == CHECK_MIN_ROWS:
             rows = int(self.value)
             noun = "data row" if rows == 1 else "data rows"
@@ -341,6 +347,21 @@ class CheckResult:
             f"column '{self.column}' has {count} {noun} written as spreadsheet date serials "
             "(the column was saved as a number; format it as a date before exporting)"
             + (f": {examples}" if examples else "")
+        )
+
+    def _describe_formula(self) -> str:
+        if self.passed:
+            return f"column '{self.column}' has no values a spreadsheet would read as formulas"
+        count = int(self.value)
+        noun, read_as = ("cell", "a formula") if count == 1 else ("cells", "formulas")
+        examples = ", ".join(
+            f'"{_visible(value)}" in {cells} cell' + ("s" if cells != 1 else "")
+            for value, cells in self.formulas
+        )
+        return (
+            f"column '{self.column}' has {count} {noun} that a spreadsheet would read as "
+            f"{read_as} (CSV injection; clean them or prefix them with an apostrophe before "
+            "opening the file in a spreadsheet)" + (f": {examples}" if examples else "")
         )
 
     def _describe_unique_key(self) -> str:
@@ -1297,6 +1318,18 @@ def _date_serial_check(profile: DateSerialProfile) -> CheckResult:
     )
 
 
+def _formula_check(profile: FormulaProfile) -> CheckResult:
+    """A check that fails when a spreadsheet would read a cell of ``profile.column`` as formula."""
+    return CheckResult(
+        check=CHECK_FORMULA,
+        column=profile.column,
+        limit=0,
+        value=profile.cells,
+        passed=profile.cells == 0,
+        formulas=profile.examples,
+    )
+
+
 def _scientific_check(profile: ScientificProfile) -> CheckResult:
     """A check that fails when a non-missing cell of ``profile.column`` is in E notation."""
     return CheckResult(
@@ -1386,6 +1419,7 @@ def evaluate(
     forbid_scientific: Iterable[str] = (),
     forbid_mojibake: Iterable[str] = (),
     forbid_date_serial: Iterable[str] = (),
+    forbid_formula: Iterable[str] = (),
 ) -> list[CheckResult]:
     """Evaluate the requested thresholds; a value equal to its limit passes.
 
@@ -1532,6 +1566,17 @@ def evaluate(
     most frequent of their values, up to the report's ``top_n``. Unknown
     names fail as ``required_column``.
 
+    ``forbid_formula`` names columns whose non-missing values a spreadsheet
+    must not read as formulas: values that start with ``=`` or ``@``, or with
+    ``+`` or ``-`` and are not a number under the report's reading options
+    nor a lone sign (``profile.FormulaProfile``), such as
+    ``=HYPERLINK(...)``, the classic CSV injection. The report must have been
+    built with the same names (``profile_file(..., forbid_formula=...)``,
+    ``Report.formulas``); a name it lacks raises ``ValueError``. The check's
+    ``value`` is the number of such cells and ``formulas`` lists the most
+    frequent of their values, up to the report's ``top_n``. Unknown names
+    fail as ``required_column``.
+
     ``column_orders`` are ``(left, operator, right)`` triples (operator
     ``"<="`` or ``"<"``), such as ``("Despacho", "<=", "Entrega")``: every row
     must keep that order between its two values, such as a delivery date not
@@ -1618,7 +1663,8 @@ def evaluate(
     exact = list(dict.fromkeys(forbid_scientific))
     garbled = list(dict.fromkeys(forbid_mojibake))
     dated = list(dict.fromkeys(forbid_date_serial))
-    gated += [*consistent, *exact, *garbled, *dated]
+    injectable = list(dict.fromkeys(forbid_formula))
+    gated += [*consistent, *exact, *garbled, *dated, *injectable]
     unprofiled = [name for name in gated if name in present]
     unprofiled = [name for name in unprofiled if name not in by_name]
     if unprofiled:
@@ -1776,6 +1822,16 @@ def evaluate(
                 f"column {name!r} has a date serial check but the report was not profiled with it"
             )
         results.append(_date_serial_check(serials))
+    measured_formulas = {profile.column: profile for profile in report.formulas}
+    for name in injectable:
+        if name not in by_name:
+            continue  # reported below as a missing required column
+        formulas = measured_formulas.get(name)
+        if formulas is None:
+            raise ValueError(
+                f"column {name!r} has a formula check but the report was not profiled with it"
+            )
+        results.append(_formula_check(formulas))
     keys = list(dict.fromkeys(key_columns(key) for key in unique_keys))
     measured = {key.columns: key for key in report.keys}
     for columns in keys:
@@ -1820,6 +1876,7 @@ def evaluate(
             *exact,
             *garbled,
             *dated,
+            *injectable,
         ]
         if name not in present
     )

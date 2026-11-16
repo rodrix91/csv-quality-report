@@ -445,5 +445,12 @@
     "args": ["--delimiter", "auto", "--decimal-comma", "--date-order", "dmy", "--na", "s/d", "--forbid-date-serial", "Fecha despacho", "--forbid-date-serial", "Entrega", "--forbid-date-serial", "Sucursal", "--require-type", "Fecha despacho=date"],
     "exit_code": 8,
     "about": "A Paraguayan courier's delivery log (UTF-8, CRLF, ';', day-first dates, decimal comma) consolidated by hand: the rows pasted from the Ciudad del Este and Encarnación workbooks carry the dates' spreadsheet serial numbers (46328 for 02/11/2026, 46329,4270833333 for 03/11/2026 10:15). --forbid-date-serial fails on Fecha despacho and Entrega, naming the date each serial probably was, and passes on Sucursal; both date columns are inferred as string, and --require-type Fecha despacho=date fails without naming the cause. The s/d delivery is missing."
+  },
+  {
+    "name": "cl_web_orders_formulas",
+    "file": "cl_web_orders_formulas.csv",
+    "args": ["--delimiter", "auto", "--decimal-comma", "--thousands", "dot", "--number-affix", "$", "--date-order", "dmy", "--na", "s/d", "--forbid-formula", "Cliente", "--forbid-formula", "Teléfono", "--forbid-formula", "Comentario", "--forbid-formula", "Total", "--forbid-formula", "Pedido"],
+    "exit_code": 8,
+    "about": "A Chilean online store's orders export (UTF-8, CRLF, ';', day-first dates, '$' amounts with '.' thousands) whose customer-typed fields would run as formulas in a spreadsheet: a payment-phishing =HYPERLINK(...) and =1+1 in the comments, a comment framed with dashes, phones in international format (+56 9 ...) and an Instagram handle as the customer name. --forbid-formula fails on Cliente, Teléfono and Comentario and passes on Pedido and on Total, whose refunds (-$ 12.990) are negative numbers under --number-affix and --thousands, and on the placeholder comment '-'. The s/d phone is missing."
   }
 ]

@@ -14,6 +14,7 @@ from .checks import (
     CHECK_COLUMN_ORDER,
     CHECK_CONSISTENT_VALUES,
     CHECK_DATE_SERIAL,
+    CHECK_FORMULA,
     CHECK_MAX_AFFIXES,
     CHECK_MAX_AGE,
     CHECK_MEAN_CHANGE,
@@ -498,6 +499,7 @@ def render_json(
                 ),
                 **({"mojibake": dict(c.mojibake)} if c.check == CHECK_MOJIBAKE else {}),
                 **({"serials": dict(c.serials)} if c.check == CHECK_DATE_SERIAL else {}),
+                **({"formulas": dict(c.formulas)} if c.check == CHECK_FORMULA else {}),
             }
             for c in checks
         ],

