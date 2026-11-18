@@ -81,6 +81,8 @@ gh attestation verify PATH/TO/ARTIFACT -R rodrix91/csv-quality-report
 
 Historical releases created from older commits may predate checksums or provenance attestations; verify only the guarantees actually published with that release.
 
+**Immutable re-runs:** the current release workflow can be triggered by both a tag push and a subsequently published GitHub Release. When a release already exists, it downloads the published wheel, sdist and `SHA256SUMS`, and verifies that all three match the freshly built files byte-for-byte. Matching artifacts are kept intact; missing, extra or changed assets cause the job to fail without overwriting anything. The workflow never uses `gh release upload --clobber`. The read-only comparison is covered by `tests/test_release_asset_immutability.py` and does not change historical releases.
+
 ## Usage
 
 ```text
