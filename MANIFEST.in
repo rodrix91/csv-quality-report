@@ -19,3 +19,4 @@ include scripts/report_freshness.py
 include scripts/validate_action_report.py
 include scripts/__init__.py
 include scripts/check_dev_lock.py
+include scripts/verify_release_assets.py
