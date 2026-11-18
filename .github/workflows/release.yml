@@ -86,12 +86,17 @@ jobs:
             ${{ runner.temp }}/dist/*.whl
             ${{ runner.temp }}/dist/*.tar.gz
 
-      - name: Attach the files to the GitHub release
+      - name: Publish or verify immutable GitHub release assets
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           if gh release view "$TAG" > /dev/null 2>&1; then
-            gh release upload "$TAG" "$RUNNER_TEMP"/dist/* --clobber
+            # Both tag-push and release-published events may run for one tag.
+            # Never overwrite published wheels, sources or checksum files.
+            mkdir "$RUNNER_TEMP/published-release"
+            gh release download "$TAG" --dir "$RUNNER_TEMP/published-release"
+            python scripts/verify_release_assets.py \
+              "$RUNNER_TEMP/dist" "$RUNNER_TEMP/published-release"
           else
             gh release create "$TAG" "$RUNNER_TEMP"/dist/* --verify-tag \
               --title "$TAG" --notes-file "$RUNNER_TEMP/notes.md"
