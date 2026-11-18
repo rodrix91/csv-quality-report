@@ -111,6 +111,18 @@ def test_expected_asset_names_are_required(tmp_path: Path) -> None:
     assert release.verify(built, published) == ["different_release_asset_names"]
 
 
+def test_release_workflow_never_overwrites_existing_downloads() -> None:
+    workflow = (ROOT / ".github/workflows/release.yml").read_text(encoding="utf-8")
+    assert 'gh release download "$TAG"' in workflow
+    assert "python scripts/verify_release_assets.py" in workflow
+    assert "gh release upload" not in workflow
+    assert "--clobber" not in workflow
+    assert "--verify-tag" in workflow
+    assert workflow.index("sha256sum -c SHA256SUMS") < workflow.index(
+        "python scripts/verify_release_assets.py"
+    )
+
+
 def test_release_verification_only_reads_files(tmp_path: Path) -> None:
     built, published = tmp_path / "built", tmp_path / "published"
     _make_release(built)
