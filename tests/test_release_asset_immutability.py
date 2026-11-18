@@ -112,7 +112,10 @@ def test_expected_asset_names_are_required(tmp_path: Path) -> None:
 
 
 def test_release_workflow_never_overwrites_existing_downloads() -> None:
-    workflow = (ROOT / ".github/workflows/release.yml").read_text(encoding="utf-8")
+    workflow_path = ROOT / ".github/workflows/release.yml"
+    if not workflow_path.is_file():
+        pytest.skip("GitHub workflow files are intentionally not distributed in the sdist")
+    workflow = workflow_path.read_text(encoding="utf-8")
     assert 'gh release download "$TAG"' in workflow
     assert "python scripts/verify_release_assets.py" in workflow
     assert "gh release upload" not in workflow
