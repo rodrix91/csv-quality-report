@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.25.0] - 2026-11-19
+
 ### Added
 
 - Add `--trailing-delimiter` for exports whose lines end with the field separator, as many ERP and point-of-sale exports write them (`A1;Yerba;3;`), on the data lines, on the header or on both. Without it, rows that end with the delimiter under a header that does not (or the reverse) failed as ragged rows (exit code 6, on a small file with a misleading `--skip-footer` hint) and made `--delimiter auto` fail (exit code 7), and a header and rows that both end with it were profiled with a phantom unnamed column, 100% missing. With it, an empty last header field is dropped (when the header has more than one field), and so is the empty last field of a data row with exactly one field more than the header; a row with an extra non-empty field, two extra fields or a blank (not empty) one is still a ragged row, rows of the header's width are read as they are, and `--skip-footer` records are never looked at. `--delimiter auto` judges its sample with the same rule. Only rows of another width than the header's are looked at, so the option costs nothing on the others (on a 1,000,000-row file, the same time and peak memory as before without it, and with it on the same file with a trailing `;` on every row). Without the option, a ragged row that it would fix, or a failed detection that it would make succeed on several columns, adds `if the lines end with a delimiter, read them with --trailing-delimiter`. JSON `trailing_delimiter` (`{"header": true, "rows": 8}`) and a Markdown `Trailing delimiter:` line appear only with the option; reports without it are byte-identical. Python API: `trailing_delimiter=True` in `open_rows()`, `read_table()` and `profile_file()`, `Report.trailing_delimiter` (`TrailingDelimiters` in `csv_quality_report.profile`), and `trailing_header()` and `trailing_row()` in `csv_quality_report.reader`. The corpus gains a Uruguayan point-of-sale export used three times, and the guide to Spanish and Latin American exports a section for it (#299).
@@ -19,6 +21,12 @@ All notable changes to this project are documented here. The format follows [Kee
 ### Changed
 
 - `docs/related.md` now reflects the current Python 3.14 CI matrices, 100% coverage gates, and expanded regression suites of `ops-field-brief` and `inventory-policy-lab`.
+
+### Security
+
+- Release workflow: when the GitHub Release of a tag already exists (the workflow runs on the tag push and again when the release is published from the web), the published wheel, sdist and `SHA256SUMS` are downloaded and compared byte for byte with the files just built (`scripts/verify_release_assets.py`), instead of being replaced. Matching files are left untouched; a missing, extra, changed or symlinked asset fails the job without overwriting anything (#314).
+
+- Development: `scripts/check_dev_lock.py` rejects a `requirements-dev.lock` whose last line still ends with a line continuation (`\`), as a truncated lock would, instead of accepting it (#305).
 
 ## [0.24.0] - 2026-11-07
 
@@ -462,7 +470,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 - Initial version: per-column type inference, missing values, distinct counts, min/max and top values, duplicate rows, Markdown and JSON output.
 
-[Unreleased]: https://github.com/rodrix91/csv-quality-report/compare/v0.24.0...HEAD
+[Unreleased]: https://github.com/rodrix91/csv-quality-report/compare/v0.25.0...HEAD
+[0.25.0]: https://github.com/rodrix91/csv-quality-report/compare/v0.24.0...v0.25.0
 [0.24.0]: https://github.com/rodrix91/csv-quality-report/compare/v0.23.0...v0.24.0
 [0.23.0]: https://github.com/rodrix91/csv-quality-report/compare/v0.22.0...v0.23.0
 [0.22.0]: https://github.com/rodrix91/csv-quality-report/compare/v0.21.0...v0.22.0
