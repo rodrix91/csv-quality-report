@@ -485,6 +485,27 @@ class FormulaProfile:
     examples: tuple[tuple[str, int], ...] = ()
 
 
+@dataclass(frozen=True)
+class UntrimmedProfile:
+    """Which cells of a column have surrounding whitespace (``--forbid-untrimmed``).
+
+    ERP and WMS exports often pad codes from fixed-width fields with spaces
+    (``"ALM01     "``), and values pasted from web pages carry a leading or
+    trailing non-breaking space (``"\u00a0SKU-1001"``). The report compares
+    such cells after stripping them, but joins and lookups downstream do not.
+    A cell counts when it is not missing and its text has leading or trailing
+    whitespace, what ``str.strip()`` removes (spaces, tabs, non-breaking and
+    other Unicode spaces); ``cells`` is the exact number of such cells, the
+    column's ``ColumnProfile.untrimmed``. ``examples`` are the most frequent
+    of those cells' texts as read, with their surrounding whitespace, up to
+    ``top_n``, with their cells (first seen on ties).
+    """
+
+    column: str
+    cells: int
+    examples: tuple[tuple[str, int], ...] = ()
+
+
 # The first characters that make a spreadsheet read a cell as a formula
 # (OWASP's list, without the tab and carriage return that stripping removes).
 _FORMULA_FIRST = frozenset("=+-@")
@@ -619,6 +640,8 @@ class Report:
     mojibake: tuple[MojibakeProfile, ...] = ()  # --forbid-mojibake: one per profiled column
     date_serials: tuple[DateSerialProfile, ...] = ()  # --forbid-date-serial: one per column
     formulas: tuple[FormulaProfile, ...] = ()  # --forbid-formula: one per profiled column
+    # --forbid-untrimmed: one per profiled column
+    untrimmed_values: tuple[UntrimmedProfile, ...] = ()
 
 
 def _untrimmed_names(header: list[str]) -> tuple[str, ...]:
@@ -853,15 +876,17 @@ class _ColumnAccumulator:
     Memory grows with the number of distinct values, not with the row count.
     """
 
-    __slots__ = ("counts", "missing", "name", "untrimmed")
+    __slots__ = ("counts", "missing", "name", "padded", "untrimmed")
 
     def __init__(self, name: str) -> None:
         self.name = name
         self.missing = 0
         self.untrimmed = 0
         self.counts: Counter[str] = Counter()
+        # With strip_counts(keep_padded=True): untrimmed cell texts as read.
+        self.padded: Counter[str] = Counter()
 
-    def strip_counts(self, na: set[str], fold: bool = False) -> None:
+    def strip_counts(self, na: set[str], fold: bool = False, keep_padded: bool = False) -> None:
         """Turn raw cell-text counts into stripped-value counts.
 
         The pass counts cells exactly as read; this merges them by stripped
@@ -873,6 +898,9 @@ class _ColumnAccumulator:
 
         With ``fold`` (``--na-ignore-case``), ``na`` holds case-folded tokens
         and a value is missing when its case-folded NFC form is one of them.
+
+        With ``keep_padded`` (``--forbid-untrimmed``), the untrimmed cell texts
+        as read are kept in ``padded`` with their counts, in first-seen order.
         """
         raw = self.counts
         if any(key != key.strip() for key in raw):
@@ -882,6 +910,8 @@ class _ColumnAccumulator:
                 merged[value] += count
                 if value != key and (_fold_missing(value) if fold else value) not in na:
                     self.untrimmed += count
+                    if keep_padded:
+                        self.padded[key] = count
             self.counts = merged
         if fold:
             tokens = [value for value in self.counts if _fold_missing(value) in na]
@@ -1198,6 +1228,7 @@ class _Profiled:
     mojibake: tuple[MojibakeProfile, ...] = ()
     date_serials: tuple[DateSerialProfile, ...] = ()
     formulas: tuple[FormulaProfile, ...] = ()
+    untrimmed_values: tuple[UntrimmedProfile, ...] = ()
 
 
 def _columns(
@@ -1274,6 +1305,7 @@ def profile_rows(
     forbid_mojibake: Iterable[str] = (),
     forbid_date_serial: Iterable[str] = (),
     forbid_formula: Iterable[str] = (),
+    forbid_untrimmed: Iterable[str] = (),
 ) -> _Profiled:
     """Profile ``rows`` in a single pass; each row must have ``len(header)`` cells.
 
@@ -1360,6 +1392,11 @@ def profile_rows(
     formulas by a spreadsheet (see ``FormulaProfile``). Only the distinct
     values that start with ``=``, ``+``, ``-`` or ``@`` are tested, once,
     after the pass; a name that is not profiled is skipped.
+
+    ``forbid_untrimmed`` names columns whose non-missing cells must not have
+    surrounding whitespace (see ``UntrimmedProfile``). Their padded cell texts
+    are kept while the counts are stripped after the pass, with no extra pass;
+    a name that is not profiled is skipped.
     """
     _validate_top_n(top_n)
     # Materialize one-shot iterables before validation and missing-cell accounting.
@@ -1384,6 +1421,7 @@ def profile_rows(
     garbled = set(forbid_mojibake)
     serials = set(forbid_date_serial)
     formulas = set(forbid_formula)
+    padded = set(forbid_untrimmed)
     selected = _selection(header, columns)
     accumulators = [
         _ColumnAccumulator(name)
@@ -1418,7 +1456,7 @@ def profile_rows(
         for counter, column in zip(counters, _columns(batch, selected, pick), strict=True):
             counter.update(column)
     for acc in accumulators:
-        acc.strip_counts(na, na_ignore_case)
+        acc.strip_counts(na, na_ignore_case, keep_padded=acc.name in padded)
     return _Profiled(
         columns=[acc.finish(total, top_n, rules) for acc in accumulators],
         rows=total,
@@ -1447,6 +1485,9 @@ def profile_rows(
         ),
         formulas=tuple(
             _formulas(acc, rules, top_n) for acc in accumulators if acc.name in formulas
+        ),
+        untrimmed_values=tuple(
+            _untrimmed(acc, top_n) for acc in accumulators if acc.name in padded
         ),
     )
 
@@ -1577,6 +1618,15 @@ def _check_digit(acc: _ColumnAccumulator, scheme: str, top_n: int) -> CheckDigit
     return CheckDigitProfile(column=acc.name, scheme=scheme, invalid=invalid, examples=examples)
 
 
+def _untrimmed(acc: _ColumnAccumulator, top_n: int) -> UntrimmedProfile:
+    """The non-missing cells of ``acc`` with surrounding whitespace, as read."""
+    # strip_counts(keep_padded=True) kept exactly the cells it counted as
+    # untrimmed; most_common is stable, so ties list the first seen text first.
+    return UntrimmedProfile(
+        column=acc.name, cells=acc.untrimmed, examples=tuple(acc.padded.most_common(top_n))
+    )
+
+
 def _outside(
     counts: Counter[str], accepts: Callable[[str], object], top_n: int
 ) -> tuple[int, tuple[tuple[str, int], ...]]:
@@ -1658,6 +1708,7 @@ def _report(
         mojibake=result.mojibake,
         date_serials=result.date_serials,
         formulas=result.formulas,
+        untrimmed_values=result.untrimmed_values,
     )
 
 
@@ -1685,6 +1736,7 @@ def build_report(
     forbid_mojibake: Iterable[str] = (),
     forbid_date_serial: Iterable[str] = (),
     forbid_formula: Iterable[str] = (),
+    forbid_untrimmed: Iterable[str] = (),
 ) -> Report:
     """Profile every column of an in-memory ``table``.
 
@@ -1718,9 +1770,11 @@ def build_report(
     by a wrong encoding, such as ``PeÃ±a`` for ``Peña`` (``Report.mojibake``);
     ``forbid_date_serial`` names date columns whose values must not be
     spreadsheet date serials, such as ``46331`` for 2026-11-05
-    (``Report.date_serials``); and ``forbid_formula`` names columns whose
+    (``Report.date_serials``); ``forbid_formula`` names columns whose
     values a spreadsheet must not read as formulas, such as
-    ``=HYPERLINK(...)`` (``Report.formulas``).
+    ``=HYPERLINK(...)`` (``Report.formulas``); and ``forbid_untrimmed`` names
+    columns whose non-missing cells must not have leading or trailing
+    whitespace, such as ``"ALM01   "`` (``Report.untrimmed_values``).
     """
     _validate_top_n(top_n)
     tokens = tuple(na_tokens)
@@ -1749,6 +1803,7 @@ def build_report(
         forbid_mojibake=forbid_mojibake,
         forbid_date_serial=forbid_date_serial,
         forbid_formula=forbid_formula,
+        forbid_untrimmed=forbid_untrimmed,
     )
     return _report(
         result,
@@ -1797,6 +1852,7 @@ def profile_file(
     forbid_mojibake: Iterable[str] = (),
     forbid_date_serial: Iterable[str] = (),
     forbid_formula: Iterable[str] = (),
+    forbid_untrimmed: Iterable[str] = (),
 ) -> Report:
     """Stream ``path`` and profile it without loading the whole file into memory.
 
@@ -1810,8 +1866,8 @@ def profile_file(
     ``Report.trailing_delimiter``). ``month_names``,
     ``na_ignore_case``, ``check_digits``, ``required_values``,
     ``column_orders``, ``consistent_values``, ``forbid_scientific``,
-    ``forbid_mojibake``, ``forbid_date_serial`` and ``forbid_formula`` are as
-    in ``build_report``.
+    ``forbid_mojibake``, ``forbid_date_serial``, ``forbid_formula`` and
+    ``forbid_untrimmed`` are as in ``build_report``.
     """
     _validate_top_n(top_n)
     tokens = tuple(na_tokens)
@@ -1850,6 +1906,7 @@ def profile_file(
             forbid_mojibake=forbid_mojibake,
             forbid_date_serial=forbid_date_serial,
             forbid_formula=forbid_formula,
+            forbid_untrimmed=forbid_untrimmed,
         )
         return _report(
             result,

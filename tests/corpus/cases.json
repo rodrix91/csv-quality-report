@@ -452,5 +452,12 @@
     "args": ["--delimiter", "auto", "--decimal-comma", "--thousands", "dot", "--number-affix", "$", "--date-order", "dmy", "--na", "s/d", "--forbid-formula", "Cliente", "--forbid-formula", "Teléfono", "--forbid-formula", "Comentario", "--forbid-formula", "Total", "--forbid-formula", "Pedido"],
     "exit_code": 8,
     "about": "A Chilean online store's orders export (UTF-8, CRLF, ';', day-first dates, '$' amounts with '.' thousands) whose customer-typed fields would run as formulas in a spreadsheet: a payment-phishing =HYPERLINK(...) and =1+1 in the comments, a comment framed with dashes, phones in international format (+56 9 ...) and an Instagram handle as the customer name. --forbid-formula fails on Cliente, Teléfono and Comentario and passes on Pedido and on Total, whose refunds (-$ 12.990) are negative numbers under --number-affix and --thousands, and on the placeholder comment '-'. The s/d phone is missing."
+  },
+  {
+    "name": "ec_wms_stock_padded",
+    "file": "ec_wms_stock_padded.csv",
+    "args": ["--encoding", "cp1252", "--delimiter", "auto", "--decimal-comma", "--na", "s/d", "--forbid-untrimmed", "Código", "--forbid-untrimmed", "Ubicación", "--forbid-untrimmed", "Bodega"],
+    "exit_code": 8,
+    "about": "An Ecuadorian hardware distributor's stock export from its WMS (cp1252, CRLF, ';', decimal comma): the codes exported from a fixed-width CHAR(10) field are padded with spaces (MAT-0001 followed by two spaces) except those typed by hand, two locations carry a non-breaking space pasted from a web page and one a trailing space. The report already counts them as untrimmed and profiles the stripped values, but a join or VLOOKUP against the product master misses those rows; --forbid-untrimmed fails on Código and Ubicación, listing the cells as read, and passes on Bodega. The s/d stock is missing."
   }
 ]

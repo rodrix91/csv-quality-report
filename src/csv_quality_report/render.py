@@ -25,6 +25,7 @@ from .checks import (
     CHECK_SCIENTIFIC_NOTATION,
     CHECK_UNIQUE,
     CHECK_UNIQUE_KEY,
+    CHECK_UNTRIMMED,
     CHECK_VALUE_RANGE,
     CheckResult,
     code_span,
@@ -500,6 +501,11 @@ def render_json(
                 **({"mojibake": dict(c.mojibake)} if c.check == CHECK_MOJIBAKE else {}),
                 **({"serials": dict(c.serials)} if c.check == CHECK_DATE_SERIAL else {}),
                 **({"formulas": dict(c.formulas)} if c.check == CHECK_FORMULA else {}),
+                **(
+                    {"untrimmed_values": dict(c.untrimmed_values)}
+                    if c.check == CHECK_UNTRIMMED
+                    else {}
+                ),
             }
             for c in checks
         ],
