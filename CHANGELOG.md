@@ -4,6 +4,10 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Added
+
+- Add `--forbid-untrimmed NAME` (repeatable): fail with exit code 8 when a non-missing cell of column `NAME` has leading or trailing whitespace, for key and code columns that a join or lookup downstream will match, where ERP and WMS exports write codes from fixed-width fields padded with spaces (`MAT-0001  `) and values pasted from a web page carry a non-breaking space (`\u00a0B-03-01`) (`column 'Código' has 5 cells with leading or trailing whitespace (joins and lookups on the column miss them; trim the column before exporting): "MAT-0001  " in 1 cell, ...`). Before, the report counted these cells (`untrimmed`) but no gate could fail on them, and `--unique`, `--allowed-values` and `--pattern` compare stripped values, so a padded key column passed all of them. A cell counts when its text has what `str.strip()` removes at either end (spaces, tabs, non-breaking and other Unicode spaces); missing cells (empty, whitespace-only or `--na`) do not, and the count is the column's exact `untrimmed`. The message lists the most frequent padded texts as read, up to `--top`, with whitespace other than a plain space escaped. Without an extra pass: the padded texts are kept while the counts are stripped after the pass, only for the named columns (on a 1,000,000-row file with 500,000 distinct padded codes, 4.3 to 4.8 s instead of 4.1 to 4.4 s and about 8 MB more peak memory; the same time and memory without the option). JSON item `untrimmed` with `untrimmed_values` (cells per listed text); reports without the option are byte-identical. Python API: `profile_file(..., forbid_untrimmed=...)`, `build_report(..., forbid_untrimmed=...)` and `evaluate(report, forbid_untrimmed=...)`, measured in `Report.untrimmed_values` (`UntrimmedProfile` in `csv_quality_report.profile`). The corpus gains an Ecuadorian hardware distributor's WMS stock export, and the guide to Spanish and Latin American exports a line for it (#316).
+
 ## [0.25.0] - 2026-11-19
 
 ### Added

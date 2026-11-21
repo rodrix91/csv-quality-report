@@ -1,0 +1,8 @@
+Código;Descripción;Bodega;Ubicación;Stock;Costo unitario
+MAT-0001  ;Cemento Holcim 50 kg;BOD01;A-01-01;120;8,45
+MAT-0002  ;Varilla corrugada 12 mm;BOD01;A-01-02;340;6,10
+MAT-0003  ;Alambre recocido n.º 18;BOD02; B-03-01;55;2,35
+MAT-0004;Clavos de 2½" (caja);BOD02; B-03-02;s/d;3,90
+MAT-0005  ;Tubo PVC 1/2" x 3 m;BOD01;A-02-01;210;1,75
+MAT-0006;Pintura látex blanca 1 gl;BOD02;B-04-01;18;14,20
+MAT-0007  ;Bloque de cemento 15 cm;BOD01;A-02-02 ;800;0,42

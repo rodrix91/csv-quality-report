@@ -469,6 +469,11 @@ def _formula_name(text: str) -> str:
     return _column_name(text, "--forbid-formula")
 
 
+def _untrimmed_name(text: str) -> str:
+    """The column name of --forbid-untrimmed, exactly as written."""
+    return _column_name(text, "--forbid-untrimmed")
+
+
 def _key_names(text: str) -> tuple[str, ...]:
     """Reject omitted composite-key columns before checking their uniqueness."""
     names = _column_names(text, "--unique-key")
@@ -820,6 +825,16 @@ def build_parser() -> argparse.ArgumentParser:
         "=HYPERLINK(...) or +54 9 11 5555-1234 (CSV injection); repeatable",
     )
     gates.add_argument(
+        "--forbid-untrimmed",
+        type=_untrimmed_name,
+        action="append",
+        default=[],
+        metavar="NAME",
+        help="fail if a non-missing cell of column NAME has leading or trailing whitespace, "
+        "such as a code padded with spaces from a fixed-width field or a pasted "
+        "non-breaking space, which joins and lookups miss; repeatable",
+    )
+    gates.add_argument(
         "--require-values",
         type=_column_required,
         action="append",
@@ -993,6 +1008,7 @@ def _check_selected(args: argparse.Namespace) -> None:
         ("--forbid-mojibake", args.forbid_mojibake),
         ("--forbid-date-serial", args.forbid_date_serial),
         ("--forbid-formula", args.forbid_formula),
+        ("--forbid-untrimmed", args.forbid_untrimmed),
         ("--allow-type-change", [r.column for r in args.allow_type_change if r.column]),
         ("--allow-added-column", args.allow_added_column),
         ("--allow-removed-column", args.allow_removed_column),
@@ -1175,6 +1191,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             forbid_mojibake=args.forbid_mojibake,  # a repeated name gives one check
             forbid_date_serial=args.forbid_date_serial,  # a repeated name gives one check
             forbid_formula=args.forbid_formula,  # a repeated name gives one check
+            forbid_untrimmed=args.forbid_untrimmed,  # a repeated name gives one check
             skip_lines=args.skip_lines,
             skip_footer=args.skip_footer,
             trailing_delimiter=args.trailing_delimiter,
@@ -1206,6 +1223,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         forbid_mojibake=args.forbid_mojibake,  # a repeated name gives one check
         forbid_date_serial=args.forbid_date_serial,  # a repeated name gives one check
         forbid_formula=args.forbid_formula,  # a repeated name gives one check
+        forbid_untrimmed=args.forbid_untrimmed,  # a repeated name gives one check
         column_max_ages=dict(args.max_age),  # the last limit for a name wins
         now=now,
         utc_offset=args.utc_offset,

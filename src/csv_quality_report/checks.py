@@ -33,6 +33,7 @@ from .profile import (
     PresenceProfile,
     Report,
     ScientificProfile,
+    UntrimmedProfile,
     VariantProfile,
     allowed_list,
     column_order,
@@ -69,6 +70,7 @@ CHECK_SCIENTIFIC_NOTATION = "scientific_notation"
 CHECK_MOJIBAKE = "mojibake"
 CHECK_DATE_SERIAL = "date_serial"
 CHECK_FORMULA = "formula"
+CHECK_UNTRIMMED = "untrimmed"
 # A baseline stamped up to this many seconds after the clock counts as 0
 # seconds old (clocks of two machines differ a little); later is an error.
 CLOCK_SKEW_TOLERANCE = 300
@@ -173,6 +175,8 @@ class CheckResult:
     serials: tuple[tuple[str, int], ...] = ()
     # formula checks: most frequent (value, cells) a spreadsheet reads as formulas
     formulas: tuple[tuple[str, int], ...] = ()
+    # untrimmed checks: most frequent (cell text as read, cells) with surrounding whitespace
+    untrimmed_values: tuple[tuple[str, int], ...] = ()
 
     def describe(self) -> str:
         """One-line, human-readable explanation used on stderr and in Markdown."""
@@ -243,6 +247,8 @@ class CheckResult:
             return self._describe_date_serial()
         if self.check == CHECK_FORMULA:
             return self._describe_formula()
+        if self.check == CHECK_UNTRIMMED:
+            return self._describe_untrimmed()
         if self.check == CHECK_MIN_ROWS:
             rows = int(self.value)
             noun = "data row" if rows == 1 else "data rows"
@@ -347,6 +353,20 @@ class CheckResult:
             f"column '{self.column}' has {count} {noun} written as spreadsheet date serials "
             "(the column was saved as a number; format it as a date before exporting)"
             + (f": {examples}" if examples else "")
+        )
+
+    def _describe_untrimmed(self) -> str:
+        if self.passed:
+            return f"column '{self.column}' has no cells with leading or trailing whitespace"
+        count = int(self.value)
+        examples = ", ".join(
+            f'"{_visible(value)}" in {cells} cell' + ("s" if cells != 1 else "")
+            for value, cells in self.untrimmed_values
+        )
+        return (
+            f"column '{self.column}' has {count} {'cell' if count == 1 else 'cells'} with "
+            "leading or trailing whitespace (joins and lookups on the column miss them; trim "
+            "the column before exporting)" + (f": {examples}" if examples else "")
         )
 
     def _describe_formula(self) -> str:
@@ -1318,6 +1338,18 @@ def _date_serial_check(profile: DateSerialProfile) -> CheckResult:
     )
 
 
+def _untrimmed_check(profile: UntrimmedProfile) -> CheckResult:
+    """A check that fails when a cell of ``profile.column`` has surrounding whitespace."""
+    return CheckResult(
+        check=CHECK_UNTRIMMED,
+        column=profile.column,
+        limit=0,
+        value=profile.cells,
+        passed=profile.cells == 0,
+        untrimmed_values=profile.examples,
+    )
+
+
 def _formula_check(profile: FormulaProfile) -> CheckResult:
     """A check that fails when a spreadsheet would read a cell of ``profile.column`` as formula."""
     return CheckResult(
@@ -1420,6 +1452,7 @@ def evaluate(
     forbid_mojibake: Iterable[str] = (),
     forbid_date_serial: Iterable[str] = (),
     forbid_formula: Iterable[str] = (),
+    forbid_untrimmed: Iterable[str] = (),
 ) -> list[CheckResult]:
     """Evaluate the requested thresholds; a value equal to its limit passes.
 
@@ -1577,6 +1610,17 @@ def evaluate(
     frequent of their values, up to the report's ``top_n``. Unknown names
     fail as ``required_column``.
 
+    ``forbid_untrimmed`` names columns whose non-missing cells must not have
+    leading or trailing whitespace (``profile.UntrimmedProfile``), such as a
+    code padded from a fixed-width field (``"ALM01   "``), which joins and
+    lookups downstream do not match. The report must have been built with the
+    same names (``profile_file(..., forbid_untrimmed=...)``,
+    ``Report.untrimmed_values``); a name it lacks raises ``ValueError``. The
+    check's ``value`` is the number of such cells (the column's
+    ``untrimmed``) and ``untrimmed_values`` lists the most frequent of their
+    texts as read, up to the report's ``top_n``. Unknown names fail as
+    ``required_column``.
+
     ``column_orders`` are ``(left, operator, right)`` triples (operator
     ``"<="`` or ``"<"``), such as ``("Despacho", "<=", "Entrega")``: every row
     must keep that order between its two values, such as a delivery date not
@@ -1664,7 +1708,8 @@ def evaluate(
     garbled = list(dict.fromkeys(forbid_mojibake))
     dated = list(dict.fromkeys(forbid_date_serial))
     injectable = list(dict.fromkeys(forbid_formula))
-    gated += [*consistent, *exact, *garbled, *dated, *injectable]
+    padded = list(dict.fromkeys(forbid_untrimmed))
+    gated += [*consistent, *exact, *garbled, *dated, *injectable, *padded]
     unprofiled = [name for name in gated if name in present]
     unprofiled = [name for name in unprofiled if name not in by_name]
     if unprofiled:
@@ -1832,6 +1877,16 @@ def evaluate(
                 f"column {name!r} has a formula check but the report was not profiled with it"
             )
         results.append(_formula_check(formulas))
+    measured_untrimmed = {profile.column: profile for profile in report.untrimmed_values}
+    for name in padded:
+        if name not in by_name:
+            continue  # reported below as a missing required column
+        untrimmed = measured_untrimmed.get(name)
+        if untrimmed is None:
+            raise ValueError(
+                f"column {name!r} has an untrimmed check but the report was not profiled with it"
+            )
+        results.append(_untrimmed_check(untrimmed))
     keys = list(dict.fromkeys(key_columns(key) for key in unique_keys))
     measured = {key.columns: key for key in report.keys}
     for columns in keys:
@@ -1877,6 +1932,7 @@ def evaluate(
             *garbled,
             *dated,
             *injectable,
+            *padded,
         ]
         if name not in present
     )
