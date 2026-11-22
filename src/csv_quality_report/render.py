@@ -21,6 +21,7 @@ from .checks import (
     CHECK_MOJIBAKE,
     CHECK_PATTERN,
     CHECK_REQUIRED_VALUES,
+    CHECK_REQUIRED_WHEN,
     CHECK_SCHEMA_CHANGE,
     CHECK_SCIENTIFIC_NOTATION,
     CHECK_UNIQUE,
@@ -351,6 +352,17 @@ def _column_order_fields(check: CheckResult) -> dict[str, Any]:
     }
 
 
+def _required_when_fields(check: CheckResult) -> dict[str, Any]:
+    """JSON fields of a required_when check: the condition, the row counts and the first rows."""
+    return {
+        "when": check.when,
+        "values": list(check.when_values),
+        "checked": check.checked,
+        "missing": int(check.value),
+        "rows": [{"row": row, "value": value} for row, value in check.missing_rows],
+    }
+
+
 def _allowed_fields(check: CheckResult) -> dict[str, Any]:
     """JSON fields of a schema_change check with --allow-* options, each only when given."""
     fields: dict[str, Any] = {}
@@ -464,6 +476,7 @@ def render_json(
                 **({"repeated": dict(c.repeated)} if c.check == CHECK_UNIQUE else {}),
                 **(_unique_key_fields(c) if c.check == CHECK_UNIQUE_KEY else {}),
                 **(_column_order_fields(c) if c.check == CHECK_COLUMN_ORDER else {}),
+                **(_required_when_fields(c) if c.check == CHECK_REQUIRED_WHEN else {}),
                 **(_allowed_fields(c) if c.check == CHECK_SCHEMA_CHANGE else {}),
                 **({"generated_at": c.generated_at} if c.check == CHECK_BASELINE_AGE else {}),
                 **({"newest": c.newest} if c.check == CHECK_MAX_AGE else {}),
