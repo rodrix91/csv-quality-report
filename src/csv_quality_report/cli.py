@@ -45,6 +45,7 @@ from .profile import (
     allowed_list,
     column_order,
     compile_pattern,
+    conditional_requirement,
     profile_file,
     required_list,
 )
@@ -506,6 +507,44 @@ def _column_order(text: str) -> tuple[str, str, str]:
         raise argparse.ArgumentTypeError(usage + f"; {exc})") from None
 
 
+def _require_when(name: str, condition: str) -> tuple[str, str, tuple[str, ...]]:
+    """Parse ``NAME`` and ``COLUMN=V1,V2`` for --require-when.
+
+    ``NAME`` is taken exactly as written, like the names of --unique; the
+    condition is split at its last ``=`` and the values at commas, like
+    --allowed-values, so ``COLUMN`` may contain ``=`` and the values may not.
+    """
+    usage = (
+        f"invalid --require-when value: {name!r} {condition!r} (use NAME COLUMN=VALUE,VALUE, "
+        "such as 'Fecha entrega' Estado=Entregado"
+    )
+    when, sep, values = condition.rpartition("=")
+    if not name.strip() or not sep or not when.strip():
+        raise argparse.ArgumentTypeError(usage + ")")
+    try:
+        return conditional_requirement(name, when, values.split(","))
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError(usage + f"; {exc})") from None
+
+
+class _RequireWhenAction(argparse.Action):
+    """Append the parsed ``(NAME, COLUMN, VALUES)`` of each --require-when."""
+
+    def __call__(
+        self,
+        parser: argparse.ArgumentParser,
+        namespace: argparse.Namespace,
+        values: str | Sequence[object] | None,
+        option_string: str | None = None,
+    ) -> None:
+        assert isinstance(values, list) and len(values) == 2  # nargs=2
+        try:
+            rule = _require_when(values[0], values[1])
+        except argparse.ArgumentTypeError as exc:
+            parser.error(f"argument {option_string}: {exc}")
+        setattr(namespace, self.dest, [*getattr(namespace, self.dest), rule])
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="python -m csv_quality_report",
@@ -766,6 +805,17 @@ def build_parser() -> argparse.ArgumentParser:
         "'Entregado<=Pedido'; numbers compare with numbers and dates or date-times with "
         "each other, read with the reading options; rows with a missing cell are skipped, "
         "and rows whose values cannot be compared fail; repeatable",
+    )
+    gates.add_argument(
+        "--require-when",
+        action=_RequireWhenAction,
+        nargs=2,
+        default=[],
+        metavar=("NAME", "COLUMN=VALUES"),
+        help="fail if a row whose column COLUMN holds one of the comma-separated VALUES has "
+        "a missing cell (empty or --na) in column NAME, such as 'Fecha entrega' "
+        "Estado=Entregado (stripped text, case-sensitive; other rows are not checked); "
+        "repeatable",
     )
     gates.add_argument(
         "--allowed-values",
@@ -1192,6 +1242,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             forbid_date_serial=args.forbid_date_serial,  # a repeated name gives one check
             forbid_formula=args.forbid_formula,  # a repeated name gives one check
             forbid_untrimmed=args.forbid_untrimmed,  # a repeated name gives one check
+            required_when=args.require_when,  # a repeated requirement gives one check
             skip_lines=args.skip_lines,
             skip_footer=args.skip_footer,
             trailing_delimiter=args.trailing_delimiter,
@@ -1224,6 +1275,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         forbid_date_serial=args.forbid_date_serial,  # a repeated name gives one check
         forbid_formula=args.forbid_formula,  # a repeated name gives one check
         forbid_untrimmed=args.forbid_untrimmed,  # a repeated name gives one check
+        required_when=args.require_when,  # a repeated requirement gives one check
         column_max_ages=dict(args.max_age),  # the last limit for a name wins
         now=now,
         utc_offset=args.utc_offset,

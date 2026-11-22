@@ -459,5 +459,12 @@
     "args": ["--encoding", "cp1252", "--delimiter", "auto", "--decimal-comma", "--na", "s/d", "--forbid-untrimmed", "Código", "--forbid-untrimmed", "Ubicación", "--forbid-untrimmed", "Bodega"],
     "exit_code": 8,
     "about": "An Ecuadorian hardware distributor's stock export from its WMS (cp1252, CRLF, ';', decimal comma): the codes exported from a fixed-width CHAR(10) field are padded with spaces (MAT-0001 followed by two spaces) except those typed by hand, two locations carry a non-breaking space pasted from a web page and one a trailing space. The report already counts them as untrimmed and profiles the stripped values, but a join or VLOOKUP against the product master misses those rows; --forbid-untrimmed fails on Código and Ubicación, listing the cells as read, and passes on Bodega. The s/d stock is missing."
+  },
+  {
+    "name": "gt_courier_status",
+    "file": "gt_courier_status.csv",
+    "args": ["--delimiter", "auto", "--decimal-comma", "--date-order", "dmy", "--na", "s/d", "--require-when", "Fecha entrega", "Estado=Entregado", "--require-when", "Recibió", "Estado=Entregado", "--require-when", "Motivo devolución", "Estado=Devuelto", "--allowed-values", "Estado=Entregado,En ruta,Pendiente,Devuelto"],
+    "exit_code": 8,
+    "about": "A Guatemalan courier's parcel status export (UTF-8, CRLF, ';', day-first date-times, decimal comma) whose delivery date, receiver and return reason are filled only for some statuses, so none of them can have a --max-missing-column limit. --require-when fails on the delivered parcel without a delivery date, on the two delivered without a receiver (s/d and a whitespace-only cell) and on the returned parcel without a reason; 'Entregado ' with a trailing space is a delivered row, while the hand-typed ENTREGADO is not, and --allowed-values names it."
   }
 ]

@@ -577,6 +577,55 @@ def column_order(left: str, operator: str, right: str) -> tuple[str, str, str]:
     return left, operator, right
 
 
+@dataclass(frozen=True)
+class ConditionalProfile:
+    """How many rows lack a column that another column's value requires (``--require-when``).
+
+    A row is checked when its ``when`` cell, stripped, is one of ``values``
+    (case-sensitive, as text, like ``--allowed-values``); rows whose
+    ``when`` cell holds another value or is missing are not checked. A
+    checked row fails when its ``column`` cell is missing, as the report
+    counts missing cells: empty or whitespace only, or an ``na_tokens`` text
+    (after case folding with ``na_ignore_case``). ``checked`` and ``missing``
+    are exact for any number of rows; ``examples`` are the first ``top_n``
+    failing rows, as ``(data row, when value)``, data rows counted from 1
+    after the header.
+    """
+
+    column: str
+    when: str
+    values: tuple[str, ...]
+    checked: int  # rows whose ``when`` cell holds one of ``values``
+    missing: int  # checked rows whose ``column`` cell is missing
+    examples: tuple[tuple[int, str], ...] = ()
+
+
+def conditional_requirement(
+    column: str, when: str, values: Iterable[str]
+) -> tuple[str, str, tuple[str, ...]]:
+    """``(column, when, values)`` validated, values stripped and without repeats.
+
+    ``ValueError`` when a name is empty, both names are the same column, or
+    the list of values is empty or has an empty value.
+    """
+    if not isinstance(column, str) or not isinstance(when, str) or not column or not when:
+        raise ValueError(
+            f"a conditional requirement needs two column names, not {column!r} and {when!r}"
+        )
+    if column == when:
+        raise ValueError(
+            f"a conditional requirement needs two different columns, not {column!r} twice"
+        )
+    if isinstance(values, str):
+        raise ValueError(
+            f"the values of a conditional requirement are a list of texts, not the text {values!r}"
+        )
+    listed = tuple(dict.fromkeys(value.strip() for value in values))
+    if not listed or "" in listed:
+        raise ValueError("a conditional requirement needs at least one value and no empty ones")
+    return column, when, listed
+
+
 def check_na_ignore_case(na_ignore_case: bool, na_tokens: Iterable[str]) -> None:
     """``ValueError`` if ``na_ignore_case`` is set without any non-blank ``na_tokens``."""
     if na_ignore_case and not any(token.strip() for token in na_tokens):
@@ -642,6 +691,8 @@ class Report:
     formulas: tuple[FormulaProfile, ...] = ()  # --forbid-formula: one per profiled column
     # --forbid-untrimmed: one per profiled column
     untrimmed_values: tuple[UntrimmedProfile, ...] = ()
+    # --require-when: one per requirement whose two columns exist
+    conditionals: tuple[ConditionalProfile, ...] = ()
 
 
 def _untrimmed_names(header: list[str]) -> tuple[str, ...]:
@@ -1212,6 +1263,88 @@ def _order_accumulators(
     return accumulators
 
 
+class _ConditionalAccumulator:
+    """Rows that lack a column another column's value requires (``--require-when``)."""
+
+    __slots__ = (
+        "checked",
+        "examples",
+        "fold",
+        "limit",
+        "missing",
+        "na",
+        "positions",
+        "rule",
+        "values",
+    )
+
+    def __init__(
+        self,
+        rule: tuple[str, str, tuple[str, ...]],
+        positions: tuple[int, int],
+        na: set[str],
+        fold: bool,
+        limit: int,
+    ) -> None:
+        self.rule = rule
+        self.values = frozenset(rule[2])
+        self.positions = positions
+        self.na = na
+        self.fold = fold
+        self.limit = limit
+        self.checked = 0
+        self.missing = 0
+        self.examples: list[tuple[int, str]] = []
+
+    def update(self, batch: list[list[str]], start: int) -> None:
+        """Check the rows of ``batch``, the first of which is data row ``start + 1``."""
+        target, condition = self.positions
+        values = self.values
+        na = self.na
+        fold = self.fold
+        for offset, row in enumerate(batch):
+            when = row[condition].strip()
+            if when not in values:
+                continue
+            self.checked += 1
+            value = row[target].strip()
+            if (_fold_missing(value) if fold else value) in na:
+                self.missing += 1
+                if len(self.examples) < self.limit:
+                    self.examples.append((start + offset + 1, when))
+
+    def finish(self) -> ConditionalProfile:
+        column, when, values = self.rule
+        return ConditionalProfile(
+            column=column,
+            when=when,
+            values=values,
+            checked=self.checked,
+            missing=self.missing,
+            examples=tuple(self.examples),
+        )
+
+
+def _conditional_accumulators(
+    header: list[str],
+    rules: Iterable[tuple[str, str, tuple[str, ...]]],
+    na: set[str],
+    fold: bool,
+    limit: int,
+) -> list[_ConditionalAccumulator]:
+    """One accumulator per distinct requirement whose two columns are in ``header``.
+
+    Requirements naming an unknown column are left out here: ``evaluate``
+    reports those names as missing required columns.
+    """
+    position = {name: i for i, name in enumerate(header)}
+    return [
+        _ConditionalAccumulator(rule, (position[rule[0]], position[rule[1]]), na, fold, limit)
+        for rule in rules
+        if rule[0] in position and rule[1] in position
+    ]
+
+
 @dataclass(frozen=True)
 class _Profiled:
     columns: list[ColumnProfile]
@@ -1229,6 +1362,7 @@ class _Profiled:
     date_serials: tuple[DateSerialProfile, ...] = ()
     formulas: tuple[FormulaProfile, ...] = ()
     untrimmed_values: tuple[UntrimmedProfile, ...] = ()
+    conditionals: tuple[ConditionalProfile, ...] = ()
 
 
 def _columns(
@@ -1306,6 +1440,7 @@ def profile_rows(
     forbid_date_serial: Iterable[str] = (),
     forbid_formula: Iterable[str] = (),
     forbid_untrimmed: Iterable[str] = (),
+    required_when: Iterable[tuple[str, str, Iterable[str]]] = (),
 ) -> _Profiled:
     """Profile ``rows`` in a single pass; each row must have ``len(header)`` cells.
 
@@ -1397,6 +1532,16 @@ def profile_rows(
     surrounding whitespace (see ``UntrimmedProfile``). Their padded cell texts
     are kept while the counts are stripped after the pass, with no extra pass;
     a name that is not profiled is skipped.
+
+    ``required_when`` are ``(column, when, values)`` triples, such as
+    ``("Fecha entrega", "Estado", ["Entregado"])``: every row whose ``when``
+    cell holds one of ``values`` must have a non-missing ``column`` cell (see
+    ``ConditionalProfile``). They are checked in the same pass, one set
+    lookup per row and a strip of ``column`` on the rows that match. Rows are
+    read whole, so the columns may be left out by ``columns``. A requirement
+    with an unknown name is skipped (``evaluate`` reports it); an invalid one
+    raises ``ValueError`` before any row is read. Without requirements the
+    pass does no extra work.
     """
     _validate_top_n(top_n)
     # Materialize one-shot iterables before validation and missing-cell accounting.
@@ -1416,6 +1561,7 @@ def profile_rows(
     schemes = {name: check_scheme(scheme) for name, scheme in (check_digits or {}).items()}
     presences = {name: required_list(values) for name, values in (required_values or {}).items()}
     orders = list(dict.fromkeys(column_order(*order) for order in column_orders))
+    conditions = list(dict.fromkeys(conditional_requirement(*rule) for rule in required_when))
     consistent = set(consistent_values)
     exact = set(forbid_scientific)
     garbled = set(forbid_mojibake)
@@ -1437,6 +1583,7 @@ def profile_rows(
         na = {_fold_missing(token) for token in na}
     keys = _key_accumulators(header, unique_keys, top_n)
     order_checks = _order_accumulators(header, orders, rules, na, na_ignore_case, top_n)
+    condition_checks = _conditional_accumulators(header, conditions, na, na_ignore_case, top_n)
     total = 0
     # Work on batches of rows transposed into columns, so counting runs inside
     # Counter.update (implemented in C) instead of one Python step per cell.
@@ -1447,6 +1594,8 @@ def profile_rows(
     while batch := list(islice(it, _BATCH_ROWS)):
         for order in order_checks:
             order.update(batch, total)
+        for condition in condition_checks:
+            condition.update(batch, total)
         total += len(batch)
         seen.update(map(_row_digest, batch))
         for key in keys:
@@ -1489,6 +1638,7 @@ def profile_rows(
         untrimmed_values=tuple(
             _untrimmed(acc, top_n) for acc in accumulators if acc.name in padded
         ),
+        conditionals=tuple(condition.finish() for condition in condition_checks),
     )
 
 
@@ -1709,6 +1859,7 @@ def _report(
         date_serials=result.date_serials,
         formulas=result.formulas,
         untrimmed_values=result.untrimmed_values,
+        conditionals=result.conditionals,
     )
 
 
@@ -1737,6 +1888,7 @@ def build_report(
     forbid_date_serial: Iterable[str] = (),
     forbid_formula: Iterable[str] = (),
     forbid_untrimmed: Iterable[str] = (),
+    required_when: Iterable[tuple[str, str, Iterable[str]]] = (),
 ) -> Report:
     """Profile every column of an in-memory ``table``.
 
@@ -1772,9 +1924,12 @@ def build_report(
     spreadsheet date serials, such as ``46331`` for 2026-11-05
     (``Report.date_serials``); ``forbid_formula`` names columns whose
     values a spreadsheet must not read as formulas, such as
-    ``=HYPERLINK(...)`` (``Report.formulas``); and ``forbid_untrimmed`` names
+    ``=HYPERLINK(...)`` (``Report.formulas``); ``forbid_untrimmed`` names
     columns whose non-missing cells must not have leading or trailing
-    whitespace, such as ``"ALM01   "`` (``Report.untrimmed_values``).
+    whitespace, such as ``"ALM01   "`` (``Report.untrimmed_values``); and
+    ``required_when`` are ``(column, when, values)`` triples such as
+    ``("Fecha entrega", "Estado", ["Entregado"])``: a row whose ``when`` cell
+    holds one of ``values`` must have ``column`` (``Report.conditionals``).
     """
     _validate_top_n(top_n)
     tokens = tuple(na_tokens)
@@ -1804,6 +1959,7 @@ def build_report(
         forbid_date_serial=forbid_date_serial,
         forbid_formula=forbid_formula,
         forbid_untrimmed=forbid_untrimmed,
+        required_when=required_when,
     )
     return _report(
         result,
@@ -1853,6 +2009,7 @@ def profile_file(
     forbid_date_serial: Iterable[str] = (),
     forbid_formula: Iterable[str] = (),
     forbid_untrimmed: Iterable[str] = (),
+    required_when: Iterable[tuple[str, str, Iterable[str]]] = (),
 ) -> Report:
     """Stream ``path`` and profile it without loading the whole file into memory.
 
@@ -1866,8 +2023,8 @@ def profile_file(
     ``Report.trailing_delimiter``). ``month_names``,
     ``na_ignore_case``, ``check_digits``, ``required_values``,
     ``column_orders``, ``consistent_values``, ``forbid_scientific``,
-    ``forbid_mojibake``, ``forbid_date_serial``, ``forbid_formula`` and
-    ``forbid_untrimmed`` are as in ``build_report``.
+    ``forbid_mojibake``, ``forbid_date_serial``, ``forbid_formula``,
+    ``forbid_untrimmed`` and ``required_when`` are as in ``build_report``.
     """
     _validate_top_n(top_n)
     tokens = tuple(na_tokens)
@@ -1907,6 +2064,7 @@ def profile_file(
             forbid_date_serial=forbid_date_serial,
             forbid_formula=forbid_formula,
             forbid_untrimmed=forbid_untrimmed,
+            required_when=required_when,
         )
         return _report(
             result,

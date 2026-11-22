@@ -23,6 +23,7 @@ from .profile import (
     REPLACEMENT_CHARACTER,
     CheckDigitProfile,
     ColumnProfile,
+    ConditionalProfile,
     DateSerialProfile,
     DomainProfile,
     FormulaProfile,
@@ -38,6 +39,7 @@ from .profile import (
     allowed_list,
     column_order,
     compile_pattern,
+    conditional_requirement,
     key_columns,
     required_list,
     serial_date,
@@ -71,6 +73,7 @@ CHECK_MOJIBAKE = "mojibake"
 CHECK_DATE_SERIAL = "date_serial"
 CHECK_FORMULA = "formula"
 CHECK_UNTRIMMED = "untrimmed"
+CHECK_REQUIRED_WHEN = "required_when"
 # A baseline stamped up to this many seconds after the clock counts as 0
 # seconds old (clocks of two machines differ a little); later is an error.
 CLOCK_SKEW_TOLERANCE = 300
@@ -177,6 +180,12 @@ class CheckResult:
     formulas: tuple[tuple[str, int], ...] = ()
     # untrimmed checks: most frequent (cell text as read, cells) with surrounding whitespace
     untrimmed_values: tuple[tuple[str, int], ...] = ()
+    # required_when checks: the condition column and its values; ``checked``
+    # counts the rows that hold one of them, ``value`` those that lack the
+    # column, and ``missing_rows`` lists the first as (data row, condition value).
+    when: str = ""
+    when_values: tuple[str, ...] = ()
+    missing_rows: tuple[tuple[int, str], ...] = ()
 
     def describe(self) -> str:
         """One-line, human-readable explanation used on stderr and in Markdown."""
@@ -249,6 +258,8 @@ class CheckResult:
             return self._describe_formula()
         if self.check == CHECK_UNTRIMMED:
             return self._describe_untrimmed()
+        if self.check == CHECK_REQUIRED_WHEN:
+            return self._describe_required_when()
         if self.check == CHECK_MIN_ROWS:
             rows = int(self.value)
             noun = "data row" if rows == 1 else "data rows"
@@ -367,6 +378,36 @@ class CheckResult:
             f"column '{self.column}' has {count} {'cell' if count == 1 else 'cells'} with "
             "leading or trailing whitespace (joins and lookups on the column miss them; trim "
             "the column before exporting)" + (f": {examples}" if examples else "")
+        )
+
+    def _describe_required_when(self) -> str:
+        shown = [f'"{_visible(value)}"' for value in self.when_values[:_MAX_LISTED]]
+        if len(self.when_values) > _MAX_LISTED:
+            shown.append(f"... ({len(self.when_values)} values)")
+        if len(self.when_values) == 1:
+            condition = f"'{self.when}' is {shown[0]}"
+        else:
+            condition = f"'{self.when}' is one of {', '.join(shown)}"
+        if self.passed:
+            if not self.checked:
+                return f"column '{self.column}' was not checked: no row where {condition}"
+            every = "the row" if self.checked == 1 else f"all {self.checked} rows"
+            return f"column '{self.column}' is present in {every} where {condition}"
+        noun = "row" if self.checked == 1 else "rows"
+        if len(self.when_values) == 1:
+            listed = ", ".join(str(number) for number, _ in self.missing_rows)
+        else:
+            listed = ", ".join(
+                f'{number} ("{_visible(value)}")' for number, value in self.missing_rows
+            )
+        rows = ""
+        if listed:
+            rows = f" (data row{'s' if len(self.missing_rows) != 1 else ''} {listed}"
+            rows += ", ..." if int(self.value) > len(self.missing_rows) else ""
+            rows += ")"
+        return (
+            f"column '{self.column}' is missing in {int(self.value)} of {self.checked} "
+            f"{noun} where {condition}{rows}"
         )
 
     def _describe_formula(self) -> str:
@@ -1406,6 +1447,21 @@ def _column_order_check(order: OrderProfile) -> CheckResult:
     )
 
 
+def _required_when_check(profile: ConditionalProfile) -> CheckResult:
+    """A check that fails when a row that meets the condition lacks ``profile.column``."""
+    return CheckResult(
+        check=CHECK_REQUIRED_WHEN,
+        column=profile.column,
+        limit=0,
+        value=profile.missing,
+        passed=profile.missing == 0,
+        checked=profile.checked,
+        when=profile.when,
+        when_values=profile.values,
+        missing_rows=profile.examples,
+    )
+
+
 def _unique_key_check(key: KeyProfile) -> CheckResult:
     """A check that fails when two checked rows share the values of ``key``'s columns."""
     return CheckResult(
@@ -1453,6 +1509,7 @@ def evaluate(
     forbid_date_serial: Iterable[str] = (),
     forbid_formula: Iterable[str] = (),
     forbid_untrimmed: Iterable[str] = (),
+    required_when: Iterable[tuple[str, str, Iterable[str]]] = (),
 ) -> list[CheckResult]:
     """Evaluate the requested thresholds; a value equal to its limit passes.
 
@@ -1636,6 +1693,20 @@ def evaluate(
     list the first of those rows. The columns may be left out of the profile
     by ``columns``, since rows are read whole. Unknown names fail as
     ``required_column``.
+
+    ``required_when`` are ``(column, when, values)`` triples, such as
+    ``("Fecha entrega", "Estado", ["Entregado"])``: every row whose ``when``
+    cell, stripped, is one of ``values`` (case-sensitive, as text) must have
+    a non-missing ``column`` cell, for columns filled only on some rows (a
+    delivery date once a parcel is delivered, a tracking number once an order
+    is dispatched). The report must have been built with the same triples
+    (``profile_file(..., required_when=...)``), which checks the rows in the
+    single pass (``Report.conditionals``); a triple it lacks raises
+    ``ValueError``, and so does an invalid one. The check's ``value`` is the
+    number of rows that meet the condition and lack the column, ``checked``
+    the number that meet it, and ``missing_rows`` lists the first failing
+    rows as ``(data row, condition value)``. The columns may be left out of
+    the profile by ``columns``. Unknown names fail as ``required_column``.
 
     ``required_columns`` are matched exactly (case-sensitive) against the
     file's whole header (``Report.header``, after duplicate-name suffixes),
@@ -1910,8 +1981,22 @@ def evaluate(
                 "were not profiled with it"
             )
         results.append(_column_order_check(measured_order))
+    conditions = list(dict.fromkeys(conditional_requirement(*rule) for rule in required_when))
+    measured_conditions = {(c.column, c.when, c.values): c for c in report.conditionals}
+    for condition in conditions:
+        target, when, _ = condition
+        if target not in present or when not in present:
+            continue  # the unknown names are reported below as missing required columns
+        measured_condition = measured_conditions.get(condition)
+        if measured_condition is None:
+            raise ValueError(
+                f"column {target!r} has a required_when check on {when!r} but the report "
+                "was not profiled with it"
+            )
+        results.append(_required_when_check(measured_condition))
     key_names = [name for columns in keys for name in columns]
     order_names = [name for left, _, right in orders for name in (left, right)]
+    condition_names = [name for target, when, _ in conditions for name in (target, when)]
     unknown_limited = (
         name
         for name in [
@@ -1922,6 +2007,7 @@ def evaluate(
             *unique,
             *key_names,
             *order_names,
+            *condition_names,
             *max_ages,
             *domains,
             *formats,
