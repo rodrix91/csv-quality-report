@@ -28,6 +28,7 @@ from .profile import (
     DomainProfile,
     FormulaProfile,
     KeyProfile,
+    LostZerosProfile,
     MojibakeProfile,
     OrderProfile,
     PatternProfile,
@@ -37,6 +38,7 @@ from .profile import (
     UntrimmedProfile,
     VariantProfile,
     allowed_list,
+    code_width,
     column_order,
     compile_pattern,
     conditional_requirement,
@@ -73,6 +75,7 @@ CHECK_MOJIBAKE = "mojibake"
 CHECK_DATE_SERIAL = "date_serial"
 CHECK_FORMULA = "formula"
 CHECK_UNTRIMMED = "untrimmed"
+CHECK_LOST_ZEROS = "lost_zeros"
 CHECK_REQUIRED_WHEN = "required_when"
 # A baseline stamped up to this many seconds after the clock counts as 0
 # seconds old (clocks of two machines differ a little); later is an error.
@@ -180,6 +183,9 @@ class CheckResult:
     formulas: tuple[tuple[str, int], ...] = ()
     # untrimmed checks: most frequent (cell text as read, cells) with surrounding whitespace
     untrimmed_values: tuple[tuple[str, int], ...] = ()
+    # lost_zeros checks: the code width, and most frequent (value, cells) shorter than it
+    width: int = 0
+    lost_zeros: tuple[tuple[str, int], ...] = ()
     # required_when checks: the condition column and its values; ``checked``
     # counts the rows that hold one of them, ``value`` those that lack the
     # column, and ``missing_rows`` lists the first as (data row, condition value).
@@ -258,6 +264,8 @@ class CheckResult:
             return self._describe_formula()
         if self.check == CHECK_UNTRIMMED:
             return self._describe_untrimmed()
+        if self.check == CHECK_LOST_ZEROS:
+            return self._describe_lost_zeros()
         if self.check == CHECK_REQUIRED_WHEN:
             return self._describe_required_when()
         if self.check == CHECK_MIN_ROWS:
@@ -364,6 +372,23 @@ class CheckResult:
             f"column '{self.column}' has {count} {noun} written as spreadsheet date serials "
             "(the column was saved as a number; format it as a date before exporting)"
             + (f": {examples}" if examples else "")
+        )
+
+    def _describe_lost_zeros(self) -> str:
+        if self.passed:
+            return f"column '{self.column}' has no codes shorter than {self.width} digits"
+        count = int(self.value)
+        noun = "cell that lost its" if count == 1 else "cells that lost their"
+        examples = ", ".join(
+            f'"{value}" in {cells} cell'
+            + ("s" if cells != 1 else "")
+            + f' (probably "{value.zfill(self.width)}")'
+            for value, cells in self.lost_zeros
+        )
+        return (
+            f"column '{self.column}' has {count} {noun} leading zeros (shorter than "
+            f"{self.width} digits, as a spreadsheet saves codes as numbers; export the column "
+            "as text)" + (f": {examples}" if examples else "")
         )
 
     def _describe_untrimmed(self) -> str:
@@ -1379,6 +1404,19 @@ def _date_serial_check(profile: DateSerialProfile) -> CheckResult:
     )
 
 
+def _lost_zeros_check(profile: LostZerosProfile) -> CheckResult:
+    """A check that fails when a code of ``profile.column`` has fewer digits than its width."""
+    return CheckResult(
+        check=CHECK_LOST_ZEROS,
+        column=profile.column,
+        limit=0,
+        value=profile.cells,
+        passed=profile.cells == 0,
+        width=profile.width,
+        lost_zeros=profile.examples,
+    )
+
+
 def _untrimmed_check(profile: UntrimmedProfile) -> CheckResult:
     """A check that fails when a cell of ``profile.column`` has surrounding whitespace."""
     return CheckResult(
@@ -1510,6 +1548,7 @@ def evaluate(
     forbid_formula: Iterable[str] = (),
     forbid_untrimmed: Iterable[str] = (),
     required_when: Iterable[tuple[str, str, Iterable[str]]] = (),
+    forbid_lost_zeros: Mapping[str, int] | None = None,
 ) -> list[CheckResult]:
     """Evaluate the requested thresholds; a value equal to its limit passes.
 
@@ -1678,6 +1717,18 @@ def evaluate(
     texts as read, up to the report's ``top_n``. Unknown names fail as
     ``required_column``.
 
+    ``forbid_lost_zeros`` maps code columns to their number of digits (2 to
+    64), such as ``{"Código DANE": 5}``: a non-missing value made of fewer
+    ASCII digits lost its leading zeros when a spreadsheet saved the codes as
+    numbers, such as ``5001`` for ``05001`` (``profile.LostZerosProfile``).
+    The report must have been built with the same widths
+    (``profile_file(..., forbid_lost_zeros=...)``, ``Report.lost_zeros``); a
+    column it lacks or measured with another width raises ``ValueError``, and
+    so does an invalid width. The check's ``value`` is the number of such
+    cells, ``width`` the width given and ``lost_zeros`` lists the most
+    frequent of their values, up to the report's ``top_n``. Unknown names
+    fail as ``required_column``.
+
     ``column_orders`` are ``(left, operator, right)`` triples (operator
     ``"<="`` or ``"<"``), such as ``("Despacho", "<=", "Entrega")``: every row
     must keep that order between its two values, such as a delivery date not
@@ -1780,7 +1831,8 @@ def evaluate(
     dated = list(dict.fromkeys(forbid_date_serial))
     injectable = list(dict.fromkeys(forbid_formula))
     padded = list(dict.fromkeys(forbid_untrimmed))
-    gated += [*consistent, *exact, *garbled, *dated, *injectable, *padded]
+    widths = {name: code_width(width) for name, width in (forbid_lost_zeros or {}).items()}
+    gated += [*consistent, *exact, *garbled, *dated, *injectable, *padded, *widths]
     unprofiled = [name for name in gated if name in present]
     unprofiled = [name for name in unprofiled if name not in by_name]
     if unprofiled:
@@ -1958,6 +2010,17 @@ def evaluate(
                 f"column {name!r} has an untrimmed check but the report was not profiled with it"
             )
         results.append(_untrimmed_check(untrimmed))
+    measured_widths = {profile.column: profile for profile in report.lost_zeros}
+    for name, width in widths.items():
+        if name not in by_name:
+            continue  # reported below as a missing required column
+        zeros = measured_widths.get(name)
+        if zeros is None or zeros.width != width:
+            raise ValueError(
+                f"column {name!r} has a lost_zeros check but the report was not "
+                "profiled with the same width"
+            )
+        results.append(_lost_zeros_check(zeros))
     keys = list(dict.fromkeys(key_columns(key) for key in unique_keys))
     measured = {key.columns: key for key in report.keys}
     for columns in keys:
@@ -2019,6 +2082,7 @@ def evaluate(
             *dated,
             *injectable,
             *padded,
+            *widths,
         ]
         if name not in present
     )

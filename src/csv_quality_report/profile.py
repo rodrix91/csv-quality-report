@@ -506,6 +506,65 @@ class UntrimmedProfile:
     examples: tuple[tuple[str, int], ...] = ()
 
 
+@dataclass(frozen=True)
+class LostZerosProfile:
+    """Which values of a code column lost their leading zeros (``--forbid-lost-zeros``).
+
+    Spreadsheets read a code such as ``05001`` (a Colombian DANE municipality
+    code) or ``06600`` (a Mexican postal code) as a number and save it back
+    without its leading zeros, as ``5001`` or ``6600``. ``width`` is the
+    number of digits the column's codes have. Values are checked as the
+    report counts them: stripped of surrounding whitespace, as text; a value
+    counts when it is made of ASCII digits only and has fewer than ``width``
+    of them (``has_lost_zeros``). Values with other characters, or with
+    ``width`` digits or more, do not count, and missing cells are not
+    checked. ``cells`` is the exact number of such non-missing cells;
+    ``examples`` are the most frequent of those values, up to ``top_n``, with
+    their cells (first seen on ties). ``value.zfill(width)`` is what a listed
+    value probably was.
+    """
+
+    column: str
+    width: int
+    cells: int
+    examples: tuple[tuple[str, int], ...] = ()
+
+
+# The widths --forbid-lost-zeros accepts: a one-digit code cannot lose a
+# zero, and the cap keeps the padded hints of a message bounded.
+MIN_CODE_WIDTH = 2
+MAX_CODE_WIDTH = 64
+_ASCII_DIGITS = frozenset("0123456789")
+
+
+def code_width(width: int) -> int:
+    """Validate the code width of ``--forbid-lost-zeros``: a whole number from 2 to 64.
+
+    Returns ``width``; raises ``ValueError`` for anything else, including
+    ``bool`` values and numbers that are not ``int``.
+    """
+    if isinstance(width, bool) or not isinstance(width, int):
+        raise ValueError(f"the code width must be a whole number, got {width!r}")
+    if not MIN_CODE_WIDTH <= width <= MAX_CODE_WIDTH:
+        raise ValueError(
+            f"the code width must be from {MIN_CODE_WIDTH} to {MAX_CODE_WIDTH} digits, got {width}"
+        )
+    return width
+
+
+def has_lost_zeros(value: str, width: int) -> bool:
+    """Whether ``value`` (already stripped) is a code of ``width`` digits without its zeros.
+
+    A value counts when it is a non-empty string of ASCII digits (``0`` to
+    ``9``) with fewer than ``width`` of them: ``5001`` for a width of 5, but
+    not ``05001``, ``123456``, ``5.001``, ``5001-A`` or ``٥٠٠١`` (other
+    digits). ``width`` is validated as in ``code_width``. A value that is not
+    a ``str`` does not count.
+    """
+    code_width(width)
+    return isinstance(value, str) and 0 < len(value) < width and _ASCII_DIGITS.issuperset(value)
+
+
 # The first characters that make a spreadsheet read a cell as a formula
 # (OWASP's list, without the tab and carriage return that stripping removes).
 _FORMULA_FIRST = frozenset("=+-@")
@@ -693,6 +752,8 @@ class Report:
     untrimmed_values: tuple[UntrimmedProfile, ...] = ()
     # --require-when: one per requirement whose two columns exist
     conditionals: tuple[ConditionalProfile, ...] = ()
+    # --forbid-lost-zeros: one per profiled column
+    lost_zeros: tuple[LostZerosProfile, ...] = ()
 
 
 def _untrimmed_names(header: list[str]) -> tuple[str, ...]:
@@ -1363,6 +1424,7 @@ class _Profiled:
     formulas: tuple[FormulaProfile, ...] = ()
     untrimmed_values: tuple[UntrimmedProfile, ...] = ()
     conditionals: tuple[ConditionalProfile, ...] = ()
+    lost_zeros: tuple[LostZerosProfile, ...] = ()
 
 
 def _columns(
@@ -1441,6 +1503,7 @@ def profile_rows(
     forbid_formula: Iterable[str] = (),
     forbid_untrimmed: Iterable[str] = (),
     required_when: Iterable[tuple[str, str, Iterable[str]]] = (),
+    forbid_lost_zeros: Mapping[str, int] | None = None,
 ) -> _Profiled:
     """Profile ``rows`` in a single pass; each row must have ``len(header)`` cells.
 
@@ -1542,6 +1605,12 @@ def profile_rows(
     with an unknown name is skipped (``evaluate`` reports it); an invalid one
     raises ``ValueError`` before any row is read. Without requirements the
     pass does no extra work.
+
+    ``forbid_lost_zeros`` maps column names to the number of digits of their
+    codes (2 to 64, see ``LostZerosProfile``): a value made of fewer digits
+    lost its leading zeros. The widths are validated before any row is read;
+    the distinct values are tested once, after the pass; a name that is not
+    profiled is skipped.
     """
     _validate_top_n(top_n)
     # Materialize one-shot iterables before validation and missing-cell accounting.
@@ -1568,6 +1637,7 @@ def profile_rows(
     serials = set(forbid_date_serial)
     formulas = set(forbid_formula)
     padded = set(forbid_untrimmed)
+    widths = {name: code_width(width) for name, width in (forbid_lost_zeros or {}).items()}
     selected = _selection(header, columns)
     accumulators = [
         _ColumnAccumulator(name)
@@ -1639,6 +1709,9 @@ def profile_rows(
             _untrimmed(acc, top_n) for acc in accumulators if acc.name in padded
         ),
         conditionals=tuple(condition.finish() for condition in condition_checks),
+        lost_zeros=tuple(
+            _lost_zeros(acc, widths[acc.name], top_n) for acc in accumulators if acc.name in widths
+        ),
     )
 
 
@@ -1768,6 +1841,19 @@ def _check_digit(acc: _ColumnAccumulator, scheme: str, top_n: int) -> CheckDigit
     return CheckDigitProfile(column=acc.name, scheme=scheme, invalid=invalid, examples=examples)
 
 
+def _lost_zeros(acc: _ColumnAccumulator, width: int, top_n: int) -> LostZerosProfile:
+    """The cells of ``acc`` (stripped, without missing ones) that lost their leading zeros."""
+    # Inlined has_lost_zeros (the width is already valid): one length test and
+    # one set test per distinct value, with no regular expression.
+    digits = _ASCII_DIGITS.issuperset
+
+    def kept(value: str) -> bool:
+        return len(value) >= width or not digits(value)
+
+    cells, examples = _outside(acc.counts, kept, top_n)
+    return LostZerosProfile(column=acc.name, width=width, cells=cells, examples=examples)
+
+
 def _untrimmed(acc: _ColumnAccumulator, top_n: int) -> UntrimmedProfile:
     """The non-missing cells of ``acc`` with surrounding whitespace, as read."""
     # strip_counts(keep_padded=True) kept exactly the cells it counted as
@@ -1860,6 +1946,7 @@ def _report(
         formulas=result.formulas,
         untrimmed_values=result.untrimmed_values,
         conditionals=result.conditionals,
+        lost_zeros=result.lost_zeros,
     )
 
 
@@ -1889,6 +1976,7 @@ def build_report(
     forbid_formula: Iterable[str] = (),
     forbid_untrimmed: Iterable[str] = (),
     required_when: Iterable[tuple[str, str, Iterable[str]]] = (),
+    forbid_lost_zeros: Mapping[str, int] | None = None,
 ) -> Report:
     """Profile every column of an in-memory ``table``.
 
@@ -1926,10 +2014,13 @@ def build_report(
     values a spreadsheet must not read as formulas, such as
     ``=HYPERLINK(...)`` (``Report.formulas``); ``forbid_untrimmed`` names
     columns whose non-missing cells must not have leading or trailing
-    whitespace, such as ``"ALM01   "`` (``Report.untrimmed_values``); and
+    whitespace, such as ``"ALM01   "`` (``Report.untrimmed_values``);
     ``required_when`` are ``(column, when, values)`` triples such as
     ``("Fecha entrega", "Estado", ["Entregado"])``: a row whose ``when`` cell
-    holds one of ``values`` must have ``column`` (``Report.conditionals``).
+    holds one of ``values`` must have ``column`` (``Report.conditionals``);
+    and ``forbid_lost_zeros`` maps code columns to their number of digits,
+    such as ``{"Código DANE": 5}``: a value of fewer digits, such as
+    ``5001`` for ``05001``, lost its leading zeros (``Report.lost_zeros``).
     """
     _validate_top_n(top_n)
     tokens = tuple(na_tokens)
@@ -1960,6 +2051,7 @@ def build_report(
         forbid_formula=forbid_formula,
         forbid_untrimmed=forbid_untrimmed,
         required_when=required_when,
+        forbid_lost_zeros=forbid_lost_zeros,
     )
     return _report(
         result,
@@ -2010,6 +2102,7 @@ def profile_file(
     forbid_formula: Iterable[str] = (),
     forbid_untrimmed: Iterable[str] = (),
     required_when: Iterable[tuple[str, str, Iterable[str]]] = (),
+    forbid_lost_zeros: Mapping[str, int] | None = None,
 ) -> Report:
     """Stream ``path`` and profile it without loading the whole file into memory.
 
@@ -2024,7 +2117,8 @@ def profile_file(
     ``na_ignore_case``, ``check_digits``, ``required_values``,
     ``column_orders``, ``consistent_values``, ``forbid_scientific``,
     ``forbid_mojibake``, ``forbid_date_serial``, ``forbid_formula``,
-    ``forbid_untrimmed`` and ``required_when`` are as in ``build_report``.
+    ``forbid_untrimmed``, ``required_when`` and ``forbid_lost_zeros`` are as
+    in ``build_report``.
     """
     _validate_top_n(top_n)
     tokens = tuple(na_tokens)
@@ -2065,6 +2159,7 @@ def profile_file(
             forbid_formula=forbid_formula,
             forbid_untrimmed=forbid_untrimmed,
             required_when=required_when,
+            forbid_lost_zeros=forbid_lost_zeros,
         )
         return _report(
             result,

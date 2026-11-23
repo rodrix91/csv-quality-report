@@ -466,5 +466,12 @@
     "args": ["--delimiter", "auto", "--decimal-comma", "--date-order", "dmy", "--na", "s/d", "--require-when", "Fecha entrega", "Estado=Entregado", "--require-when", "Recibió", "Estado=Entregado", "--require-when", "Motivo devolución", "Estado=Devuelto", "--allowed-values", "Estado=Entregado,En ruta,Pendiente,Devuelto"],
     "exit_code": 8,
     "about": "A Guatemalan courier's parcel status export (UTF-8, CRLF, ';', day-first date-times, decimal comma) whose delivery date, receiver and return reason are filled only for some statuses, so none of them can have a --max-missing-column limit. --require-when fails on the delivered parcel without a delivery date, on the two delivered without a receiver (s/d and a whitespace-only cell) and on the returned parcel without a reason; 'Entregado ' with a trailing space is a delivered row, while the hand-typed ENTREGADO is not, and --allowed-values names it."
+  },
+  {
+    "name": "co_distributor_dane",
+    "file": "co_distributor_dane.csv",
+    "args": ["--delimiter", "auto", "--decimal-comma", "--thousands", "dot", "--na", "s/d", "--forbid-lost-zeros", "Código DANE=5", "--forbid-lost-zeros", "Código postal=6", "--forbid-lost-zeros", "Vendedor=4"],
+    "exit_code": 8,
+    "about": "A Colombian distributor's customer export (UTF-8, CRLF, ';', decimal comma, dot thousands) with rows that went through a spreadsheet, which saved the DANE municipality codes and the postal codes as numbers without their leading zeros (5001 for Medellín's 05001, 8001 for Barranquilla's 08001, 50001 for the postal code 050001). --forbid-lost-zeros fails on both columns and shows what each code probably was; Bogotá's 11001 and Cali's 76001 have no zero to lose, the padded ' 05360 ' is stripped and keeps its zeros, the s/d postal code is missing, and the salesperson codes, all of 4 digits, pass."
   }
 ]
