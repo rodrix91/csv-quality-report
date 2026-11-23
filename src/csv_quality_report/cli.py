@@ -41,8 +41,11 @@ from .inference import (
 )
 from .output import write_atomic
 from .profile import (
+    MAX_CODE_WIDTH,
+    MIN_CODE_WIDTH,
     TOP_N,
     allowed_list,
+    code_width,
     column_order,
     compile_pattern,
     conditional_requirement,
@@ -475,6 +478,34 @@ def _untrimmed_name(text: str) -> str:
     return _column_name(text, "--forbid-untrimmed")
 
 
+_WIDTH = re.compile(r"[0-9]+")
+_LONGEST_WIDTH = 20  # digits of a --forbid-lost-zeros width shown as a number in errors
+
+
+def _column_code_width(text: str) -> tuple[str, int]:
+    """Parse ``NAME=WIDTH`` for --forbid-lost-zeros (split at the last ``=``)."""
+    name, sep, width = text.rpartition("=")
+    if not sep or not name.strip():
+        raise argparse.ArgumentTypeError(
+            f"invalid --forbid-lost-zeros value: {text!r} (use NAME=WIDTH, such as "
+            "CP=5 for postal codes of 5 digits)"
+        )
+    try:
+        if _WIDTH.fullmatch(width) is None:
+            raise ValueError(f"the code width must be a whole number, got {width!r}")
+        number = width.lstrip("0")
+        if len(number) > _LONGEST_WIDTH:  # int() refuses very long digit strings
+            raise ValueError(
+                f"the code width must be from {MIN_CODE_WIDTH} to {MAX_CODE_WIDTH} digits, "
+                f"got a number of {len(number)} digits"
+            )
+        return name, code_width(int(width))
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError(
+            f"invalid --forbid-lost-zeros value for {name!r}: {exc}"
+        ) from None
+
+
 def _key_names(text: str) -> tuple[str, ...]:
     """Reject omitted composite-key columns before checking their uniqueness."""
     names = _column_names(text, "--unique-key")
@@ -885,6 +916,15 @@ def build_parser() -> argparse.ArgumentParser:
         "non-breaking space, which joins and lookups miss; repeatable",
     )
     gates.add_argument(
+        "--forbid-lost-zeros",
+        type=_column_code_width,
+        action="append",
+        default=[],
+        metavar="NAME=WIDTH",
+        help="fail if a non-missing cell of code column NAME is made of fewer than WIDTH "
+        "digits (2 to 64), as a spreadsheet saves 05001 as 5001, such as CP=5; repeatable",
+    )
+    gates.add_argument(
         "--require-values",
         type=_column_required,
         action="append",
@@ -1059,6 +1099,7 @@ def _check_selected(args: argparse.Namespace) -> None:
         ("--forbid-date-serial", args.forbid_date_serial),
         ("--forbid-formula", args.forbid_formula),
         ("--forbid-untrimmed", args.forbid_untrimmed),
+        ("--forbid-lost-zeros", [name for name, _ in args.forbid_lost_zeros]),
         ("--allow-type-change", [r.column for r in args.allow_type_change if r.column]),
         ("--allow-added-column", args.allow_added_column),
         ("--allow-removed-column", args.allow_removed_column),
@@ -1243,6 +1284,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             forbid_formula=args.forbid_formula,  # a repeated name gives one check
             forbid_untrimmed=args.forbid_untrimmed,  # a repeated name gives one check
             required_when=args.require_when,  # a repeated requirement gives one check
+            forbid_lost_zeros=dict(args.forbid_lost_zeros),  # the last width for a name wins
             skip_lines=args.skip_lines,
             skip_footer=args.skip_footer,
             trailing_delimiter=args.trailing_delimiter,
@@ -1276,6 +1318,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         forbid_formula=args.forbid_formula,  # a repeated name gives one check
         forbid_untrimmed=args.forbid_untrimmed,  # a repeated name gives one check
         required_when=args.require_when,  # a repeated requirement gives one check
+        forbid_lost_zeros=dict(args.forbid_lost_zeros),  # the last width for a name wins
         column_max_ages=dict(args.max_age),  # the last limit for a name wins
         now=now,
         utc_offset=args.utc_offset,

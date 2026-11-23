@@ -1,0 +1,265 @@
+{
+  "source": "tests/corpus/co_distributor_dane.csv",
+  "rows": 8,
+  "truncated": false,
+  "delimiter": ";",
+  "delimiter_detected": true,
+  "sep_line": false,
+  "na_tokens": [
+    "s/d"
+  ],
+  "top_n": 3,
+  "compressed": false,
+  "encoding": "utf-8",
+  "thousands": ".",
+  "date_order": null,
+  "bool_words": [],
+  "number_affixes": [],
+  "accounting_negatives": false,
+  "selected_columns": null,
+  "header_columns": 7,
+  "duplicate_rows": 0,
+  "untrimmed_columns": [],
+  "columns": [
+    {
+      "name": "NIT",
+      "type": "string",
+      "type_hint": null,
+      "missing": 0,
+      "missing_pct": 0.0,
+      "distinct": 8,
+      "min": null,
+      "max": null,
+      "mean": null,
+      "min_length": 11,
+      "max_length": 11,
+      "top_values": [
+        {
+          "value": "900123456-1",
+          "count": 1
+        },
+        {
+          "value": "800765432-9",
+          "count": 1
+        },
+        {
+          "value": "901234567-3",
+          "count": 1
+        }
+      ],
+      "untrimmed": 0,
+      "affixes": {}
+    },
+    {
+      "name": "Cliente",
+      "type": "string",
+      "type_hint": null,
+      "missing": 0,
+      "missing_pct": 0.0,
+      "distinct": 8,
+      "min": null,
+      "max": null,
+      "mean": null,
+      "min_length": 12,
+      "max_length": 21,
+      "top_values": [
+        {
+          "value": "Ferretería El Poblado",
+          "count": 1
+        },
+        {
+          "value": "Distribuidora La 70",
+          "count": 1
+        },
+        {
+          "value": "Almacén Sabanero",
+          "count": 1
+        }
+      ],
+      "untrimmed": 0,
+      "affixes": {}
+    },
+    {
+      "name": "Código DANE",
+      "type": "int",
+      "type_hint": null,
+      "missing": 0,
+      "missing_pct": 0.0,
+      "distinct": 7,
+      "min": 5001,
+      "max": 76001,
+      "mean": 15079.0,
+      "min_length": 4,
+      "max_length": 5,
+      "top_values": [
+        {
+          "value": "5001",
+          "count": 2
+        },
+        {
+          "value": "05001",
+          "count": 1
+        },
+        {
+          "value": "8001",
+          "count": 1
+        }
+      ],
+      "untrimmed": 1,
+      "affixes": {}
+    },
+    {
+      "name": "Municipio",
+      "type": "string",
+      "type_hint": null,
+      "missing": 0,
+      "missing_pct": 0.0,
+      "distinct": 6,
+      "min": null,
+      "max": null,
+      "mean": null,
+      "min_length": 4,
+      "max_length": 12,
+      "top_values": [
+        {
+          "value": "Medellín",
+          "count": 3
+        },
+        {
+          "value": "Barranquilla",
+          "count": 1
+        },
+        {
+          "value": "Bogotá",
+          "count": 1
+        }
+      ],
+      "untrimmed": 0,
+      "affixes": {}
+    },
+    {
+      "name": "Código postal",
+      "type": "int",
+      "type_hint": null,
+      "missing": 1,
+      "missing_pct": 12.5,
+      "distinct": 7,
+      "min": 50001,
+      "max": 760001,
+      "mean": 165855.0,
+      "min_length": 5,
+      "max_length": 6,
+      "top_values": [
+        {
+          "value": "050021",
+          "count": 1
+        },
+        {
+          "value": "50001",
+          "count": 1
+        },
+        {
+          "value": "80020",
+          "count": 1
+        }
+      ],
+      "untrimmed": 0,
+      "affixes": {}
+    },
+    {
+      "name": "Vendedor",
+      "type": "int",
+      "type_hint": null,
+      "missing": 0,
+      "missing_pct": 0.0,
+      "distinct": 4,
+      "min": 7,
+      "max": 45,
+      "mean": 19.625,
+      "min_length": 4,
+      "max_length": 4,
+      "top_values": [
+        {
+          "value": "0012",
+          "count": 3
+        },
+        {
+          "value": "0031",
+          "count": 2
+        },
+        {
+          "value": "0007",
+          "count": 2
+        }
+      ],
+      "untrimmed": 0,
+      "affixes": {}
+    },
+    {
+      "name": "Ventas",
+      "type": "float",
+      "type_hint": null,
+      "missing": 1,
+      "missing_pct": 12.5,
+      "distinct": 7,
+      "min": 645900.25,
+      "max": 3402000.0,
+      "mean": 1569410.0,
+      "min_length": 10,
+      "max_length": 12,
+      "top_values": [
+        {
+          "value": "1.250.000,50",
+          "count": 1
+        },
+        {
+          "value": "980.400,00",
+          "count": 1
+        },
+        {
+          "value": "2.115.300,75",
+          "count": 1
+        }
+      ],
+      "untrimmed": 0,
+      "affixes": {}
+    }
+  ],
+  "baseline": null,
+  "checks": [
+    {
+      "check": "lost_zeros",
+      "column": "Código DANE",
+      "limit": 0,
+      "value": 4,
+      "passed": false,
+      "width": 5,
+      "lost_zeros": {
+        "5001": 2,
+        "8001": 1,
+        "5266": 1
+      }
+    },
+    {
+      "check": "lost_zeros",
+      "column": "Código postal",
+      "limit": 0,
+      "value": 2,
+      "passed": false,
+      "width": 6,
+      "lost_zeros": {
+        "50001": 1,
+        "80020": 1
+      }
+    },
+    {
+      "check": "lost_zeros",
+      "column": "Vendedor",
+      "limit": 0,
+      "value": 0,
+      "passed": true,
+      "width": 4,
+      "lost_zeros": {}
+    }
+  ]
+}
