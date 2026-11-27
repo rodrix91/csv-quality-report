@@ -86,7 +86,7 @@ Historical releases created from older commits may predate checksums or provenan
 ## Usage
 
 ```text
-python -m csv_quality_report PATH [--format markdown|json] [--json-output FILE] [--record-time] [--max-rows N] [--columns NAMES] [--top N]
+python -m csv_quality_report PATH [--options-file FILE ...] [--format markdown|json] [--json-output FILE] [--record-time] [--max-rows N] [--columns NAMES] [--top N]
                              [--delimiter CHAR] [--skip-lines N] [--skip-footer N] [--trailing-delimiter] [--encoding NAME] [--max-field-size N] [--na TOKENS [--na-ignore-case]]
                              [--decimal-comma] [--thousands SEP] [--date-order dmy|mdy|ymd [--month-names]] [--bool-words TRUE,FALSE ...]
                              [--number-affix TEXT ...] [--accounting-negatives]
@@ -225,6 +225,30 @@ python -m csv_quality_report export.csv --format json --baseline reports/last.js
 ```
 
 The first run needs a stamped `reports/last.json`: write it once with `--record-time --json-output reports/last.json`.
+
+### Options files
+
+`--options-file FILE` reads more options from a UTF-8 text file and inserts them where the option appears, so the reading options and quality gates of a scheduled export can be kept in a versioned file and shared by a local run, a cron job and CI, and column names with spaces are easy to write:
+
+```text
+# checks/envios.opts: courier export, checked every morning
+--delimiter auto --decimal-comma --thousands dot --date-order dmy --na s/d,#N/A
+--require-columns "Nro de guía,Estado,Fecha entrega"
+--unique "Nro de guía"
+--require-when "Fecha entrega" Estado=Entregado
+--max-missing-column 'Peso kg=0'
+```
+
+```sh
+python -m csv_quality_report envios.csv --options-file checks/envios.opts --json-output reports/envios.json
+```
+
+- One or more options per line, separated by spaces or tabs. Single or double quotes group words and are removed (`"Nro de guía"`), the other kind of quote is literal inside them (`"O'Higgins"`), and a quoted part joins the text next to it (`--na="s/d,sin dato"`); `""` is an empty value.
+- A line whose first non-blank character is `#` is a comment. There are no comments at the end of a line, so `--na #N/A` is the value `#N/A`. Backslashes are literal, so Windows paths and `--pattern 'CUIT=\d{2}-\d{8}-\d'` need no escaping.
+- The options are inserted in place: an option written after `--options-file` on the command line overrides a single-value option of the file (`--options-file daily.opts --top 3`), and repeatable options such as `--unique` or `--range` add up. The option is repeatable and accepts `--options-file=FILE`; a relative `FILE` is relative to the working directory, like every other path.
+- Errors are usage errors (exit code 2) that name the file and the line: a file that cannot be read, one that is not UTF-8 (a UTF-8 BOM is accepted, and `\r\n` line endings too), an unclosed quote, control characters other than tabs, a file over 1 MiB (most likely a CSV passed by mistake), `--options-file` inside a file (files do not include other files) and a bare `--`. Standard input (`-`) is reserved for the CSV. The options of the file are then checked like any other (`--max-rows 0` is still `argument --max-rows: ...`).
+
+Runs without `--options-file` are unchanged. The GitHub Action does not accept it yet (see below). The format is recorded in [ADR 0010](https://github.com/rodrix91/csv-quality-report/blob/main/docs/decisions/0010-options-file.md).
 
 ### Example: Markdown (default)
 
@@ -432,6 +456,8 @@ The Action's **read inputs** (`path` and optional `baseline`) must also be relat
 
 The Action also requires **single-line** `args` and `baseline-args`: multiline values are rejected with exit code `2` before Bash tokenization, since a Bash `read -a` command would otherwise silently ignore quality gates written after the first newline. Terminal control characters (C0 except horizontal tab, DEL and C1) are refused in these two inputs; ordinary spaces, tabs and Unicode option values continue to work. A rejected input never writes a new report or marks a quality gate as passed. This validation applies to the reusable Action, not the standalone CLI.
 
+`args` and `baseline-args` cannot carry `--baseline` or `--json-output` (use the `baseline` and `report-path` inputs), `--help` or `--version` (they exit 0 without reading the file), or `--options-file` and its abbreviations, since a file could bring back any of those; these are refused with exit code `2`. Column names with spaces therefore cannot be written in `args` yet; reading an options file from the workspace with the same checks is a planned follow-up of #323.
+
 `report-json` is `report-path` as given when that input is set. An explicit `report-path` must be relative and resolve inside `GITHUB_WORKSPACE`; absolute paths and `..` escapes are refused. The Action never removes an existing user-supplied `report-path`: an early error preserves its content and leaves `report-json` empty. **A zero exit or quality-gate failure (exit 8) only exposes `report-json` if a new, valid JSON quality report was actually written.** The Action compares file identity, size and nanosecond timestamps before and after execution to reject an unchanged old report, and validates the new report's core fields and that its quality-check results agree with the CLI exit code. Missing, malformed or contradictory JSON fails closed (exit `3`, `passed=false`, empty `report-json`); a genuine, fresh atomic replacement of the same path is accepted. Like `--json-output`, the report cannot be written over the input or baseline (exit 2). A `report-path` with a line break or invisible terminal controls (C0, DEL or C1) is an error; ordinary Unicode paths remain supported.
 
 Example: a scheduled workflow that compares each day's export with the report the previous successful run kept, fails when the export arrived with only its header (`--min-rows 1`), when the schema changed, rows dropped by more than half or the kept report is more than 36 hours old (a run that stopped refreshing it), and saves today's report as the next baseline only when every check passed. The first run has no baseline yet; `if-baseline-missing: skip` lets it pass with a warning and keep its report:
@@ -567,7 +593,7 @@ flowchart TD
 | `output.py` | atomic write of the `--json-output` file (temporary file + `os.replace`) |
 | `errors.py` | error classes and exit codes |
 
-Design rationale and alternatives: [docs/decisions/0001-architecture.md](https://github.com/rodrix91/csv-quality-report/blob/main/docs/decisions/0001-architecture.md) for streaming, [docs/decisions/0002-streaming-profile.md](https://github.com/rodrix91/csv-quality-report/blob/main/docs/decisions/0002-streaming-profile.md), and for comparing times in `--range`, [docs/decisions/0003-datetime-ranges.md](https://github.com/rodrix91/csv-quality-report/blob/main/docs/decisions/0003-datetime-ranges.md), and for writing `--json-output`, [docs/decisions/0004-atomic-output.md](https://github.com/rodrix91/csv-quality-report/blob/main/docs/decisions/0004-atomic-output.md); later decisions: [0005](https://github.com/rodrix91/csv-quality-report/blob/main/docs/decisions/0005-portable-output.md) (the same output on every platform), [0006](https://github.com/rodrix91/csv-quality-report/blob/main/docs/decisions/0006-composite-keys.md) (composite keys), [0007](https://github.com/rodrix91/csv-quality-report/blob/main/docs/decisions/0007-allowed-type-changes.md) (allowed schema changes), [0008](https://github.com/rodrix91/csv-quality-report/blob/main/docs/decisions/0008-report-timestamps.md) (report timestamps and the baseline age) and [0009](https://github.com/rodrix91/csv-quality-report/blob/main/docs/decisions/0009-column-freshness.md) (column freshness) (in the [source repository](https://github.com/rodrix91/csv-quality-report) and the sdist; not included in the wheel).
+Design rationale and alternatives: [docs/decisions/0001-architecture.md](https://github.com/rodrix91/csv-quality-report/blob/main/docs/decisions/0001-architecture.md) for streaming, [docs/decisions/0002-streaming-profile.md](https://github.com/rodrix91/csv-quality-report/blob/main/docs/decisions/0002-streaming-profile.md), and for comparing times in `--range`, [docs/decisions/0003-datetime-ranges.md](https://github.com/rodrix91/csv-quality-report/blob/main/docs/decisions/0003-datetime-ranges.md), and for writing `--json-output`, [docs/decisions/0004-atomic-output.md](https://github.com/rodrix91/csv-quality-report/blob/main/docs/decisions/0004-atomic-output.md); later decisions: [0005](https://github.com/rodrix91/csv-quality-report/blob/main/docs/decisions/0005-portable-output.md) (the same output on every platform), [0006](https://github.com/rodrix91/csv-quality-report/blob/main/docs/decisions/0006-composite-keys.md) (composite keys), [0007](https://github.com/rodrix91/csv-quality-report/blob/main/docs/decisions/0007-allowed-type-changes.md) (allowed schema changes), [0008](https://github.com/rodrix91/csv-quality-report/blob/main/docs/decisions/0008-report-timestamps.md) (report timestamps and the baseline age), [0009](https://github.com/rodrix91/csv-quality-report/blob/main/docs/decisions/0009-column-freshness.md) (column freshness) and [0010](https://github.com/rodrix91/csv-quality-report/blob/main/docs/decisions/0010-options-file.md) (options files) (in the [source repository](https://github.com/rodrix91/csv-quality-report) and the sdist; not included in the wheel).
 
 ## Testing
 
