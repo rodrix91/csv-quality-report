@@ -16,6 +16,15 @@ inputs:
       See the README for every option.
     required: false
     default: ""
+  options-file:
+    description: >-
+      Options file (--options-file) relative to the workspace: one or more
+      options per line, quotes group words, so column names with spaces can
+      be checked (--unique "Nro de guía"). Its options come before args,
+      which can override them. It cannot contain --baseline, --json-output,
+      --help, --version or another --options-file.
+    required: false
+    default: ""
   python-version:
     description: Python version used to run the tool (3.11 or newer).
     required: false
@@ -89,6 +98,7 @@ runs:
         ACTION_PATH: ${{ github.action_path }}
         INPUT_PATH: ${{ inputs.path }}
         INPUT_ARGS: ${{ inputs.args }}
+        INPUT_OPTIONS_FILE: ${{ inputs.options-file }}
         INPUT_SUMMARY: ${{ inputs.summary }}
         INPUT_REPORT_PATH: ${{ inputs.report-path }}
         INPUT_BASELINE: ${{ inputs.baseline }}
@@ -169,6 +179,17 @@ runs:
           fi
         fi
 
+        if [ -n "$INPUT_OPTIONS_FILE" ]; then
+          set +e
+          read_error=$(python "$ACTION_PATH/scripts/validate_action_read_path.py" "$INPUT_OPTIONS_FILE" "$GITHUB_WORKSPACE" options-file 2>&1)
+          read_code=$?
+          set -e
+          if [ "$read_code" -ne 0 ]; then
+            annotate error "$read_error"
+            finish 2 "" false
+          fi
+        fi
+
         # Split the extra arguments on whitespace without glob expansion.
         set -f
         read -r -a extra <<< "$INPUT_ARGS"
@@ -192,7 +213,7 @@ runs:
             # An options file could carry the options refused here (#323).
             # --options-file is the only option starting with --o.
             --o*)
-              annotate error "--options-file is not supported in Action args; write the options in args"
+              annotate error "--options-file is not supported in Action args; use the options-file input"
               finish 2 "" false
               ;;
           esac
@@ -213,6 +234,23 @@ runs:
 
         report_dir="${RUNNER_TEMP}/csv-quality-report-${GITHUB_ACTION}"
         mkdir -p "$report_dir"
+
+        # Check the options file with the CLI's own parser and the guard used
+        # for args, and run the CLI on a copy of the bytes that were checked,
+        # so the file cannot change in between (#325).
+        options=()
+        if [ -n "$INPUT_OPTIONS_FILE" ]; then
+          options_copy="$report_dir/options.opts"
+          set +e
+          options_error=$(python "$ACTION_PATH/scripts/validate_action_options_file.py" "$INPUT_OPTIONS_FILE" "$options_copy" 2>&1)
+          options_code=$?
+          set -e
+          if [ "$options_code" -ne 0 ]; then
+            annotate error "$options_error"
+            finish 2 "" false
+          fi
+          options=(--options-file "$options_copy")
+        fi
         markdown="$report_dir/report.md"
         if [ -n "$INPUT_REPORT_PATH" ]; then
           # The user's file is never removed here: it may be a report a later
@@ -245,7 +283,7 @@ runs:
         fi
 
         set +e
-        python -m csv_quality_report "$INPUT_PATH" "${extra[@]}" "${compare[@]}" --json-output "$json" > "$markdown"
+        python -m csv_quality_report "$INPUT_PATH" "${options[@]}" "${extra[@]}" "${compare[@]}" --json-output "$json" > "$markdown"
         code=$?
         set -e
 

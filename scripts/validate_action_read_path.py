@@ -1,4 +1,4 @@
-"""Validate workspace boundaries for GitHub Action input and baseline paths."""
+"""Validate workspace boundaries for GitHub Action input, baseline and options-file paths."""
 
 from __future__ import annotations
 
@@ -8,8 +8,8 @@ from pathlib import Path
 
 def validate_read_path(raw: str, workspace_raw: str, label: str) -> None:
     """Reject filesystem reads outside the caller's workflow workspace."""
-    if label not in {"path", "baseline"}:
-        raise ValueError("path kind must be path or baseline")
+    if label not in {"path", "baseline", "options-file"}:
+        raise ValueError("path kind must be path, baseline or options-file")
     if not raw:
         raise ValueError(f"{label} must not be empty")
     if raw == "-":
@@ -46,7 +46,7 @@ def validate_read_path(raw: str, workspace_raw: str, label: str) -> None:
 def main() -> int:
     if len(sys.argv) != 4:
         print(
-            "usage: validate_action_read_path.py PATH WORKSPACE path|baseline",
+            "usage: validate_action_read_path.py PATH WORKSPACE path|baseline|options-file",
             file=sys.stderr,
         )
         return 2

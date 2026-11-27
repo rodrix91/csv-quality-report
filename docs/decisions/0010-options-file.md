@@ -30,6 +30,7 @@ A pipeline that checks a scheduled export needs a long command line: the reading
 - Runs without the option are unchanged: the expansion returns the same tokens.
 - The syntax is not a shell: no variables, no escapes, no inline comments. A value that must contain both kinds of quote cannot be written; no option of the tool needs that today.
 - The Action cannot use column names with spaces yet; that is the follow-up.
+- Update (#325): the follow-up landed as the Action's `options-file` input. The path is checked like `path` and `baseline`, the contents are parsed with this parser and get the `args` guard (reserved options, help and version, nesting) with the line of the first problem, and the CLI reads a copy of the bytes that were checked. `args` and `baseline-args` keep refusing `--options-file`.
 
 ## Alternatives considered
 

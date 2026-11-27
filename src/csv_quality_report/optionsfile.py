@@ -106,13 +106,11 @@ def parse_options_text(text: str) -> list[tuple[int, str]]:
     return tokens
 
 
-def read_options_file(path: str, *, is_options_file: Callable[[str], bool]) -> list[str]:
-    """The options in the file at ``path``, in order.
+def read_options_bytes(path: str) -> bytes:
+    """The raw content of the options file at ``path`` (at most 1 MiB).
 
-    ``is_options_file`` tells whether a token is ``--options-file`` (or one of
-    its abbreviations): files cannot include other files. A bare ``--`` is
-    refused too, since it would end the options of the whole command line.
-    Raises :class:`OptionsFileError`.
+    Raises :class:`OptionsFileError` for ``-`` (standard input is the CSV),
+    a file that cannot be read and a file over :data:`MAX_OPTIONS_FILE_BYTES`.
     """
     where = f"--options-file '{path}'"
     if path == "-":
@@ -129,6 +127,21 @@ def read_options_file(path: str, *, is_options_file: Callable[[str], bool]) -> l
             f"{where}: larger than 1 MiB; an options file holds command-line options "
             "(was a CSV file passed by mistake?)"
         )
+    return data
+
+
+def parse_options_bytes(
+    data: bytes, path: str, *, is_options_file: Callable[[str], bool]
+) -> list[tuple[int, str]]:
+    """The tokens of an options file's content, each with its 1-based line number.
+
+    ``path`` only names the file in messages. ``is_options_file`` tells
+    whether a token is ``--options-file`` (or one of its abbreviations):
+    files cannot include other files. A bare ``--`` is refused too, since it
+    would end the options of the whole command line. Raises
+    :class:`OptionsFileError`.
+    """
+    where = f"--options-file '{path}'"
     data = data.removeprefix(_BOM)
     try:
         text = data.decode("utf-8")
@@ -152,4 +165,14 @@ def read_options_file(path: str, *, is_options_file: Callable[[str], bool]) -> l
                 f"{where}: line {line}: an options file cannot include another one "
                 f"({token.partition('=')[0]})"
             )
-    return [token for _, token in tokens]
+    return tokens
+
+
+def read_options_file(path: str, *, is_options_file: Callable[[str], bool]) -> list[str]:
+    """The options in the file at ``path``, in order.
+
+    :func:`read_options_bytes` then :func:`parse_options_bytes`, without the
+    line numbers. Raises :class:`OptionsFileError`.
+    """
+    data = read_options_bytes(path)
+    return [token for _, token in parse_options_bytes(data, path, is_options_file=is_options_file)]

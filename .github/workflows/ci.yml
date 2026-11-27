@@ -325,6 +325,32 @@ jobs:
           report-path: reports/multiline-baseline.json
           summary: "false"
 
+      - name: Make an options file with column names with spaces
+        run: |
+          mkdir -p ci-options
+          printf '%s\n' 'Nro de guía;Estado;Fecha entrega' 'G-1;Entregado;05/11/2026' 'G-2;En tránsito;' > ci-options/envios.csv
+          printf '%s\n' '# courier export' "--delimiter ';' --date-order dmy" '--unique "Nro de guía"' "--require-when 'Fecha entrega' Estado=Entregado" > ci-options/envios.opts
+          printf '%s\n' '--delimiter auto' '--json-output=ci-options/stolen.json' > ci-options/reserved.opts
+
+      - name: Action reads options and column names with spaces from options-file
+        id: options-file
+        uses: ./
+        with:
+          path: ci-options/envios.csv
+          options-file: ci-options/envios.opts
+          report-path: reports/options-file.json
+          summary: "false"
+
+      - name: Action refuses reserved options inside options-file
+        id: options-file-reserved
+        continue-on-error: true
+        uses: ./
+        with:
+          path: ci-options/envios.csv
+          options-file: ci-options/reserved.opts
+          report-path: reports/options-file-reserved.json
+          summary: "false"
+
       - name: Check the action's outputs
         env:
           INPUT_ABSOLUTE_CODE: ${{ steps.input-absolute.outputs.exit-code }}
@@ -373,8 +399,22 @@ jobs:
           ESCAPE_PASSED: ${{ steps.escape.outputs.passed }}
           ESCAPE_JSON: ${{ steps.escape.outputs.report-json }}
           ESCAPE_OUTCOME: ${{ steps.escape.outcome }}
+          OPTIONS_FILE_CODE: ${{ steps.options-file.outputs.exit-code }}
+          OPTIONS_FILE_JSON: ${{ steps.options-file.outputs.report-json }}
+          OPTIONS_RESERVED_CODE: ${{ steps.options-file-reserved.outputs.exit-code }}
+          OPTIONS_RESERVED_JSON: ${{ steps.options-file-reserved.outputs.report-json }}
+          OPTIONS_RESERVED_OUTCOME: ${{ steps.options-file-reserved.outcome }}
         run: |
           set -x
+          test "$OPTIONS_FILE_CODE" = 0
+          test "$OPTIONS_FILE_JSON" = reports/options-file.json
+          grep -Fq '"column": "Nro de guía"' reports/options-file.json
+          grep -Fq '"column": "Fecha entrega"' reports/options-file.json
+          test "$OPTIONS_RESERVED_CODE" = 2
+          test -z "$OPTIONS_RESERVED_JSON"
+          test "$OPTIONS_RESERVED_OUTCOME" = failure
+          test ! -e reports/options-file-reserved.json
+          test ! -e ci-options/stolen.json
           test "$INPUT_ABSOLUTE_CODE" = 2
           test "$INPUT_ABSOLUTE_PASSED" = false
           test "$INPUT_ABSOLUTE_OUTCOME" = failure

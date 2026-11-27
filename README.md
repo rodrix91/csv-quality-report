@@ -248,7 +248,7 @@ python -m csv_quality_report envios.csv --options-file checks/envios.opts --json
 - The options are inserted in place: an option written after `--options-file` on the command line overrides a single-value option of the file (`--options-file daily.opts --top 3`), and repeatable options such as `--unique` or `--range` add up. The option is repeatable and accepts `--options-file=FILE`; a relative `FILE` is relative to the working directory, like every other path.
 - Errors are usage errors (exit code 2) that name the file and the line: a file that cannot be read, one that is not UTF-8 (a UTF-8 BOM is accepted, and `\r\n` line endings too), an unclosed quote, control characters other than tabs, a file over 1 MiB (most likely a CSV passed by mistake), `--options-file` inside a file (files do not include other files) and a bare `--`. Standard input (`-`) is reserved for the CSV. The options of the file are then checked like any other (`--max-rows 0` is still `argument --max-rows: ...`).
 
-Runs without `--options-file` are unchanged. The GitHub Action does not accept it yet (see below). The format is recorded in [ADR 0010](https://github.com/rodrix91/csv-quality-report/blob/main/docs/decisions/0010-options-file.md).
+Runs without `--options-file` are unchanged. The GitHub Action takes the file through its `options-file` input (see below), not in `args`. The format is recorded in [ADR 0010](https://github.com/rodrix91/csv-quality-report/blob/main/docs/decisions/0010-options-file.md).
 
 ### Example: Markdown (default)
 
@@ -438,6 +438,7 @@ jobs:
 |---|---|---|
 | `path` | (required) | CSV file, relative to the workspace; gzip is detected |
 | `args` | `""` | extra command-line options, split on whitespace (no glob expansion) |
+| `options-file` | `""` | options file (`--options-file` format) relative to the workspace, for column names with spaces; its options come before `args`; validated before the run (see below) |
 | `python-version` | `3.12` | Python used to run the tool (3.11 or newer) |
 | `summary` | `true` | write the Markdown report to the job summary |
 | `report-path` | `""` | where to write the JSON report, relative to and contained within the workspace (parent directories are created); empty writes it to a temporary directory |
@@ -456,7 +457,18 @@ The Action's **read inputs** (`path` and optional `baseline`) must also be relat
 
 The Action also requires **single-line** `args` and `baseline-args`: multiline values are rejected with exit code `2` before Bash tokenization, since a Bash `read -a` command would otherwise silently ignore quality gates written after the first newline. Terminal control characters (C0 except horizontal tab, DEL and C1) are refused in these two inputs; ordinary spaces, tabs and Unicode option values continue to work. A rejected input never writes a new report or marks a quality gate as passed. This validation applies to the reusable Action, not the standalone CLI.
 
-`args` and `baseline-args` cannot carry `--baseline` or `--json-output` (use the `baseline` and `report-path` inputs), `--help` or `--version` (they exit 0 without reading the file), or `--options-file` and its abbreviations, since a file could bring back any of those; these are refused with exit code `2`. Column names with spaces therefore cannot be written in `args` yet; reading an options file from the workspace with the same checks is a planned follow-up of #323.
+`args` and `baseline-args` cannot carry `--baseline` or `--json-output` (use the `baseline` and `report-path` inputs), `--help` or `--version` (they exit 0 without reading the file), or `--options-file` and its abbreviations (use the `options-file` input); these are refused with exit code `2`. Since `args` is split on whitespace, column names with spaces go in an options file:
+
+```yaml
+      - name: Check the courier export
+        uses: rodrix91/csv-quality-report@v0.21.0  # pin a release tag or commit SHA
+        with:
+          path: data/envios.csv
+          options-file: checks/envios.opts   # --unique "Nro de guía", --require-when "Fecha entrega" Estado=Entregado, ...
+          args: --top 3
+```
+
+The `options-file` path gets the same checks as `path` and `baseline` (relative, inside `GITHUB_WORKSPACE`, a regular file that is not hard-linked, no control characters). Its contents are parsed with the tool's own parser and every option gets the same guard as `args`: `--baseline`, `--json-output`, `--help`, `--version` and their abbreviations, and a nested `--options-file`, are refused with exit code `2` and the line (`options-file 'checks/envios.opts': line 4: --json-output=x.json: use the Action baseline/report-path inputs; ...`) before any report is written. The CLI then reads a copy of the bytes that were checked, so the file cannot change in between. The file's options come before `args`, so `args` can override a single-value option for one workflow. Options that need the baseline belong in `baseline-args`: in the file they would be a usage error on a run where `if-baseline-missing: skip` left the baseline out.
 
 `report-json` is `report-path` as given when that input is set. An explicit `report-path` must be relative and resolve inside `GITHUB_WORKSPACE`; absolute paths and `..` escapes are refused. The Action never removes an existing user-supplied `report-path`: an early error preserves its content and leaves `report-json` empty. **A zero exit or quality-gate failure (exit 8) only exposes `report-json` if a new, valid JSON quality report was actually written.** The Action compares file identity, size and nanosecond timestamps before and after execution to reject an unchanged old report, and validates the new report's core fields and that its quality-check results agree with the CLI exit code. Missing, malformed or contradictory JSON fails closed (exit `3`, `passed=false`, empty `report-json`); a genuine, fresh atomic replacement of the same path is accepted. Like `--json-output`, the report cannot be written over the input or baseline (exit 2). A `report-path` with a line break or invisible terminal controls (C0, DEL or C1) is an error; ordinary Unicode paths remain supported.
 
