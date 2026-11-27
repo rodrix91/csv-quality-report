@@ -8,7 +8,7 @@ import math
 import os
 import re
 import sys
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from datetime import date, timedelta
 from pathlib import Path
 from unicodedata import category
@@ -39,6 +39,7 @@ from .inference import (
     check_thousands,
     parse_datetime,
 )
+from .optionsfile import read_options_file
 from .output import write_atomic
 from .profile import (
     MAX_CODE_WIDTH,
@@ -61,6 +62,8 @@ from .reader import (
     normalize_encoding,
 )
 from .render import render_json, render_markdown
+
+OPTIONS_FILE = "--options-file"
 
 
 def _positive_int(text: str) -> int:
@@ -589,6 +592,16 @@ def build_parser() -> argparse.ArgumentParser:
         help="CSV file to analyze (UTF-8 unless --encoding; gzip is detected); - reads stdin",
     )
     parser.add_argument("--version", action="version", version=f"csv-quality-report {__version__}")
+    parser.add_argument(
+        OPTIONS_FILE,
+        action="append",
+        metavar="FILE",
+        # Expanded by _expand_options_files() before parsing; registered so
+        # that --help lists it and abbreviations stay unambiguous (#323).
+        help="read more options from FILE, inserted where this option appears: one or "
+        "more per line, quotes group words, a line starting with # is a comment; "
+        "repeatable (a file cannot include another one)",
+    )
     parser.add_argument(
         "--format",
         choices=("markdown", "json"),
@@ -1187,9 +1200,69 @@ def _use_utf8_streams() -> None:
             stream.reconfigure(encoding="utf-8", errors=stream.errors, newline="\n")
 
 
+def _long_options(parser: argparse.ArgumentParser) -> list[str]:
+    return [option for option in parser._option_string_actions if option.startswith("--")]
+
+
+def _options_file_matcher(parser: argparse.ArgumentParser) -> Callable[[str], bool]:
+    """Tell whether a token is --options-file the way argparse reads it.
+
+    argparse accepts an unambiguous prefix of a long option (``--opt``) and
+    an attached value (``--options-file=FILE``), so the expansion must too:
+    otherwise an abbreviation would reach argparse unexpanded.
+    """
+    others = [option for option in _long_options(parser) if option != OPTIONS_FILE]
+
+    def matches(token: str) -> bool:
+        name = token.partition("=")[0]
+        if name == OPTIONS_FILE:
+            return True
+        if not OPTIONS_FILE.startswith(name):
+            return False
+        # "-" and "--" are prefixes of every other long option too, so they
+        # never count as an unambiguous abbreviation.
+        return parser.allow_abbrev and not any(option.startswith(name) for option in others)
+
+    return matches
+
+
+def _expand_options_files(argv: Sequence[str], parser: argparse.ArgumentParser) -> list[str]:
+    """Replace each --options-file FILE with the options in FILE (#323).
+
+    The options are inserted in place, so an option written after
+    --options-file overrides a single-value option of the file and repeatable
+    options add up. Tokens after a bare ``--`` are positional and left alone.
+    Raises ``ValueError`` with a usage message.
+    """
+    is_options_file = _options_file_matcher(parser)
+    expanded: list[str] = []
+    index = 0
+    while index < len(argv):
+        token = argv[index]
+        index += 1
+        if token == "--":
+            expanded.extend(argv[index - 1 :])
+            break
+        if not is_options_file(token):
+            expanded.append(token)
+            continue
+        _, equals, path = token.partition("=")
+        if not equals:
+            if index == len(argv) or (argv[index].startswith("-") and argv[index] != "-"):
+                raise ValueError(f"argument {OPTIONS_FILE}: expected one argument")
+            path = argv[index]
+            index += 1
+        expanded.extend(read_options_file(path, is_options_file=is_options_file))
+    return expanded
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     _use_utf8_streams()
     parser = build_parser()
+    try:
+        argv = _expand_options_files(sys.argv[1:] if argv is None else argv, parser)
+    except ValueError as exc:
+        parser.error(str(exc))
     args = parser.parse_args(argv)
     bool_words = tuple(dict.fromkeys(args.bool_words))  # repeated pairs count once
     try:

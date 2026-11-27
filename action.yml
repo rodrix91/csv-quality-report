@@ -189,6 +189,12 @@ runs:
               annotate error "use the Action baseline/report-path inputs; --baseline and --json-output are reserved"
               finish 2 "" false
               ;;
+            # An options file could carry the options refused here (#323).
+            # --options-file is the only option starting with --o.
+            --o*)
+              annotate error "--options-file is not supported in Action args; write the options in args"
+              finish 2 "" false
+              ;;
           esac
         done
 
