@@ -18,6 +18,7 @@ from .checks import (
     CHECK_LOST_ZEROS,
     CHECK_MAX_AFFIXES,
     CHECK_MAX_AGE,
+    CHECK_MAX_AHEAD,
     CHECK_MEAN_CHANGE,
     CHECK_MOJIBAKE,
     CHECK_PATTERN,
@@ -480,7 +481,7 @@ def render_json(
                 **(_required_when_fields(c) if c.check == CHECK_REQUIRED_WHEN else {}),
                 **(_allowed_fields(c) if c.check == CHECK_SCHEMA_CHANGE else {}),
                 **({"generated_at": c.generated_at} if c.check == CHECK_BASELINE_AGE else {}),
-                **({"newest": c.newest} if c.check == CHECK_MAX_AGE else {}),
+                **({"newest": c.newest} if c.check in (CHECK_MAX_AGE, CHECK_MAX_AHEAD) else {}),
                 **(
                     {"allowed": list(c.allowed), "unexpected": dict(c.unexpected)}
                     if c.check == CHECK_ALLOWED_VALUES

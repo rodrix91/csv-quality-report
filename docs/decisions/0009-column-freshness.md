@@ -29,6 +29,7 @@ What the job needs to know is how old the newest dispatch, count or invoice date
 - Naive exports need one more option. This is deliberate: the alternative is a check that is wrong by the export's offset without saying so.
 - A fixed offset is off by one hour for part of the year in zones with daylight saving time. Limits are usually days, so this is documented rather than solved: named zones would need the `tzdata` package on Windows, and the project has no runtime dependencies.
 - A negative offset must be written with `=` (`--utc-offset=-04:00`), because `argparse` reads a separate `-04:00` as an option. The help text, the message and the README say so.
+- Update (#327): decision 4 stands for `--max-age`, and the case it left to `--range` (event columns that cannot hold future dates) now has its own opt-in gate, `--max-ahead NAME=DURATION`, because `--range` bounds are fixed and a daily pipeline cannot rewrite them every day. It uses the same clock and the same placement of times (`--utc-offset` applies to both, nothing is guessed), with two differences that each give the value the benefit of the doubt: a date counts from the **start** of its day (a date of today is never ahead), and a column with no values passes, since nothing in it is ahead. `DURATION` may be `0`. Its JSON items (`max_ahead`) have the fields of `max_age`, with `value` the seconds ahead of the clock.
 
 ## Alternatives considered
 
