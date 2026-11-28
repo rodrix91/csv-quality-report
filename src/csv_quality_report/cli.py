@@ -230,6 +230,27 @@ def _column_age(text: str) -> tuple[str, int]:
     return name, _duration(value, "--max-age", text)
 
 
+def _column_ahead(text: str) -> tuple[str, int]:
+    """Parse ``NAME=DURATION`` for --max-ahead (split at the last ``=``); 0 is allowed."""
+    name, sep, value = text.rpartition("=")
+    if not sep or not name:
+        raise argparse.ArgumentTypeError(
+            f"invalid --max-ahead value: {text!r} (use NAME=DURATION, such as 'Fecha venta=0')"
+        )
+    if len(value) <= _MAX_DURATION_CHARS and _ZERO_DURATION.fullmatch(value.strip()):
+        return name, 0  # no value may be later than the clock
+    if len(value) <= _MAX_DURATION_CHARS and not _DURATION.fullmatch(value.strip()):
+        raise argparse.ArgumentTypeError(
+            f"invalid --max-ahead value: {text!r} (use 0 or a positive whole number with "
+            "s, m, h, d or w, such as 0, 5m or 1d)"
+        )
+    return name, _duration(value, "--max-ahead", text)
+
+
+# A zero duration for --max-ahead: 0, with or without a unit (0s, 00d).
+_ZERO_DURATION = re.compile(r"0+[smhdw]?")
+
+
 _UTC_OFFSET = re.compile(r"([+-])([0-9]{2}):([0-9]{2})")
 
 
@@ -980,12 +1001,22 @@ def build_parser() -> argparse.ArgumentParser:
         "repeatable",
     )
     gates.add_argument(
+        "--max-ahead",
+        type=_column_ahead,
+        action="append",
+        default=[],
+        metavar="NAME=DURATION",
+        help="fail if the newest value of date or datetime column NAME is more than DURATION "
+        "(0, 5m, 1d) after the clock, for event columns that cannot hold future dates, such "
+        "as a sale or delivery date (a date counts from the start of its day); repeatable",
+    )
+    gates.add_argument(
         "--utc-offset",
         type=_utc_offset,
         metavar="OFFSET",
-        help="with --max-age: the UTC offset (Z, +HH:MM or -HH:MM) of the dates and times "
-        "written without one; write a negative one with =, as --utc-offset=-04:00; without "
-        "it such columns fail the check",
+        help="with --max-age or --max-ahead: the UTC offset (Z, +HH:MM or -HH:MM) of the "
+        "dates and times written without one; write a negative one with =, as "
+        "--utc-offset=-04:00; without it such columns fail the check",
     )
     gates.add_argument(
         "--fail-on-schema-change",
@@ -1102,6 +1133,7 @@ def _check_selected(args: argparse.Namespace) -> None:
         ("--max-mean-change", [name for name, _ in args.max_mean_change]),
         ("--unique", args.unique),
         ("--max-age", [name for name, _ in args.max_age]),
+        ("--max-ahead", [name for name, _ in args.max_ahead]),
         ("--allowed-values", [name for name, _ in args.allowed_values]),
         ("--pattern", [name for name, _ in args.pattern]),
         ("--check-digit", [name for name, _ in args.check_digit]),
@@ -1312,13 +1344,18 @@ def main(argv: Sequence[str] | None = None) -> int:
             raise ValueError("--month-names needs --date-order (the order of day, month and year)")
         if args.na_ignore_case and not args.na:
             raise ValueError("--na-ignore-case needs --na (the missing-value texts to match)")
-        if args.utc_offset is not None and not args.max_age:
-            raise ValueError("--utc-offset needs --max-age (it only places times for that check)")
+        if args.utc_offset is not None and not (args.max_age or args.max_ahead):
+            raise ValueError(
+                "--utc-offset needs --max-age or --max-ahead (it only places times for those "
+                "checks)"
+            )
         if args.record_time and args.format != "json" and args.json_output is None:
             raise ValueError("--record-time needs a JSON report (--format json or --json-output)")
         # One reading of the clock: the stamp and the age check agree, and a
         # bad SOURCE_DATE_EPOCH is a usage error before the file is read.
-        needs_clock = args.record_time or args.max_baseline_age is not None or args.max_age
+        needs_clock = (
+            args.record_time or args.max_baseline_age is not None or args.max_age or args.max_ahead
+        )
         now = current_time() if needs_clock else None
     except ValueError as exc:
         parser.error(str(exc))
@@ -1393,6 +1430,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         required_when=args.require_when,  # a repeated requirement gives one check
         forbid_lost_zeros=dict(args.forbid_lost_zeros),  # the last width for a name wins
         column_max_ages=dict(args.max_age),  # the last limit for a name wins
+        column_max_aheads=dict(args.max_ahead),  # the last limit for a name wins
         now=now,
         utc_offset=args.utc_offset,
     )

@@ -1,0 +1,224 @@
+{
+  "source": "tests/corpus/bo_pos_sales_swapped_day.csv",
+  "rows": 6,
+  "truncated": false,
+  "delimiter": ";",
+  "delimiter_detected": true,
+  "sep_line": false,
+  "na_tokens": [],
+  "top_n": 3,
+  "compressed": false,
+  "encoding": "utf-8",
+  "thousands": ".",
+  "date_order": "dmy",
+  "bool_words": [],
+  "number_affixes": [],
+  "accounting_negatives": false,
+  "selected_columns": null,
+  "header_columns": 6,
+  "duplicate_rows": 0,
+  "untrimmed_columns": [],
+  "columns": [
+    {
+      "name": "Nro venta",
+      "type": "string",
+      "type_hint": null,
+      "missing": 0,
+      "missing_pct": 0.0,
+      "distinct": 6,
+      "min": null,
+      "max": null,
+      "mean": null,
+      "min_length": 7,
+      "max_length": 7,
+      "top_values": [
+        {
+          "value": "V-10231",
+          "count": 1
+        },
+        {
+          "value": "V-10232",
+          "count": 1
+        },
+        {
+          "value": "V-10233",
+          "count": 1
+        }
+      ],
+      "untrimmed": 0,
+      "affixes": {}
+    },
+    {
+      "name": "Fecha venta",
+      "type": "date",
+      "type_hint": null,
+      "missing": 0,
+      "missing_pct": 0.0,
+      "distinct": 5,
+      "min": "2026-11-10",
+      "max": "2026-12-11",
+      "mean": null,
+      "min_length": 10,
+      "max_length": 10,
+      "top_values": [
+        {
+          "value": "26/11/2026",
+          "count": 2
+        },
+        {
+          "value": "10/11/2026",
+          "count": 1
+        },
+        {
+          "value": "11/11/2026",
+          "count": 1
+        }
+      ],
+      "untrimmed": 0,
+      "affixes": {}
+    },
+    {
+      "name": "Hora cobro",
+      "type": "datetime",
+      "type_hint": null,
+      "missing": 0,
+      "missing_pct": 0.0,
+      "distinct": 6,
+      "min": "2026-11-10 09:12",
+      "max": "2026-11-26 21:40",
+      "mean": null,
+      "min_length": 16,
+      "max_length": 16,
+      "top_values": [
+        {
+          "value": "10/11/2026 09:12",
+          "count": 1
+        },
+        {
+          "value": "11/11/2026 16:05",
+          "count": 1
+        },
+        {
+          "value": "12/11/2026 11:47",
+          "count": 1
+        }
+      ],
+      "untrimmed": 0,
+      "affixes": {}
+    },
+    {
+      "name": "Sucursal",
+      "type": "string",
+      "type_hint": null,
+      "missing": 0,
+      "missing_pct": 0.0,
+      "distinct": 3,
+      "min": null,
+      "max": null,
+      "mean": null,
+      "min_length": 6,
+      "max_length": 10,
+      "top_values": [
+        {
+          "value": "La Paz",
+          "count": 3
+        },
+        {
+          "value": "El Alto",
+          "count": 2
+        },
+        {
+          "value": "Cochabamba",
+          "count": 1
+        }
+      ],
+      "untrimmed": 0,
+      "affixes": {}
+    },
+    {
+      "name": "Importe Bs",
+      "type": "float",
+      "type_hint": null,
+      "missing": 0,
+      "missing_pct": 0.0,
+      "distinct": 6,
+      "min": 95.0,
+      "max": 2104.9,
+      "mean": 913.442,
+      "min_length": 5,
+      "max_length": 8,
+      "top_values": [
+        {
+          "value": "1.250,50",
+          "count": 1
+        },
+        {
+          "value": "380,00",
+          "count": 1
+        },
+        {
+          "value": "2.104,90",
+          "count": 1
+        }
+      ],
+      "untrimmed": 0,
+      "affixes": {}
+    },
+    {
+      "name": "Entrega pactada",
+      "type": "date",
+      "type_hint": null,
+      "missing": 0,
+      "missing_pct": 0.0,
+      "distinct": 6,
+      "min": "2026-11-12",
+      "max": "2026-12-04",
+      "mean": null,
+      "min_length": 10,
+      "max_length": 10,
+      "top_values": [
+        {
+          "value": "12/11/2026",
+          "count": 1
+        },
+        {
+          "value": "13/11/2026",
+          "count": 1
+        },
+        {
+          "value": "15/11/2026",
+          "count": 1
+        }
+      ],
+      "untrimmed": 0,
+      "affixes": {}
+    }
+  ],
+  "baseline": null,
+  "checks": [
+    {
+      "check": "max_age",
+      "column": "Fecha venta",
+      "limit": 172800,
+      "value": -1267200,
+      "passed": true,
+      "newest": "2026-12-11"
+    },
+    {
+      "check": "max_ahead",
+      "column": "Fecha venta",
+      "limit": 0,
+      "value": 1180800,
+      "passed": false,
+      "newest": "2026-12-11"
+    },
+    {
+      "check": "max_ahead",
+      "column": "Hora cobro",
+      "limit": 300,
+      "value": -37200,
+      "passed": true,
+      "newest": "2026-11-26 21:40"
+    }
+  ]
+}

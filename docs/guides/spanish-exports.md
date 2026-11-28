@@ -48,6 +48,7 @@ csv-quality-report never guesses these conventions: each one is turned on with a
 | An export that ran twice into the same file, a join that fans out or a lost date filter (the same columns, many more rows) | `--baseline yesterday.json --max-row-growth 20` |
 | Values that all moved by a factor while the columns, types and rows stayed the same (weights now in grams, amounts in cents, a thousands separator read as a decimal mark) | `--baseline yesterday.json --max-mean-change "Peso kg=50" --max-mean-change Importe=30` |
 | An export that is well formed but stale (the ERP job stopped, last week's file was copied again) | `--max-age Despacho=2d --utc-offset=-04:00` (the offset the export writes its times in) |
+| A sale, dispatch or payment dated after the run (day and month swapped by a sheet with a US locale, `11/12/2026` for 12 November; a typo in the year), which `--max-age` counts as fresh | `--max-ahead "Fecha venta=0" --utc-offset=-04:00` (a date counts from the start of its day; leave planning columns such as a promised delivery date out) |
 | A comparison with a baseline that stopped being refreshed (an expired cache, a job that kept reading an old report) | `--record-time` on every run, `--baseline yesterday.json --max-baseline-age 36h` on the next |
 | Impossible values: negative weights, dates in 1900 | `--range Peso=0:` or `--range Fecha=2026-01-01:2026-12-31` |
 | Times outside the period or shift | `--range Despacho=2026-01-01:2026-01-31` or `--range Despacho=2026-01-05T06:00:2026-01-05T22:00` |

@@ -63,6 +63,7 @@ CHECK_UNIQUE = "unique"
 CHECK_UNIQUE_KEY = "unique_key"
 CHECK_BASELINE_AGE = "baseline_age"
 CHECK_MAX_AGE = "max_age"
+CHECK_MAX_AHEAD = "max_ahead"
 CHECK_MIN_ROWS = "min_rows"
 CHECK_ALLOWED_VALUES = "allowed_values"
 CHECK_PATTERN = "pattern"
@@ -148,7 +149,7 @@ class CheckResult:
     allowed_removed: tuple[str, ...] = ()
     tolerated_removed: tuple[str, ...] = ()
     generated_at: str | None = None  # baseline_age checks: the baseline's stamp
-    newest: str | None = None  # max_age checks: the column's newest value, as reported
+    newest: str | None = None  # max_age and max_ahead checks: the column's newest value
     allowed: tuple[str, ...] = ()  # allowed_values checks: the values given
     unexpected: tuple[tuple[str, int], ...] = ()  # allowed_values: most frequent (value, cells)
     pattern: str = ""  # pattern checks: the regular expression given
@@ -242,6 +243,8 @@ class CheckResult:
             return self.detail
         if self.check == CHECK_MAX_AGE:
             return self._describe_max_age()
+        if self.check == CHECK_MAX_AHEAD:
+            return self._describe_max_ahead()
         if self.check == CHECK_ALLOWED_VALUES:
             return self._describe_allowed_values()
         if self.check == CHECK_PATTERN:
@@ -626,6 +629,32 @@ class CheckResult:
         return (
             f"column '{self.column}' {state}: its newest value {self.newest} is "
             f"{format_duration(int(self.value))} old (limit {limit})"
+        )
+
+    def _describe_max_ahead(self) -> str:
+        limit = format_duration(int(self.limit))
+        if self.detail == _NO_VALUES:
+            return f"column '{self.column}' has no values, so none is ahead of the clock"
+        if self.actual not in _AGE_TYPES:
+            message = (
+                f"column '{self.column}' is {self.actual}, a time ahead of the clock needs "
+                "date or datetime values"
+            )
+            return message + (f" ({self.detail})" if self.detail else "")
+        if self.detail:  # values whose time cannot be placed without a guess
+            return f"column '{self.column}' cannot be checked for values ahead ({self.detail})"
+        if self.value <= 0:
+            # A date is a day that began at midnight; a date-time is an instant.
+            verb = "began" if self.actual == "date" else "is"
+            return (
+                f"column '{self.column}' is not ahead of the clock: its newest value "
+                f"{self.newest} {verb} {format_duration(-int(self.value))} before it "
+                f"(limit {limit})"
+            )
+        state = "is within the limit" if self.passed else "is too far ahead"
+        return (
+            f"column '{self.column}' {state}: its newest value {self.newest} is "
+            f"{format_duration(int(self.value))} ahead of the clock (limit {limit})"
         )
 
     def _describe_range(self) -> str:
@@ -1269,6 +1298,57 @@ def _max_age_check(
     return result(age <= max_age, value=age)
 
 
+def _max_ahead_check(
+    name: str, column: ColumnProfile, max_ahead: int, now: datetime, utc_offset: timedelta | None
+) -> CheckResult:
+    """The ``max_ahead`` check: the newest value of ``column`` is at most ``max_ahead`` seconds
+    after ``now``.
+
+    ``value`` is the newest value minus ``now``, in whole seconds, negative
+    when it is not ahead. Times are placed as in ``max_age`` (no time zone is
+    guessed), but a ``date`` column's newest day counts from its start, so a
+    day that has begun is never ahead. A column with no values passes: none
+    of them is ahead (ADR 0009, issue #327).
+    """
+    newest = None if column.max is None else str(column.max)
+
+    def result(passed: bool, value: int = 0, detail: str = "") -> CheckResult:
+        return CheckResult(
+            check=CHECK_MAX_AHEAD,
+            column=name,
+            limit=max_ahead,
+            value=value,
+            passed=passed,
+            detail=detail,
+            actual=column.type,
+            newest=newest,
+        )
+
+    if column.distinct == 0:  # an empty column (reported as string): nothing is ahead
+        return result(True, detail=_NO_VALUES)
+    if column.type not in _AGE_TYPES:
+        hint = column.type_hint
+        detail = ""
+        if hint is not None and hint.type in _AGE_TYPES:
+            noun = "value does" if hint.nonconforming == 1 else "values do"
+            examples = ", ".join(f'"{v}"' for v in hint.examples)
+            detail = f"{hint.nonconforming} {noun} not fit: {examples}"
+        return result(False, detail=detail)
+    if newest is None:  # a datetime column mixing values with and without an offset
+        return result(False, detail="it mixes values with and without a UTC offset")
+    moment = _moment(newest)  # a date is the midnight its day begins
+    if moment.tzinfo is None:
+        if utc_offset is None:
+            return result(
+                False,
+                detail="its values have no UTC offset; give the offset the export writes its "
+                "times in, such as --utc-offset=-04:00",
+            )
+        moment = moment.replace(tzinfo=timezone(utc_offset))
+    ahead = (moment - now) // timedelta(seconds=1)
+    return result(ahead <= max_ahead, value=ahead)
+
+
 def _unique_check(name: str, column: ColumnProfile, rows: int) -> CheckResult:
     """A check that fails when ``column`` has a non-missing value more than once.
 
@@ -1549,6 +1629,7 @@ def evaluate(
     forbid_untrimmed: Iterable[str] = (),
     required_when: Iterable[tuple[str, str, Iterable[str]]] = (),
     forbid_lost_zeros: Mapping[str, int] | None = None,
+    column_max_aheads: Mapping[str, int] | None = None,
 ) -> list[CheckResult]:
     """Evaluate the requested thresholds; a value equal to its limit passes.
 
@@ -1614,6 +1695,15 @@ def evaluate(
     check fails instead of guessing a time zone. A ``date`` column's newest
     day counts until its end. A newest value ahead of ``now`` passes, with a
     negative ``value``. Unknown names fail as ``required_column`` (ADR 0009).
+
+    ``column_max_aheads`` maps column names to the most seconds (0 or more)
+    their newest value may lie after ``now`` (required with it), for event
+    columns that cannot hold future dates: a sale, a dispatch, a delivery.
+    Times are placed as for ``column_max_ages`` and with the same
+    ``utc_offset``, but a ``date`` column's newest day counts from its
+    start, so a day that has begun is never ahead. A column with no values
+    passes; one of another type fails. ``value`` is how far ahead the newest
+    value is, negative when it is not ahead (issue #327).
 
     ``min_rows`` is the fewest data rows the file may have (``Report.rows``,
     the rows analyzed), at least 1: a file with only its header passes every
@@ -1825,6 +1915,8 @@ def evaluate(
     presences = {name: required_list(values) for name, values in (required_values or {}).items()}
     gated += [*(column_ranges or {}), *unique, *max_ages, *domains, *formats, *schemes]
     gated += presences
+    max_aheads = dict(column_max_aheads or {})
+    gated += max_aheads
     consistent = list(dict.fromkeys(consistent_values))
     exact = list(dict.fromkeys(forbid_scientific))
     garbled = list(dict.fromkeys(forbid_mojibake))
@@ -1904,6 +1996,18 @@ def evaluate(
             if column is None:
                 continue  # reported below as a missing required column
             results.append(_max_age_check(name, column, max_age, now, utc_offset))
+    if max_aheads:
+        if now is None or now.tzinfo is None or now.utcoffset() is None:
+            raise ValueError("max_ahead checks need now, an aware datetime (with a UTC offset)")
+        for name, max_ahead in max_aheads.items():
+            if isinstance(max_ahead, bool) or not isinstance(max_ahead, int) or max_ahead < 0:
+                raise ValueError(
+                    f"max ahead for column {name!r} must be a whole number of seconds, 0 or more"
+                )
+            column = by_name.get(name)
+            if column is None:
+                continue  # reported below as a missing required column
+            results.append(_max_ahead_check(name, column, max_ahead, now, utc_offset))
     measured_domains = {domain.column: domain for domain in report.domains}
     for name, allowed in domains.items():
         if name not in by_name:
@@ -2072,6 +2176,7 @@ def evaluate(
             *order_names,
             *condition_names,
             *max_ages,
+            *max_aheads,
             *domains,
             *formats,
             *schemes,
